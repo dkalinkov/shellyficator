@@ -1,0 +1,39 @@
+{{define "organization-fields"}}
+<div class="field label-picker" data-label-picker="room">
+  <label for="device-room">Room</label>
+  <div class="picker-field">
+    <input id="device-room" class="input w-full" name="room" value="{{get .Device "room"}}" maxlength="100" autocomplete="off" placeholder="Choose or add a room…" data-picker-input>
+    <button type="button" class="picker-clear" aria-label="Clear room" data-picker-clear hidden><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+    <button type="button" class="picker-toggle" aria-label="Room suggestions" aria-controls="room-suggestions" aria-expanded="false" data-picker-toggle><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+  </div>
+  <div id="room-suggestions" class="picker-menu" role="listbox" aria-label="Rooms" data-picker-menu hidden></div>
+  <select data-picker-source hidden disabled>{{range .Rooms}}<option>{{.}}</option>{{end}}</select>
+</div>
+<div class="field label-picker" data-label-picker="tags">
+  <label for="device-tags">Tags</label>
+  <div class="tag-chips" data-tag-chips hidden></div>
+  <div class="picker-field"><input id="device-tags" class="input w-full" name="tags" value="{{get .Device "tags"}}" maxlength="500" autocomplete="off" placeholder="Find or add a tag…" data-picker-input><button type="button" class="picker-toggle" aria-label="Tag suggestions" aria-controls="tag-suggestions" aria-expanded="false" data-picker-toggle><svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></div>
+  <div id="tag-suggestions" class="picker-menu" role="listbox" aria-label="Tags" data-picker-menu hidden></div>
+  <select data-picker-source hidden disabled>{{range .Tags}}<option>{{.}}</option>{{end}}</select>
+  <p class="sr-only" data-picker-status role="status"></p>
+</div>
+{{end}}
+
+{{define "organization-editor"}}
+<form action="/devices/{{.Device.Id}}/organization" method="post" hx-post="/devices/{{.Device.Id}}/organization" hx-target="#inventory" hx-swap="innerHTML" hx-disabled-elt="find fieldset" data-organization-form>
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <fieldset>
+    <div class="organization-heading"><div><h2 id="organization-title">Room & tags</h2><p>{{.Name}}</p></div><button type="button" class="icon-button" aria-label="Close editor" data-organization-close><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button></div>
+    <div class="organization-fields">{{template "organization-fields" .}}</div>
+    <p class="organization-error" role="alert" data-organization-error hidden></p>
+    <div class="organization-footer"><button type="button" class="btn btn-ghost" data-organization-close>Cancel</button><button type="submit" class="btn btn-primary">Save <span class="loading loading-spinner loading-xs loading-indicator" aria-hidden="true"></span></button></div>
+  </fieldset>
+</form>
+{{end}}
+
+{{define "room-options"}}<option value="">All rooms</option>{{range .Rooms}}<option value="{{.}}" {{if eq . $.Room}}selected{{end}}>{{.}}</option>{{end}}{{end}}
+
+{{define "organization-saved"}}
+{{template "inventory" .}}
+<select id="room" hx-swap-oob="innerHTML">{{template "room-options" .}}</select>
+{{end}}
