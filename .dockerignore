@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+node_modules
+pb_data
+bin
+.air
+research
+.superdesign
+.playwright-mcp
