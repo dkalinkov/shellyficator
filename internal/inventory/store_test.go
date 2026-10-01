@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase"
-	"shelly-manager/internal/shelly"
-	_ "shelly-manager/migrations"
+	"shellyficator/internal/shelly"
+	_ "shellyficator/migrations"
 )
 
 func testStore(t *testing.T) *Store {

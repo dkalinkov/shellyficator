@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
-	"shelly-manager/internal/inventory"
+	"shellyficator/internal/inventory"
 )
 
 type DeviceTable struct {
