@@ -1,0 +1,10 @@
+/pb_data/
+/bin/
+/.air/
+/.env
+/.env.*
+!/.env.example
+/.superdesign/
+/test-results/
+/node_modules/
+/.playwright-mcp/
