@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"shelly-manager/internal/shelly"
+	"shellyficator/internal/shelly"
 )
 
 func TestOrganizationReusesLabelsAndPreservesDeviceData(t *testing.T) {

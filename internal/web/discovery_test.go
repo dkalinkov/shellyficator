@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/pocketbase/pocketbase"
-	"shelly-manager/internal/inventory"
-	"shelly-manager/internal/shelly"
-	_ "shelly-manager/migrations"
+	"shellyficator/internal/inventory"
+	"shellyficator/internal/shelly"
+	_ "shellyficator/migrations"
 )
 
 func TestEmptyAutomaticDiscoveryStopsWithoutProbingAddresses(t *testing.T) {

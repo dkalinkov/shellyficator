@@ -6,7 +6,8 @@
 - Responsive inventory, input disclosures, device details, rooms/tags, and device/channel notes.
 - Gen2+ discovery via IPv4 mDNS and cached LAN neighbors; explicit host/subnet scans under Advanced discovery. MAC identity and offline entries persist.
 - Shared status polling, manual refresh, pause, configuration captures, baseline approval, and differences.
-- Environment-supplied device credentials, embedded assets, automatic development restarts, and a non-root container with persistent data.
+- Environment and dotenv configuration, embedded assets, automatic development restarts, and a non-root container with persistent data.
+- Consistent Shellyficator naming and semantic app versions, with Git release tags, CLI/UI version display, and commit/build-time metadata.
 
 The app currently reads device settings; device writes are pending.
 
@@ -29,3 +30,10 @@ Further scope: [product brief](PRODUCT_BRIEF.md#later).
 - Homelab networking and physical-control acceptance remain open. Docker Desktop host networking was not reachable from WSL.
 
 Run instructions: [README](README.md).
+
+## Versioning and configuration verification — 2026-10-01
+
+- Go tests/vet, CSS/native builds, and Docker build/readiness passed. The container runs as `shellyficator`, UID 10001.
+- Actual builds checked clean untagged commits, matching/mismatching release tags, tracked/untracked changes, and a changed base version.
+- Dotenv tests cover missing files, quotes/comments, process/local/default precedence, empty environment values, malformed files, and safe errors. Setup/login worked from dotenv configuration; mounted container files applied local overrides.
+- Login/dashboard version labels passed at 320px/390px/1440px without overflow or browser console errors.

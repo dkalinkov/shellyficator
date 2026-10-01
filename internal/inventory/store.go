@@ -10,7 +10,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"shelly-manager/internal/shelly"
+	"shellyficator/internal/shelly"
 )
 
 type Store struct{ App core.App }

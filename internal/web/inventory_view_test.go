@@ -6,7 +6,7 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	_ "shelly-manager/migrations"
+	_ "shellyficator/migrations"
 )
 
 func TestInventoryPresentation(t *testing.T) {

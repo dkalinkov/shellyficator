@@ -22,8 +22,8 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"shelly-manager/internal/inventory"
-	"shelly-manager/internal/shelly"
+	"shellyficator/internal/inventory"
+	"shellyficator/internal/shelly"
 )
 
 //go:embed templates/*.html static/*
@@ -35,6 +35,7 @@ type Server struct {
 	announcements func(context.Context) ([]string, error)
 	neighbors     func(context.Context) ([]string, error)
 	templates     *template.Template
+	version       string
 	mu            sync.Mutex
 	discovery     Discovery
 	refreshing    bool
@@ -66,6 +67,7 @@ type Channel struct {
 type Metric struct{ Label, Value string }
 type Page struct {
 	Title, Active, CSRF, Notice, Error, Query, Room string
+	Version                                         string
 	Devices                                         []Device
 	Rooms, Tags                                     []string
 	Total, Reachable, Changed, Unprotected          int
@@ -81,7 +83,7 @@ type Page struct {
 	Config                                          string
 }
 
-func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client) error {
+func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client, version string) error {
 	// The app's first-run form creates both accounts; the PocketBase installer is redundant.
 	e.InstallerFunc = nil
 	functions := template.FuncMap{"get": func(r *core.Record, key string) string { return r.GetString(key) }, "flag": func(r *core.Record, key string) bool { return r.GetBool(key) }, "when": inventory.FormatTime, "value": inventory.Display, "tags": inventory.SplitTags}
@@ -89,7 +91,7 @@ func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client)
 	if err != nil {
 		return err
 	}
-	s := &Server{store: store, client: client, announcements: shelly.Announcements, neighbors: shelly.Neighbors, templates: templates, loginAttempts: map[string]loginAttempt{}}
+	s := &Server{store: store, client: client, announcements: shelly.Announcements, neighbors: shelly.Neighbors, templates: templates, version: version, loginAttempts: map[string]loginAttempt{}}
 	static, err := fs.Sub(assets, "static")
 	if err != nil {
 		return err
@@ -284,6 +286,7 @@ func (s *Server) logout(e *core.RequestEvent) error {
 }
 
 func (s *Server) render(e *core.RequestEvent, name string, page Page) error {
+	page.Version = s.version
 	var buffer bytes.Buffer
 	if err := s.templates.ExecuteTemplate(&buffer, name, page); err != nil {
 		return err

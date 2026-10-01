@@ -1,11 +1,14 @@
-.PHONY: build run test css dev dev-build
+.PHONY: build run test css dev dev-build docker
 
 css:
 	npm ci --ignore-scripts
 	npm run build
 
 build: css
-	CGO_ENABLED=0 go build -trimpath -o bin/shelly-manager .
+	sh scripts/build.sh bin/shellyficator
+
+docker:
+	sh scripts/build.sh docker
 
 run:
 	go run . serve --http=127.0.0.1:8090 --dir=./pb_data
@@ -18,7 +21,7 @@ dev: node_modules/.package-lock.json
 
 dev-build: node_modules/.package-lock.json
 	npm run build
-	CGO_ENABLED=0 go build -trimpath -o .air/shelly-manager .
+	sh scripts/build.sh .air/shellyficator
 
 test:
 	go test ./...

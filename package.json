@@ -1,5 +1,5 @@
 {
-  "name": "shelly-manager-ui",
+  "name": "shellyficator-ui",
   "private": true,
   "scripts": {
     "build:css": "tailwindcss -i ui/styles.css -o internal/web/static/app.css --minify",
