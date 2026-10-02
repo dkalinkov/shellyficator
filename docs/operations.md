@@ -12,7 +12,7 @@ See [`.env.example`](../.env.example) for available variables:
 
 Restart after configuration changes; `make dev` restarts automatically. Choose **Discover**; use **Advanced discovery** with an IP, hostname, or private subnet if devices are missing.
 
-`make dev` and `make build` rebuild CSS and copy vendor assets only when their inputs change or outputs are missing. Development builds omit timestamps by default to reuse cached Go builds; set `BUILD_DATE` to include one.
+`make dev`, `make run`, and `make build` rebuild CSS and copy vendor assets only when their inputs change or outputs are missing. Generated `internal/web/static/app.css` is ignored by Git. Development builds omit timestamps by default to reuse cached Go builds; set `BUILD_DATE` to include one.
 
 ## Docker
 
