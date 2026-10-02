@@ -29,6 +29,7 @@ function colorRoomFilter() {
 
 function initializeLabelColors(container) {
   for (const element of container.querySelectorAll('[data-room-label]')) colorLabel(element, element.dataset.roomLabel);
+  for (const element of container.querySelectorAll('[data-tag-label]')) colorLabel(element, element.dataset.tagLabel);
   colorRoomFilter();
 }
 
