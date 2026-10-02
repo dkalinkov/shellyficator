@@ -53,11 +53,21 @@ func TestCloudConnectionPresentation(t *testing.T) {
 				if err := s.templates.ExecuteTemplate(&body, name, data); err != nil {
 					t.Fatal(err)
 				}
-				if !strings.Contains(body.String(), "tone-"+test.tone) || !strings.Contains(body.String(), test.value) || strings.Contains(body.String(), "Desk <lamp>") {
-					t.Fatalf("%s lost state, color or escaping", name)
+				if strings.Contains(body.String(), "Desk <lamp>") {
+					t.Fatalf("%s lost name escaping", name)
 				}
-				if name == "inventory-table" && !strings.Contains(body.String(), "#detail-connection") {
-					t.Fatal("cloud indicator no longer links to connection details")
+				if name == "detail" {
+					if !strings.Contains(body.String(), "tone-"+test.tone) || !strings.Contains(body.String(), test.value) {
+						t.Fatal("connection panel lost state or color")
+					}
+				} else {
+					visible := test.value == "Connected"
+					if strings.Contains(body.String(), "cloud-indicator") != visible {
+						t.Fatal("inventory cloud visibility does not match confirmed connection")
+					}
+					if visible && (!strings.Contains(body.String(), "#detail-connection") || !strings.Contains(body.String(), "Shelly Cloud: Connected")) {
+						t.Fatal("connected cloud icon lost its link or accessible state")
+					}
 				}
 			}
 		})

@@ -27,12 +27,12 @@ See [implementation status](IMPLEMENTATION.md) for delivered features and remain
 
 ## Interface rules
 
-- Compact searchable desktop rows; stacked entries on phones. Row clicks open details; name links retain keyboard and native browser behaviour.
-- Expand inputs beneath the row without navigating. Preserve filters, expansion, focus, and scroll through updates.
+- Compact searchable desktop rows; stacked entries on phones. Give secondary columns equal widths and centered content; keep cell padding and badge heights consistent. Pack visible status icons together without reserving space for hidden icons. Row clicks open details; name links retain keyboard and native browser behaviour.
+- Separate IP and room columns. Keep the input count and chevron beside the device name; expand inputs beneath the row without navigating. Preserve filters, expansion, focus, and scroll through updates.
 - Combine search and room filters with multiple colored tag filters. Match any selected tag; preserve filters through refreshes, edits, and URL reloads.
 - Optionally group the filtered list by room, with room colors and device counts; show devices without a room last. Collapse rooms independently and remember their state in the browser tab. Preserve grouping through refreshes, edits, and URL reloads.
 - Show input type/state, relay mode/state, enable/lock/invert flags, power-loss behaviour, and channel notes. Modes/settings come from the latest configuration read; physical state, relay state, and Wi-Fi come from status polling. Label the settings read time explicitly; failed configuration reads preserve saved settings and show an unavailable warning independently of live status.
-- Show reachability, drift counts, unavailable comparisons, and faults as text. Omit power, voltage, current, and energy from the UI; keep temperature, uptime, firmware, MAC, and connection details on the device page/tooltips.
+- Use a single reachability/fault icon plus cloud connectivity in the Status column, with accessible labels and tooltips. Show an amber restart icon only when current status reports `sys.restart_required`; hide it for missing, false, stale, or unavailable readings. Show the inventory cloud icon only for a confirmed current connection, using mint and a reduced-motion-aware shine. Keep inactive cloud indicators subdued on device details. Show drift counts and unavailable comparisons as text. Omit power, voltage, current, and energy from the UI; keep temperature, uptime, firmware, MAC, and connection details on the device page/tooltips.
 - Colours: green reachable/matching; red offline/faults; amber drift/security gaps; blue models/input controls; violet detached mode. Each room/tag has a name-based color, shared by its labels and suggestions. Wi-Fi: green ≥ -60 dBm, amber ≥ -70, red below -70; mute stale readings.
 - Tooltips support hover, focus, touch, and Escape. Respect reduced motion.
 - Room/tag editing supports existing or new names, removable tag chips, explicit Save, and Cancel/Escape. Pause polling while editing; retain drafts on failure. See [editing rules](research/organization-editing-2026-09-30.md).

@@ -15,11 +15,13 @@ type DeviceTable struct {
 	Model, Identity, Address, Note, Signal              string
 	SignalValue, SignalTone                             string
 	Connectivity, ConnectivityTone, ConnectionInfo      string
+	ConnectivityIcon                                    string
 	Configuration, ConfigurationTone, ConfigurationInfo string
 	Cloud                                               ConnectionState
 	Inputs                                              []TableInput
 	SettingsWarning                                     string
 	InputsChanged                                       bool
+	RestartRequired                                     bool
 }
 
 type TableInput struct {
@@ -42,7 +44,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		model = name
 	}
 	view := DeviceTable{
-		Model: model, Connectivity: "Reachable", ConnectivityTone: "ok",
+		Model: model, Connectivity: "Reachable", ConnectivityTone: "ok", ConnectivityIcon: "check-circle",
 		SignalValue: "—", SignalTone: "muted",
 		Configuration: "No baseline", ConfigurationTone: "muted",
 		Identity:          fmt.Sprintf("%s\n%s · Gen %d\nFirmware %s\nMAC %s", record.GetString("device_id"), record.GetString("model"), record.GetInt("generation"), record.GetString("firmware"), record.GetString("mac")),
@@ -67,13 +69,18 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 	}
 	if !record.GetBool("reachable") {
 		view.Connectivity, view.ConnectivityTone = "Offline", "error"
+		view.ConnectivityIcon = "close-circle"
 	} else if !record.GetBool("status_available") {
 		view.Connectivity, view.ConnectivityTone = "Read failed", "warning"
+		view.ConnectivityIcon = "warning"
 	}
 	if problem := record.GetString("problem"); problem != "" {
 		view.ConnectionInfo += "\n" + problem
 	}
 	currentStatus := record.GetBool("reachable") && record.GetBool("status_available")
+	sys, _ := status["sys"].(map[string]any)
+	restart, _ := sys["restart_required"].(bool)
+	view.RestartRequired = currentStatus && restart
 	cloudStatus, _ := status["cloud"].(map[string]any)
 	cloudConfig, _ := config["cloud"].(map[string]any)
 	view.Cloud = serviceConnection(cloudStatus, cloudConfig, currentStatus, record.GetBool("reachable") && record.GetBool("config_available"))
@@ -209,6 +216,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		}
 		if len(faults) > 0 {
 			view.Connectivity, view.ConnectivityTone = "Device fault", "error"
+			view.ConnectivityIcon = "warning"
 			sort.Strings(faults)
 			view.ConnectionInfo += "\n" + strings.Join(faults, "\n")
 		}

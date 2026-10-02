@@ -49,7 +49,7 @@ func TestInventoryPresentation(t *testing.T) {
 		if view.SettingsWarning != "" {
 			t.Fatalf("available settings displayed as unavailable: %+v", view)
 		}
-		if view.Inputs[0].State != "Not reported" || view.Inputs[0].Output != "On" || view.Inputs[1].State != "Off" || view.Inputs[1].Output != "Off" {
+		if view.ConnectivityIcon != "check-circle" || view.Inputs[0].State != "Not reported" || view.Inputs[0].Output != "On" || view.Inputs[1].State != "Off" || view.Inputs[1].Output != "Off" {
 			t.Fatalf("input state or relay state lost: %+v", view.Inputs)
 		}
 	})
@@ -82,7 +82,7 @@ func TestInventoryPresentation(t *testing.T) {
 		r := record(status)
 		r.Set("reachable", false)
 		view := tableDevice(r, map[string]any{}, 4)
-		if view.Connectivity != "Offline" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Inputs[0].Changed || view.Configuration != "Unavailable" || view.Inputs[0].State != "—" || view.Inputs[0].Output != "—" || view.SignalTone != "muted" || view.SignalValue != "-55" {
+		if view.Connectivity != "Offline" || view.ConnectivityIcon != "close-circle" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Inputs[0].Changed || view.Configuration != "Unavailable" || view.Inputs[0].State != "—" || view.Inputs[0].Output != "—" || view.SignalTone != "muted" || view.SignalValue != "-55" {
 			t.Fatalf("stale values displayed as current: %+v", view)
 		}
 	})
@@ -95,8 +95,19 @@ func TestInventoryPresentation(t *testing.T) {
 		}
 		r.Set("status_available", false)
 		view = tableDevice(r, map[string]any{}, 4)
-		if view.Inputs[0].Output != "—" || view.Connectivity != "Read failed" || view.ConnectivityTone != "warning" {
+		if view.Inputs[0].Output != "—" || view.Connectivity != "Read failed" || view.ConnectivityTone != "warning" || view.ConnectivityIcon != "warning" {
 			t.Fatalf("status failure displayed as healthy: %+v", view)
+		}
+	})
+	t.Run("device faults change the health icon and keep fault details", func(t *testing.T) {
+		r := record(map[string]any{"switch:0": map[string]any{"errors": []string{"overtemp"}}})
+		view := tableDevice(r, nil, 0)
+		if view.Connectivity != "Device fault" || view.ConnectivityTone != "error" || view.ConnectivityIcon != "warning" || !strings.Contains(view.ConnectionInfo, "switch:0: overtemp") {
+			t.Fatalf("fault indication or details lost: %+v", view)
+		}
+		r.Set("reachable", false)
+		if offline := tableDevice(r, nil, 0); offline.ConnectivityIcon != "close-circle" || strings.Contains(offline.ConnectionInfo, "overtemp") {
+			t.Fatalf("cached fault presented as current: %+v", offline)
 		}
 	})
 	t.Run("settings never read do not claim a saved copy", func(t *testing.T) {
@@ -106,6 +117,32 @@ func TestInventoryPresentation(t *testing.T) {
 		view := tableDevice(r, nil, 0)
 		if view.SettingsWarning != "Settings unavailable" || view.Inputs[0].Output != "On" {
 			t.Fatalf("missing configuration misrepresented: %+v", view)
+		}
+	})
+	t.Run("restart warnings require a current boolean status", func(t *testing.T) {
+		for _, test := range []struct {
+			name                 string
+			sys                  any
+			reachable, available bool
+			want                 bool
+		}{
+			{"required", map[string]any{"restart_required": true}, true, true, true},
+			{"not required", map[string]any{"restart_required": false}, true, true, false},
+			{"missing system status", nil, true, true, false},
+			{"missing field", map[string]any{}, true, true, false},
+			{"null field", map[string]any{"restart_required": nil}, true, true, false},
+			{"malformed field", map[string]any{"restart_required": "true"}, true, true, false},
+			{"offline cached warning", map[string]any{"restart_required": true}, false, true, false},
+			{"failed status cached warning", map[string]any{"restart_required": true}, true, false, false},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				r := record(map[string]any{"sys": test.sys})
+				r.Set("reachable", test.reachable)
+				r.Set("status_available", test.available)
+				if view := tableDevice(r, nil, 0); view.RestartRequired != test.want {
+					t.Fatalf("restart warning does not reflect current status: %+v", view)
+				}
+			})
 		}
 	})
 }
