@@ -24,9 +24,9 @@ func TestCloudConnectionPresentation(t *testing.T) {
 		{"connection supersedes saved disabled setting", map[string]any{"connected": true}, map[string]any{"enable": false}, true, true, true, "Connected", "ok"},
 		{"configuration failure keeps connection", map[string]any{"connected": true}, nil, true, true, false, "Connected", "ok"},
 		{"failed config cannot claim disabled", map[string]any{"connected": false}, map[string]any{"enable": false}, true, true, false, "Disconnected", "warning"},
-		{"status failure hides cached connected value", map[string]any{"connected": true}, map[string]any{"enable": true}, true, false, true, "Unavailable", "muted"},
-		{"status failure hides cached disabled value", map[string]any{"connected": false}, map[string]any{"enable": false}, true, false, true, "Unavailable", "muted"},
-		{"offline hides cached connected value", map[string]any{"connected": true}, map[string]any{"enable": true}, false, true, true, "Unavailable", "muted"},
+		{"status failure retains cached connected value", map[string]any{"connected": true}, map[string]any{"enable": true}, true, false, true, "Connected", "muted"},
+		{"status failure retains cached disabled value", map[string]any{"connected": false}, map[string]any{"enable": false}, true, false, true, "Disabled", "muted"},
+		{"offline retains cached connected value", map[string]any{"connected": true}, map[string]any{"enable": true}, false, true, true, "Connected", "muted"},
 		{"missing cloud", nil, nil, true, true, true, "Unknown", "muted"},
 		{"null state", map[string]any{"connected": nil}, map[string]any{"enable": true}, true, true, true, "Unknown", "muted"},
 		{"malformed state", map[string]any{"connected": "false"}, map[string]any{"enable": true}, true, true, true, "Unknown", "muted"},
@@ -42,6 +42,9 @@ func TestCloudConnectionPresentation(t *testing.T) {
 			cloud := detail.Table.Cloud
 			if cloud.Value != test.value || cloud.Tone != test.tone || detail.Network[0].Value != cloud.Value || detail.Network[0].Tone != cloud.Tone {
 				t.Fatalf("cloud state differs or is stale: table=%+v panel=%+v", cloud, detail.Network)
+			}
+			if (!test.reachable || !test.statusOK) && !strings.Contains(cloud.Info, "Last reported") {
+				t.Fatal("cached cloud connection lost its freshness label")
 			}
 			page := Page{Device: record, Name: "Desk <lamp>", Detail: detail, Devices: []Device{{Record: record, Name: "Desk <lamp>", Table: detail.Table}}}
 			for _, name := range []string{"detail", "inventory-table"} {
@@ -94,6 +97,12 @@ func TestConnectionFieldsUseIndependentReadStates(t *testing.T) {
 	}
 	record.Set("status_available", false)
 	for _, field := range detailDevice(record, nil, nil, nil).Network {
+		if field.Label == "Shelly Cloud" {
+			if field.Value != "Connected" || field.Tone != "muted" || !strings.Contains(field.Info, "Last reported") {
+				t.Fatalf("cached cloud connection is not labelled: %+v", field)
+			}
+			continue
+		}
 		if field.Value != "Unavailable" || field.Tone != "muted" {
 			t.Fatalf("stale connection field shown as current: %+v", field)
 		}

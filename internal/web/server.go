@@ -37,6 +37,7 @@ type Server struct {
 	templates           *template.Template
 	version             string
 	mu                  sync.Mutex
+	inventoryMu         sync.RWMutex
 	discovery           Discovery
 	refreshing          bool
 	lastRefresh         time.Time
@@ -306,6 +307,9 @@ func (s *Server) list(e *core.RequestEvent) (Page, error) {
 }
 
 func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (Page, error) {
+	// Readers see one completed polling pass, including dashboard/filter loads.
+	s.inventoryMu.RLock()
+	defer s.inventoryMu.RUnlock()
 	records, err := s.store.Devices()
 	if err != nil {
 		return Page{}, err
@@ -336,7 +340,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 		baseline := s.store.Baseline(record)
 		if baseline != nil {
 			device.Comparison = "Not checked"
-			if record.GetBool("reachable") && record.GetBool("config_available") {
+			if inventory.Object(record, "config") != nil {
 				device.Differences = len(inventory.Differences(baseline, inventory.Object(record, "config")))
 				device.Comparison = "Matches baseline"
 				if device.Differences > 0 {
@@ -468,7 +472,7 @@ func (s *Server) dashboard(e *core.RequestEvent) error {
 func (s *Server) table(e *core.RequestEvent) error {
 	force := e.Request.URL.Query().Get("refresh") == "1"
 	done := s.refresh(force)
-	if force && done != nil {
+	if done != nil {
 		select {
 		case <-done:
 		case <-e.Request.Context().Done():
@@ -533,6 +537,8 @@ func (s *Server) refresh(force bool) <-chan struct{} {
 }
 
 func (s *Server) refreshDevices(force bool) {
+	s.inventoryMu.Lock()
+	defer s.inventoryMu.Unlock()
 	records, err := s.store.Devices()
 	if err != nil {
 		s.store.App.Logger().Error("Could not load devices for refresh", "error", err)
@@ -546,10 +552,10 @@ func (s *Server) refreshDevices(force bool) {
 		go func(record *core.Record) {
 			defer func() { <-limit; group.Done() }()
 			lastRead := record.GetDateTime("last_captured").Time()
-			readConfig := force || !record.GetBool("reachable") || !record.GetBool("config_available") || time.Since(lastRead) >= 5*time.Minute
-			timeout := 8 * time.Second
+			readConfig := force || !record.GetBool("reachable") || record.GetInt("consecutive_failures") > 0 || !record.GetBool("config_available") || time.Since(lastRead) >= 5*time.Minute
+			timeout := 12 * time.Second
 			if readConfig {
-				timeout = 12 * time.Second
+				timeout = 20 * time.Second
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
@@ -559,7 +565,9 @@ func (s *Server) refreshDevices(force bool) {
 				if errors.Is(err, shelly.ErrIdentity) {
 					problem = "Address now belongs to a different device. Rediscover this device."
 				}
-				_ = s.store.Failed(record.Id, problem)
+				if saveErr := s.store.Failed(record.Id, problem, errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
+					s.store.App.Logger().Error("Could not save device check failure", "device", record.Id)
+				}
 				return
 			}
 			if _, err := s.store.SaveReading(reading, false); err != nil {
@@ -695,7 +703,7 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	config := inventory.Object(record, "config")
 	baseline := s.store.Baseline(record)
 	page.HasBaseline = baseline != nil
-	if page.HasBaseline && record.GetBool("reachable") && record.GetBool("config_available") {
+	if page.HasBaseline && config != nil {
 		page.Differences = inventory.Differences(baseline, config)
 	}
 	page.Snapshots, err = s.store.Snapshots(record.Id)
@@ -722,7 +730,7 @@ func (s *Server) refreshDevice(e *core.RequestEvent) error {
 	defer cancel()
 	reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), false)
 	if err != nil {
-		if saveErr := s.store.Failed(id, "Status could not be read. Check device identity and connectivity."); saveErr != nil {
+		if saveErr := s.store.Failed(id, "Status could not be read. Check device identity and connectivity.", errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
 			return saveErr
 		}
 		return s.redirect(e, "/devices/"+id, "Refresh failed. Check device access.")
@@ -801,11 +809,13 @@ func (s *Server) captureReading(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(e.Request.Context(), 12*time.Second)
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 20*time.Second)
 	defer cancel()
 	reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), true)
 	if err != nil {
-		_ = s.store.Failed(id, "Configuration could not be captured. Check device identity and connectivity.")
+		if saveErr := s.store.Failed(id, "Configuration could not be captured. Check device identity and connectivity.", errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
+			return saveErr
+		}
 		return err
 	}
 	if reading.Config == nil {

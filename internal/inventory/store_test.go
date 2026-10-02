@@ -53,7 +53,7 @@ func TestRediscoveryPreservesMetadataAndBaseline(t *testing.T) {
 	if len(diff) != 1 || diff[0].After != `"detached"` {
 		t.Fatalf("baseline not preserved or drift missed: %+v", diff)
 	}
-	if err := store.Failed(device.Id, "unreachable"); err != nil {
+	if err := store.Failed(device.Id, "unreachable", false); err != nil {
 		t.Fatal(err)
 	}
 	device, _ = store.Device(device.Id)
