@@ -1,6 +1,6 @@
 # Shellyficator
 
-Requires Go 1.27. Development and CSS builds also need Node.js 24.
+Requires Go 1.27 and GNU Make 4.3+. Development and CSS builds also need Node.js 24.
 
 ## Run
 
