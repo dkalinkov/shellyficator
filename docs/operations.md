@@ -12,6 +12,8 @@ See [`.env.example`](../.env.example) for available variables:
 
 Restart after configuration changes; `make dev` restarts automatically. Choose **Discover**; use **Advanced discovery** with an IP, hostname, or private subnet if devices are missing.
 
+`make dev` and `make build` rebuild CSS and copy vendor assets only when their inputs change or outputs are missing. Development builds omit timestamps by default to reuse cached Go builds; set `BUILD_DATE` to include one.
+
 ## Docker
 
 The [README example](../README.md#docker-on-linux) passes `.env` through `--env-file`. Use unquoted `KEY=value` entries without `export`, or omit the option if there is no file. For full dotenv syntax and `.env.local` overrides, mount the files read-only under `/data`.
@@ -30,6 +32,6 @@ make build
 make docker
 ```
 
-The Make targets report the base version for a clean matching tag, otherwise append `-dev`. `--version` also reports the commit, dirty marker, and UTC build time; the UI shows the app version. Plain Go builds and Docker builds without metadata report a development version. Docker images use `shellyficator:local` and `shellyficator:<app-version>` tags.
+`make build` and `make docker` report the base version for a clean matching tag, otherwise append `-dev`. `--version` also reports the commit, dirty marker, and UTC build time; the UI shows the app version. `make dev`, plain Go builds, and Docker builds without metadata report a development version. Docker images use `shellyficator:local` and `shellyficator:<app-version>` tags.
 
 Database schema changes use separate dated Go migrations. Preserve app data across upgrades.
