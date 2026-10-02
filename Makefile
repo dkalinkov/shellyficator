@@ -25,7 +25,7 @@ build: css
 docker:
 	sh scripts/build.sh docker
 
-run:
+run: css
 	go run . serve --http=127.0.0.1:8090 --dir=./pb_data
 
 node_modules/.package-lock.json: package.json package-lock.json
