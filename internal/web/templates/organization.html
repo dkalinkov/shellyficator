@@ -33,7 +33,40 @@
 
 {{define "room-options"}}<option value="">All rooms</option>{{range .Rooms}}<option value="{{.}}" {{if eq . $.Room}}selected{{end}}>{{.}}</option>{{end}}{{end}}
 
-{{define "organization-saved"}}
+{{define "tag-filter"}}
+<div id="tag-filter" class="field tag-filter" data-tag-filter>
+  <label for="filter-tags">Tags <span class="text-xs font-normal text-base-content/50">(any)</span></label>
+  <input type="hidden" name="tags" value="{{range $index, $tag := .SelectedTags}}{{if $index}}, {{end}}{{$tag}}{{end}}">
+  <div class="tag-filter-control">
+    <button id="filter-tags" type="button" class="tag-filter-toggle" aria-haspopup="dialog" aria-controls="filter-tag-suggestions" aria-expanded="false">
+      <span class="tag-filter-summary" data-filter-summary>{{if eq (len .SelectedTags) 1}}{{index .SelectedTags 0}}{{else if .SelectedTags}}Selected tags{{else}}All tags{{end}}</span>
+      <span class="tag-filter-count" data-filter-count {{if not .SelectedTags}}hidden{{end}} aria-hidden="true">{{len .SelectedTags}}</span>
+      <svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <button type="button" class="tag-filter-clear" aria-label="Clear tag filter" data-filter-clear {{if not .SelectedTags}}hidden{{end}}><svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg></button>
+  </div>
+  <div id="filter-tag-suggestions" class="tag-filter-menu" role="dialog" aria-label="Filter by tags" hidden>
+    <div class="tag-filter-search">
+      <label for="filter-tag-search" class="sr-only">Search tags</label>
+      <input id="filter-tag-search" type="search" class="input w-full" placeholder="Search tags…" autocomplete="off">
+      <p>Match any selected tag.</p>
+    </div>
+    <div class="tag-filter-options" role="group" aria-label="Tags" data-filter-options></div>
+    <div class="tag-filter-footer"><button type="button" class="btn btn-ghost btn-sm" data-filter-clear-all>Clear all</button><button type="button" class="btn btn-ghost btn-sm" data-filter-done>Done</button></div>
+  </div>
+  <select id="tag-filter-options" data-picker-source hidden disabled>{{template "tag-filter-options" .}}</select>
+  <p class="sr-only" data-filter-status role="status"></p>
+</div>
+{{end}}
+
+{{define "tag-filter-options"}}{{range .Tags}}<option>{{.}}</option>{{end}}{{end}}
+
+{{define "inventory-updated"}}
 {{template "inventory" .}}
+<select id="tag-filter-options" hx-swap-oob="innerHTML">{{template "tag-filter-options" .}}</select>
+{{end}}
+
+{{define "organization-saved"}}
+{{template "inventory-updated" .}}
 <select id="room" hx-swap-oob="innerHTML">{{template "room-options" .}}</select>
 {{end}}
