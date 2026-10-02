@@ -16,6 +16,7 @@ type DeviceTable struct {
 	SignalValue, SignalTone                             string
 	Connectivity, ConnectivityTone, ConnectionInfo      string
 	Configuration, ConfigurationTone, ConfigurationInfo string
+	Cloud                                               ConnectionState
 	Inputs                                              []TableInput
 	SettingsWarning                                     string
 	InputsChanged                                       bool
@@ -73,6 +74,13 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		view.ConnectionInfo += "\n" + problem
 	}
 	currentStatus := record.GetBool("reachable") && record.GetBool("status_available")
+	cloudStatus, _ := status["cloud"].(map[string]any)
+	cloudConfig, _ := config["cloud"].(map[string]any)
+	view.Cloud = serviceConnection(cloudStatus, cloudConfig, currentStatus, record.GetBool("reachable") && record.GetBool("config_available"))
+	view.Cloud.Info += "\nStatus checked · " + inventory.FormatTime(record.GetString("last_checked"))
+	if view.Cloud.Value == "Disabled" {
+		view.Cloud.Info += "\nSettings last read · " + inventory.FormatTime(record.GetString("last_captured"))
+	}
 	if wifi, ok := status["wifi"].(map[string]any); ok {
 		if rssi, ok := wifi["rssi"].(float64); ok {
 			view.SignalValue = fmt.Sprintf("%.0f", rssi)

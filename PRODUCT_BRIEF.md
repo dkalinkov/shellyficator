@@ -36,7 +36,7 @@ See [implementation status](IMPLEMENTATION.md) for delivered features and remain
 - Colours: green reachable/matching; red offline/faults; amber drift/security gaps; blue models/input controls; violet detached mode. Each room/tag has a name-based color, shared by its labels and suggestions. Wi-Fi: green ≥ -60 dBm, amber ≥ -70, red below -70; mute stale readings.
 - Tooltips support hover, focus, touch, and Escape. Respect reduced motion.
 - Room/tag editing supports existing or new names, removable tag chips, explicit Save, and Cancel/Escape. Pause polling while editing; retain drafts on failure. See [editing rules](research/organization-editing-2026-09-30.md).
-- Device pages hold status, settings, notes, history, and comparisons. Planned Issues and Settings views hold reports and scheduling/credential controls. Use short labels; omit repeated explanations and tutorials.
+- Device pages separate overview, channels/physical inputs, configuration comparison/history, and notes. Refresh status reads one device without adding a snapshot; refresh/capture/approval preserve unfinished notes. See [device-page research and rules](research/device-details-2026-10-02.md). Planned Issues and Settings views hold reports and scheduling/credential controls. Use short labels; omit repeated explanations and tutorials.
 
 ## Credentials
 

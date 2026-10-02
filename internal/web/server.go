@@ -63,10 +63,6 @@ type Device struct {
 	Differences      int
 	Table            DeviceTable
 }
-type Channel struct {
-	Key, Name, Notes string
-	Values           []Metric
-}
 type Metric struct{ Label, Value string }
 type RoomGroup struct {
 	Room    string
@@ -85,8 +81,7 @@ type Page struct {
 	Networks                                        []shelly.Network
 	Device                                          *core.Record
 	Name                                            string
-	Channels                                        []Channel
-	Metrics                                         []Metric
+	Detail                                          DeviceDetail
 	Differences                                     []inventory.Difference
 	HasBaseline                                     bool
 	Snapshots                                       []*core.Record
@@ -130,6 +125,7 @@ func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client,
 	protected.POST("/logout", s.logout).BindFunc(checkCSRF)
 	protected.POST("/discover", s.discover).BindFunc(checkCSRF)
 	protected.GET("/devices/{id}", s.detail)
+	protected.POST("/devices/{id}/refresh", s.refreshDevice).BindFunc(checkCSRF)
 	protected.GET("/devices/{id}/organization", s.organizationEditor)
 	protected.POST("/devices/{id}/organization", s.organization).BindFunc(checkCSRF)
 	protected.POST("/devices/{id}/metadata", s.metadata).BindFunc(checkCSRF)
@@ -696,60 +692,7 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if page.Name == "" {
 		page.Name = record.GetString("device_id")
 	}
-	status, config := inventory.Object(record, "status"), inventory.Object(record, "config")
-	keys := map[string]bool{}
-	for key := range status {
-		if strings.Contains(key, ":") {
-			keys[key] = true
-		}
-	}
-	for key := range config {
-		if strings.Contains(key, ":") {
-			keys[key] = true
-		}
-	}
-	var ordered []string
-	for key := range keys {
-		ordered = append(ordered, key)
-	}
-	sort.Strings(ordered)
-	notes := s.store.ChannelNotes(record.Id)
-	for _, key := range ordered {
-		channel := Channel{Key: key, Name: key, Notes: notes[key]}
-		settings, _ := config[key].(map[string]any)
-		reading, _ := status[key].(map[string]any)
-		if name, ok := settings["name"].(string); ok && name != "" {
-			channel.Name = name
-		}
-		for _, field := range []struct{ key, label, unit string }{{"output", "Output", ""}, {"state", "Physical input", ""}, {"current_pos", "Position", "%"}} {
-			if value, exists := reading[field.key]; exists {
-				channel.Values = append(channel.Values, Metric{field.label, inventory.Display(value) + field.unit})
-			}
-		}
-		if temperature, ok := reading["temperature"].(map[string]any); ok {
-			channel.Values = append(channel.Values, Metric{"Temperature", inventory.Display(temperature["tC"]) + " °C"})
-		}
-		for _, field := range []struct{ key, label string }{{"type", "Physical input type"}, {"in_mode", "Input behaviour"}, {"initial_state", "After power loss"}, {"in_locked", "Input locked"}, {"enable", "Enabled"}} {
-			if value, exists := settings[field.key]; exists {
-				channel.Values = append(channel.Values, Metric{field.label, inventory.Display(value)})
-			}
-		}
-		if errs, ok := reading["errors"]; ok {
-			channel.Values = append(channel.Values, Metric{"Reported errors", inventory.Display(errs)})
-		}
-		page.Channels = append(page.Channels, channel)
-	}
-	if wifi, ok := status["wifi"].(map[string]any); ok {
-		page.Metrics = append(page.Metrics, Metric{"Wi-Fi", inventory.Display(wifi["status"])}, Metric{"Signal", inventory.Display(wifi["rssi"]) + " dBm"}, Metric{"Network", inventory.Display(wifi["ssid"])})
-	}
-	if sys, ok := status["sys"].(map[string]any); ok {
-		page.Metrics = append(page.Metrics, Metric{"Uptime", inventory.Display(sys["uptime"]) + " s"}, Metric{"Restart required", inventory.Display(sys["restart_required"])})
-	}
-	for _, key := range []string{"cloud", "mqtt"} {
-		if component, ok := status[key].(map[string]any); ok {
-			page.Metrics = append(page.Metrics, Metric{strings.ToUpper(key) + " connected", inventory.Display(component["connected"])})
-		}
-	}
+	config := inventory.Object(record, "config")
 	baseline := s.store.Baseline(record)
 	page.HasBaseline = baseline != nil
 	if page.HasBaseline && record.GetBool("reachable") && record.GetBool("config_available") {
@@ -759,7 +702,42 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
+	page.Detail = detailDevice(record, baseline, page.Differences, s.store.ChannelNotes(record.Id))
+	for _, group := range [][]DetailChannel{page.Detail.Outputs, page.Detail.Inputs, page.Detail.Other} {
+		for _, channel := range group {
+			page.Detail.Notes = append(page.Detail.Notes, ChannelNoteEditor{Channel: channel, DeviceID: record.Id, CSRF: page.CSRF})
+		}
+	}
+	page.Title = page.Name
 	return s.render(e, "detail", page)
+}
+
+func (s *Server) refreshDevice(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	record, err := s.store.Device(id)
+	if err != nil {
+		return e.NotFoundError("Device not found", nil)
+	}
+	ctx, cancel := context.WithTimeout(e.Request.Context(), 12*time.Second)
+	defer cancel()
+	reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), false)
+	if err != nil {
+		if saveErr := s.store.Failed(id, "Status could not be read. Check device identity and connectivity."); saveErr != nil {
+			return saveErr
+		}
+		return s.redirect(e, "/devices/"+id, "Refresh failed. Check device access.")
+	}
+	// A status refresh must retain a warning about an unavailable configuration.
+	if !record.GetBool("config_available") && reading.Problem == "" {
+		reading.Problem = "Configuration is unavailable. Capture config to retry."
+	}
+	if _, err := s.store.SaveReading(reading, false); err != nil {
+		return err
+	}
+	if reading.Status == nil {
+		return s.redirect(e, "/devices/"+id, "Device reached, but status could not be read.")
+	}
+	return s.redirect(e, "/devices/"+id, "Status refreshed.")
 }
 
 func (s *Server) redirect(e *core.RequestEvent, path, notice string) error {
