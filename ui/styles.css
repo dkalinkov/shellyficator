@@ -133,29 +133,43 @@
 
   .device-table .input-detail-row > td { padding: 0; border: 0; height: auto; }
   .device-table .input-detail-row { border: 0; }
-  .input-panel-body { @apply border-b border-base-content/10; padding: 14px 16px 18px; background: color-mix(in oklab, var(--table-blue) 3%, transparent); }
-  .input-panel-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; color: var(--table-blue); font-size: 12px; font-weight: 500; }
-  .input-capture { @apply text-base-content/60; font-size: 11px; font-weight: 400; }
-  .input-capture.tone-warning { color: var(--table-amber); }
-  .input-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .input-card { @apply bg-base-100/60; min-width: 0; padding: 14px; border: 1px solid color-mix(in oklab, var(--table-blue) 18%, transparent); border-radius: 8px; }
-  .input-card:only-child { grid-column: 1 / -1; }
-  .input-card-changed { border-color: color-mix(in oklab, var(--table-amber) 40%, transparent); }
-  .input-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .input-title { color: var(--table-blue); font-size: 13px; font-weight: 500; }
-  .input-title:hover, .input-note a:hover { text-decoration: underline; }
-  .input-type-chip { color: var(--table-blue); font-size: 11px; }
+  .input-panel-body { @apply border-b border-base-content/10; padding: 10px 16px 12px; background: color-mix(in oklab, var(--table-blue) 3%, transparent); }
+  .input-panel-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .input-scroll-hint { @apply text-base-content/60; display: none; font-size: 10px; font-weight: 400; }
+  .input-capture { @apply text-base-content/60; margin-left: auto; font-size: 11px; font-weight: 400; }
+  .input-settings-warning { color: var(--table-amber); font-size: 11px; font-weight: 400; }
+  .input-list-scroll { @apply border border-base-content/10 bg-base-100/40; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; border-radius: 6px; scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--table-blue) 25%, transparent) transparent; }
+  .input-list-heading, .input-row { display: grid; grid-template-columns: minmax(170px, 1.2fr) 120px 100px 76px minmax(400px, 2.5fr) 64px; align-items: center; gap: 12px; min-width: 1014px; padding: 0 12px; }
+  .input-list-heading { @apply border-b border-base-content/10 text-base-content/60; min-height: 30px; font-size: 11px; font-weight: 400; }
+  .input-list { margin: 0; padding: 0; list-style: none; }
+  .input-row { @apply border-b border-base-content/10; position: relative; min-height: 40px; font-size: 12px; white-space: nowrap; }
+  .input-row:last-child { border-bottom: 0; }
+  .input-row:hover, .input-row:focus-within { background: color-mix(in oklab, var(--table-blue) 4%, transparent); }
+  .input-row-changed { background: color-mix(in oklab, var(--table-amber) 4%, transparent); }
+  .input-row-changed::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--table-amber); }
+  .input-identity { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 30px; }
+  .input-title { flex-shrink: 0; color: var(--table-blue); font-size: 12px; font-weight: 500; }
+  .input-identity:hover .input-title { text-decoration: underline; }
+  .input-type { @apply text-base-content/60; flex-shrink: 0; font-size: 11px; }
+  .input-name { @apply text-base-content/65; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+  .input-name::before { content: "· "; }
+  .input-row-values { display: contents; }
+  .input-row-values > div { min-width: 0; }
+  .input-mode dd { display: flex; align-items: center; gap: 6px; }
   .mode-chip { padding: 3px 7px; border-radius: 4px; background: color-mix(in oklab, currentColor 10%, transparent); font-size: 11px; font-weight: 500; }
-  .input-restriction { color: var(--table-amber); font-size: 11px; }
-  .input-name { @apply mt-2 text-xs text-base-content/65; overflow-wrap: anywhere; }
-  .input-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; margin-top: 14px; }
-  .input-card:only-child .input-values { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .input-values dt { @apply text-base-content/60; font-size: 11px; overflow-wrap: anywhere; }
-  .input-values dd { margin-top: 3px; font-size: 12px; }
-  .input-relay-id { font-size: 10px; }
-  .input-note { @apply mt-3 border-t border-base-content/10 pt-3 text-xs text-base-content/75; overflow-wrap: anywhere; }
-  .input-note a { color: var(--table-violet); }
-  .input-note p { margin-top: 5px; white-space: pre-line; }
+  .input-restriction { display: inline-flex; align-items: center; color: var(--table-amber); }
+  .input-restriction .icon { width: 14px; height: 14px; }
+  .input-state { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .input-relay { display: flex; align-items: center; gap: 8px; }
+  .input-relay-id { @apply text-base-content/60; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .input-settings { display: flex; align-items: center; gap: 14px; font-size: 11px; }
+  .input-settings > div { display: flex; align-items: baseline; gap: 5px; }
+  .input-settings dt { @apply text-base-content/60; }
+  .input-settings dd { font-weight: 500; }
+  .input-notes { display: flex; align-items: center; gap: 4px; }
+  .input-note-link { position: relative; width: 28px; height: 28px; color: var(--table-violet); }
+  .input-note-link .icon { width: 16px; height: 16px; }
+  .input-note-label { @apply bg-base-100; position: absolute; right: 1px; bottom: 0; padding: 0 2px; border-radius: 2px; font-size: 8px; font-weight: 500; line-height: 11px; }
   .app-tooltip { @apply rounded-lg border border-base-content/20 bg-base-300 px-3 py-2 text-xs font-normal text-base-content shadow-xl; position: fixed; z-index: 100; max-width: min(320px, calc(100vw - 24px)); white-space: pre-line; overflow-wrap: anywhere; line-height: 1.6; }
   .app-tooltip[hidden] { display: none; }
 }
@@ -221,12 +235,15 @@
   .address-line { flex-wrap: wrap; gap: 3px 8px; }
   .device-ip { font-size: 11px; }
   .device-table .input-detail-row, .device-table .input-detail-row > td { display: block; }
-  .input-cards { grid-template-columns: 1fr; }
-  .input-card:only-child .input-values { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .input-scroll-hint { display: inline; }
 }
 @media (pointer: coarse) {
   .icon-button { width: 40px; height: 40px; }
   .input-toggle { min-height: 40px; }
+  .input-row { min-height: 48px; }
+  .input-identity { min-height: 40px; }
+  .input-note-link { width: 40px; height: 40px; }
+  .input-list-heading, .input-row { grid-template-columns: minmax(170px, 1.2fr) 120px 100px 76px minmax(400px, 2.5fr) 84px; min-width: 1034px; }
   .wifi-value { min-height: 40px; }
   .room-edit { min-height: 40px; }
   .tag-chip button { width: 36px; min-height: 36px; }
@@ -240,5 +257,5 @@
   .device-table .device-row > .device-actions { position: static; grid-column: 1 / -1; }
   .inventory-summary { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
   .summary-filtered { margin-left: 0; grid-column: 1 / -1; }
-  .input-values, .input-card:only-child .input-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .input-panel-body { padding-left: 12px; padding-right: 12px; }
 }

@@ -93,6 +93,28 @@ func TestCaptureRedactsSecretsAndKeepsStatelessInput(t *testing.T) {
 	if reading.Status["input:0"].(map[string]any)["state"] != nil {
 		t.Fatal("stateless input changed")
 	}
+	if !reading.ConfigAttempted {
+		t.Fatal("configuration read not recorded")
+	}
+}
+
+func TestReadRejectsPartialConfigurationOnDecodeFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/shelly":
+			_, _ = w.Write([]byte(`{"id":"test","mac":"AABBCCDDEEFF","gen":4}`))
+		case "/rpc/Shelly.GetStatus":
+			_, _ = w.Write([]byte(`{"switch:0":{"output":true}}`))
+		case "/rpc/Shelly.GetConfig":
+			// Valid syntax, but the overflowing number prevents a complete decode.
+			_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"detached"},"invalid":1e999}`))
+		}
+	}))
+	defer server.Close()
+	reading, err := NewClient("").Read(context.Background(), server.URL, "", true)
+	if err != nil || !reading.ConfigAttempted || reading.Config != nil || reading.Problem == "" || reading.Status["switch:0"].(map[string]any)["output"] != true {
+		t.Fatalf("partial configuration treated as available or valid status lost: %+v err=%v", reading, err)
+	}
 }
 
 func TestTargetsBoundsAndAddresses(t *testing.T) {

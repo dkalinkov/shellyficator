@@ -17,7 +17,8 @@ type DeviceTable struct {
 	Connectivity, ConnectivityTone, ConnectionInfo      string
 	Configuration, ConfigurationTone, ConfigurationInfo string
 	Inputs                                              []TableInput
-	CachedInputs, InputsChanged                         bool
+	SettingsWarning                                     string
+	InputsChanged                                       bool
 }
 
 type TableInput struct {
@@ -45,9 +46,14 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		Configuration: "No baseline", ConfigurationTone: "muted",
 		Identity:          fmt.Sprintf("%s\n%s · Gen %d\nFirmware %s\nMAC %s", record.GetString("device_id"), record.GetString("model"), record.GetInt("generation"), record.GetString("firmware"), record.GetString("mac")),
 		ConnectionInfo:    "Checked " + inventory.FormatTime(record.GetString("last_checked")) + "\nLast seen " + inventory.FormatTime(record.GetString("last_seen")),
-		ConfigurationInfo: "Captured " + inventory.FormatTime(record.GetString("last_captured")),
+		ConfigurationInfo: "Settings last read · " + inventory.FormatTime(record.GetString("last_captured")),
 		Note:              previewText(record.GetString("notes"), 320),
-		CachedInputs:      !record.GetBool("reachable") || !record.GetBool("config_available"),
+	}
+	if !record.GetBool("reachable") || !record.GetBool("config_available") {
+		view.SettingsWarning = "Settings unavailable"
+		if config != nil {
+			view.SettingsWarning += " · showing saved copy"
+		}
 	}
 	if room := record.GetString("room"); room != "" {
 		view.Identity += "\nRoom: " + room
@@ -124,7 +130,10 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 				break
 			}
 		}
-		line.Info = fmt.Sprintf("%s: %s\nMode: %s\nCaptured %s", key, line.Type, line.Mode, inventory.FormatTime(record.GetString("last_captured")))
+		line.Info = fmt.Sprintf("%s: %s\nMode: %s\nSettings last read · %s", key, line.Type, line.Mode, inventory.FormatTime(record.GetString("last_captured")))
+		if view.SettingsWarning != "" {
+			line.Info += "\n" + view.SettingsWarning
+		}
 		if currentStatus {
 			if state, exists := inputReading["state"]; exists {
 				line.State, line.StateTone = boolState(state)
@@ -157,7 +166,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		if value, ok := settings["initial_state"].(string); ok && value != "" {
 			line.Values = append(line.Values, Metric{"After power loss", inputMode(strings.ReplaceAll(value, "_", " "))})
 		}
-		if baseline != nil && !view.CachedInputs {
+		if baseline != nil && view.SettingsWarning == "" {
 			beforeSwitch, _ := baseline[line.RelayKey].(map[string]any)
 			beforeInput, _ := baseline[key].(map[string]any)
 			for _, pair := range []struct {

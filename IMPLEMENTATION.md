@@ -5,7 +5,7 @@
 - Embedded PocketBase/SQLite, migrations, dashboard login, first-run setup, and data admin.
 - Responsive inventory, input disclosures, device details, rooms/tags, and device/channel notes.
 - Gen2+ discovery via IPv4 mDNS and cached LAN neighbors; explicit host/subnet scans under Advanced discovery. MAC identity and offline entries persist.
-- Shared status polling, manual refresh, pause, configuration captures, baseline approval, and differences.
+- Shared status polling every 30 seconds, configuration reads on recovery/every five minutes/manual Refresh, pause, manual configuration captures, baseline approval, and differences. Failed configuration reads retain saved settings with a separate warning; automatic reads preserve snapshots and approved baselines.
 - Environment and dotenv configuration, embedded assets, automatic development restarts, and a non-root container with persistent data.
 - Consistent Shellyficator naming and semantic app versions, with Git release tags, CLI/UI version display, and commit/build-time metadata.
 

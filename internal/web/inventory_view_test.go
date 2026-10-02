@@ -46,6 +46,9 @@ func TestInventoryPresentation(t *testing.T) {
 
 	t.Run("physical and relay state are independent and preserve false and null", func(t *testing.T) {
 		view := tableDevice(record(status), nil, 0)
+		if view.SettingsWarning != "" {
+			t.Fatalf("available settings displayed as unavailable: %+v", view)
+		}
 		if view.Inputs[0].State != "Not reported" || view.Inputs[0].Output != "On" || view.Inputs[1].State != "Off" || view.Inputs[1].Output != "Off" {
 			t.Fatalf("input state or relay state lost: %+v", view.Inputs)
 		}
@@ -79,7 +82,7 @@ func TestInventoryPresentation(t *testing.T) {
 		r := record(status)
 		r.Set("reachable", false)
 		view := tableDevice(r, map[string]any{}, 4)
-		if view.Connectivity != "Offline" || !view.CachedInputs || view.Inputs[0].Changed || view.Configuration != "Unavailable" || view.Inputs[0].State != "—" || view.Inputs[0].Output != "—" || view.SignalTone != "muted" || view.SignalValue != "-55" {
+		if view.Connectivity != "Offline" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Inputs[0].Changed || view.Configuration != "Unavailable" || view.Inputs[0].State != "—" || view.Inputs[0].Output != "—" || view.SignalTone != "muted" || view.SignalValue != "-55" {
 			t.Fatalf("stale values displayed as current: %+v", view)
 		}
 	})
@@ -87,13 +90,22 @@ func TestInventoryPresentation(t *testing.T) {
 		r := record(status)
 		r.Set("config_available", false)
 		view := tableDevice(r, map[string]any{}, 4)
-		if view.Inputs[0].Output != "On" || !view.CachedInputs || view.Configuration != "Unavailable" {
+		if view.Inputs[0].Output != "On" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Configuration != "Unavailable" || !strings.Contains(view.Inputs[0].Info, view.SettingsWarning) {
 			t.Fatalf("configuration failure masked valid status: %+v", view)
 		}
 		r.Set("status_available", false)
 		view = tableDevice(r, map[string]any{}, 4)
 		if view.Inputs[0].Output != "—" || view.Connectivity != "Read failed" || view.ConnectivityTone != "warning" {
 			t.Fatalf("status failure displayed as healthy: %+v", view)
+		}
+	})
+	t.Run("settings never read do not claim a saved copy", func(t *testing.T) {
+		r := record(status)
+		r.Set("config", nil)
+		r.Set("config_available", false)
+		view := tableDevice(r, nil, 0)
+		if view.SettingsWarning != "Settings unavailable" || view.Inputs[0].Output != "On" {
+			t.Fatalf("missing configuration misrepresented: %+v", view)
 		}
 	})
 }

@@ -32,11 +32,12 @@ type Identity struct {
 }
 
 type Reading struct {
-	Identity Identity
-	Address  string
-	Status   map[string]any
-	Config   map[string]any
-	Problem  string
+	Identity        Identity
+	Address         string
+	Status          map[string]any
+	Config          map[string]any
+	ConfigAttempted bool
+	Problem         string
 }
 
 type Client struct{ public, authenticated *http.Client }
@@ -96,7 +97,7 @@ func NormalizeMAC(value string) string {
 	return strings.ToUpper(strings.NewReplacer(":", "", "-", "").Replace(value))
 }
 
-func (c *Client) Read(ctx context.Context, address, expectedMAC string, capture bool) (Reading, error) {
+func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConfig bool) (Reading, error) {
 	address, err := NormalizeAddress(address)
 	if err != nil {
 		return Reading{}, err
@@ -115,8 +116,10 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, capture 
 	if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetStatus", &reading.Status); err != nil {
 		reading.Problem = describe(err)
 	}
-	if capture {
+	if readConfig {
+		reading.ConfigAttempted = true
 		if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetConfig", &reading.Config); err != nil {
+			reading.Config = nil
 			reading.Problem = describe(err)
 		}
 		if reading.Config != nil {

@@ -80,10 +80,10 @@
   <form id="filters" action="/" method="get" class="mb-5 flex flex-wrap items-end gap-3" hx-get="/inventory" hx-trigger="input changed delay:350ms from:#search, change from:#room" hx-target="#inventory" hx-swap="innerHTML">
     <div class="field grow sm:max-w-sm"><label for="search">Search devices</label><input class="input w-full" id="search" name="q" value="{{.Query}}" placeholder="Name, address, tag, or note…"></div>
     <div class="field"><label for="room">Room</label><select id="room" class="select w-44" name="room">{{template "room-options" .}}</select></div>
-    <label class="ml-auto flex items-center gap-2 py-3 text-sm text-base-content/65"><input id="auto-refresh" type="checkbox" class="checkbox checkbox-xs" checked>Auto-refresh (10s)</label>
+    <label class="ml-auto flex items-center gap-2 py-3 text-sm text-base-content/65"><input id="auto-refresh" type="checkbox" class="checkbox checkbox-xs" checked>Auto-refresh (30s)</label>
     <button class="btn btn-ghost" type="submit" hx-get="/inventory?refresh=1" hx-trigger="click" hx-include="#filters" hx-target="#inventory" hx-swap="innerHTML">Refresh <span class="loading loading-spinner loading-xs loading-indicator" aria-hidden="true"></span></button>
   </form>
-  <div id="inventory" hx-get="/inventory" hx-trigger="every 10s" hx-include="#filters" hx-swap="innerHTML">{{template "inventory" .}}</div>
+  <div id="inventory" hx-get="/inventory" hx-trigger="every 30s" hx-include="#filters" hx-swap="innerHTML">{{template "inventory" .}}</div>
 </main>
 <dialog id="organization-dialog" class="organization-dialog" aria-labelledby="organization-title"><div id="organization-content"></div></dialog>
 <p id="organization-status" class="sr-only" role="status"></p>
@@ -120,14 +120,20 @@
 </tr>
 {{if .Table.Inputs}}<tr class="input-detail-row" aria-hidden="true" inert><td colspan="8">
   <div id="inputs-{{.Record.Id}}" class="t-acc-panel" role="region" aria-label="Inputs for {{.Name}}"><div class="t-acc-panel-inner"><div class="input-panel-body">
-    <div class="input-panel-heading"><span>Inputs</span><span class="input-capture {{if .Table.CachedInputs}}tone-warning{{end}}">{{if .Table.CachedInputs}}Cached · {{end}}{{when (get .Record "last_captured")}}</span></div>
-    <div class="input-cards">{{range .Table.Inputs}}<section class="input-card {{if .Changed}}input-card-changed{{end}}" aria-label="Input {{.ID}}">
-      <div class="input-card-heading"><a class="input-title" href="/devices/{{$device.Record.Id}}#note-{{.Key}}">Input {{.ID}}</a><span class="input-type-chip">{{.Type}}</span><span class="mode-chip tone-{{if .Changed}}warning{{else}}{{.ModeTone}}{{end}}" data-tooltip="{{.Info}}" tabindex="0">{{.Mode}}</span>{{if .Restriction}}<span class="input-restriction">{{.Restriction}}</span>{{end}}</div>
-      {{if .Name}}<p class="input-name">{{.Name}}</p>{{end}}
-      <dl class="input-values"><div><dt>Physical state</dt><dd class="tone-{{.StateTone}}">{{.State}}</dd></div>{{if .RelayKey}}<div><dt>Relay <span class="input-relay-id">{{.RelayID}}</span></dt><dd class="tone-{{.OutputTone}}">{{.Output}}</dd></div>{{end}}{{range .Values}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>
-      {{if .Note}}<div class="input-note"><a href="/devices/{{$device.Record.Id}}#note-{{.Key}}">Input note</a><p>{{.Note}}</p></div>{{end}}
-      {{if .RelayNote}}<div class="input-note"><a href="/devices/{{$device.Record.Id}}#note-{{.RelayKey}}">Relay note</a><p>{{.RelayNote}}</p></div>{{end}}
-    </section>{{end}}</div>
+    <div class="input-panel-meta"><span class="input-scroll-hint">Scroll for all settings →</span>{{if .Table.SettingsWarning}}<span class="input-settings-warning tone-warning">{{.Table.SettingsWarning}}</span>{{end}}{{if get .Record "last_captured"}}<span class="input-capture">Settings last read · {{when (get .Record "last_captured")}}</span>{{end}}</div>
+    <div class="input-list-scroll" role="group" aria-label="Input list for {{.Name}}" tabindex="0">
+      <div class="input-list-heading" aria-hidden="true"><span>Input / type</span><span>Mode</span><span>Physical state</span><span>Relay</span><span>Settings</span><span>Notes</span></div>
+      <ul class="input-list" role="list">{{range .Table.Inputs}}<li class="input-row {{if .Changed}}input-row-changed{{end}}" aria-label="Input {{.ID}}">
+        <a class="input-identity" href="/devices/{{$device.Record.Id}}#note-{{.Key}}" data-tooltip="Input {{.ID}} · {{.Type}}{{if .Name}}&#10;{{.Name}}{{end}}"><span class="input-title">Input {{.ID}}</span><span class="input-type">{{.Type}}</span>{{if .Name}}<span class="input-name">{{.Name}}</span>{{end}}</a>
+        <dl class="input-row-values">
+          <div class="input-mode"><dt class="sr-only">Mode</dt><dd><span class="mode-chip tone-{{if .Changed}}warning{{else}}{{.ModeTone}}{{end}}" data-tooltip="{{.Info}}" tabindex="0">{{.Mode}}</span>{{if .Restriction}}<span class="input-restriction" data-tooltip="{{.Restriction}}" tabindex="0" role="img" aria-label="{{.Restriction}}"><svg class="icon" aria-hidden="true"><use href="#icon-warning"></use></svg></span>{{end}}</dd></div>
+          <div><dt class="sr-only">Physical state</dt><dd class="input-state tone-{{.StateTone}}">{{.State}}</dd></div>
+          <div><dt class="sr-only">{{if .RelayKey}}Relay {{.RelayID}}{{else}}Relay{{end}}</dt><dd class="input-relay">{{if .RelayKey}}<span class="input-relay-id">{{.RelayID}}</span><span class="input-state tone-{{.OutputTone}}">{{.Output}}</span>{{else}}<span class="tone-muted">—</span>{{end}}</dd></div>
+          <div><dt class="sr-only">Settings</dt><dd>{{if .Values}}<dl class="input-settings">{{range .Values}}<div><dt>{{.Label}}</dt><dd class="{{if or (and (eq .Label "Locked") (eq .Value "Yes")) (and (eq .Label "Enabled") (eq .Value "No"))}}tone-warning{{end}}">{{.Value}}</dd></div>{{end}}</dl>{{else}}<span class="tone-muted">—</span>{{end}}</dd></div>
+        </dl>
+        <div class="input-notes">{{if .Note}}<a class="icon-button input-note-link" href="/devices/{{$device.Record.Id}}#note-{{.Key}}" aria-label="Input {{.ID}} note" data-tooltip="Input {{.ID}} note&#10;{{.Note}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg><span class="input-note-label" aria-hidden="true">I</span></a>{{end}}{{if .RelayNote}}<a class="icon-button input-note-link" href="/devices/{{$device.Record.Id}}#note-{{.RelayKey}}" aria-label="Relay {{.RelayID}} note" data-tooltip="Relay {{.RelayID}} note&#10;{{.RelayNote}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg><span class="input-note-label" aria-hidden="true">R</span></a>{{end}}{{if not (or .Note .RelayNote)}}<span class="tone-muted">—</span>{{end}}</div>
+      </li>{{end}}</ul>
+    </div>
   </div></div></div>
 </td></tr>{{end}}
 </tbody>{{end}}</table>
