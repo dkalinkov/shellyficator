@@ -40,8 +40,8 @@ func detailDevice(record *core.Record, baseline map[string]any, differences []in
 	status, config := inventory.Object(record, "status"), inventory.Object(record, "config")
 	view := DeviceDetail{
 		Table:           tableDevice(record, baseline, len(differences)),
-		StatusAvailable: record.GetBool("reachable") && record.GetBool("status_available"),
-		ConfigAvailable: record.GetBool("reachable") && record.GetBool("config_available"),
+		StatusAvailable: inventory.StatusCurrent(record),
+		ConfigAvailable: inventory.ConfigCurrent(record),
 	}
 	wifi, _ := status["wifi"].(map[string]any)
 	sys, _ := status["sys"].(map[string]any)

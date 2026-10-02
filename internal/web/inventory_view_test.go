@@ -82,7 +82,7 @@ func TestInventoryPresentation(t *testing.T) {
 		r := record(status)
 		r.Set("reachable", false)
 		view := tableDevice(r, map[string]any{}, 4)
-		if view.Connectivity != "Offline" || view.ConnectivityIcon != "close-circle" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Inputs[0].Changed || view.Configuration != "Unavailable" || view.Inputs[0].State != "—" || view.Inputs[0].Output != "—" || view.SignalTone != "muted" || view.SignalValue != "-55" {
+		if view.Connectivity != "Offline" || view.ConnectivityIcon != "close-circle" || view.SettingsWarning != "Settings unavailable · showing saved copy" || !view.Inputs[0].Changed || view.Configuration != "4 changes" || view.ConfigurationTone != "muted" || view.Inputs[0].State != "Not reported" || view.Inputs[0].Output != "On" || view.Inputs[0].OutputTone != "muted" || !strings.Contains(view.Inputs[0].StatusInfo, "Last reported") || view.SignalTone != "muted" || view.SignalValue != "-55" {
 			t.Fatalf("stale values displayed as current: %+v", view)
 		}
 	})
@@ -90,12 +90,12 @@ func TestInventoryPresentation(t *testing.T) {
 		r := record(status)
 		r.Set("config_available", false)
 		view := tableDevice(r, map[string]any{}, 4)
-		if view.Inputs[0].Output != "On" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Configuration != "Unavailable" || !strings.Contains(view.Inputs[0].Info, view.SettingsWarning) {
+		if view.Inputs[0].Output != "On" || view.Inputs[0].OutputTone != "ok" || view.SettingsWarning != "Settings unavailable · showing saved copy" || view.Configuration != "4 changes" || view.ConfigurationTone != "muted" || !strings.Contains(view.Inputs[0].Info, view.SettingsWarning) {
 			t.Fatalf("configuration failure masked valid status: %+v", view)
 		}
 		r.Set("status_available", false)
 		view = tableDevice(r, map[string]any{}, 4)
-		if view.Inputs[0].Output != "—" || view.Connectivity != "Read failed" || view.ConnectivityTone != "warning" || view.ConnectivityIcon != "warning" {
+		if view.Inputs[0].Output != "On" || view.Inputs[0].OutputTone != "muted" || view.Connectivity != "Read failed" || view.ConnectivityTone != "warning" || view.ConnectivityIcon != "warning" {
 			t.Fatalf("status failure displayed as healthy: %+v", view)
 		}
 	})

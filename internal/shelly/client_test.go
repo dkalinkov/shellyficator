@@ -117,6 +117,77 @@ func TestReadRejectsPartialConfigurationOnDecodeFailure(t *testing.T) {
 	}
 }
 
+func TestRefreshRetriesTransientReadsOnce(t *testing.T) {
+	for _, path := range []string{"/shelly", "/rpc/Shelly.GetStatus", "/rpc/Shelly.GetConfig"} {
+		t.Run(path, func(t *testing.T) {
+			var attempts atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == path && attempts.Add(1) == 1 {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
+				switch r.URL.Path {
+				case "/shelly":
+					_, _ = w.Write([]byte(`{"id":"test","mac":"AABBCCDDEEFF","gen":4}`))
+				case "/rpc/Shelly.GetStatus":
+					_, _ = w.Write([]byte(`{"switch:0":{"output":false}}`))
+				case "/rpc/Shelly.GetConfig":
+					_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"momentary"}}`))
+				}
+			}))
+			defer server.Close()
+			reading, err := NewClient("").Read(context.Background(), server.URL, "AABBCCDDEEFF", true)
+			if err != nil || attempts.Load() != 2 || reading.Problem != "" || reading.Status == nil || reading.Config == nil {
+				t.Fatalf("transient read did not recover: reading=%+v attempts=%d err=%v", reading, attempts.Load(), err)
+			}
+		})
+	}
+}
+
+func TestFailedStatusDoesNotReturnPartialDataOrRetryAccessErrors(t *testing.T) {
+	for _, mode := range []string{"authentication", "decode"} {
+		t.Run(mode, func(t *testing.T) {
+			var attempts atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/shelly" {
+					_, _ = w.Write([]byte(`{"id":"test","mac":"AABBCCDDEEFF","gen":4}`))
+					return
+				}
+				attempts.Add(1)
+				if mode == "authentication" {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+				_, _ = w.Write([]byte(`{"switch:0":{"output":true},"invalid":1e999}`))
+			}))
+			defer server.Close()
+			reading, err := NewClient("").Read(context.Background(), server.URL, "AABBCCDDEEFF", false)
+			if err != nil || reading.Status != nil || reading.Problem == "" || attempts.Load() != 1 || reading.Identity.MAC != "AABBCCDDEEFF" {
+				t.Fatalf("status error lost reachable identity, returned partial data, or retried: %+v err=%v", reading, err)
+			}
+			if mode == "authentication" && reading.Problem != ErrAuthentication.Error() {
+				t.Fatal("authentication failure was described as connectivity failure")
+			}
+		})
+	}
+}
+
+func TestCanceledReadDoesNotRetry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		cancel()
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	_, err := NewClient("").Read(ctx, server.URL, "AABBCCDDEEFF", false)
+	if !errors.Is(err, context.Canceled) || requests.Load() != 1 {
+		t.Fatalf("canceled check retried or lost cancellation: err=%v requests=%d", err, requests.Load())
+	}
+}
+
 func TestTargetsBoundsAndAddresses(t *testing.T) {
 	for _, value := range []string{"10.0.0.0/16", "8.8.8.0/24", "file:///etc/passwd", "http://admin:password@192.168.1.2", "192.168.1.2/rpc/Switch.Set"} {
 		if _, err := Targets(value); err == nil {

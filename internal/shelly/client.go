@@ -114,6 +114,7 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConf
 		return reading, ErrIdentity
 	}
 	if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetStatus", &reading.Status); err != nil {
+		reading.Status = nil
 		reading.Problem = describe(err)
 	}
 	if readConfig {
@@ -129,22 +130,9 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConf
 	return reading, nil
 }
 
-// Discover retries transient identity failures once, allowing neighbor resolution
-// to finish. Invalid identities and authentication failures are not retried.
+// Discovery and refresh use the same bounded retries and identity validation.
 func (c *Client) Discover(ctx context.Context, address string) (Reading, error) {
-	reading, err := c.Read(ctx, address, "", true)
-	var networkError net.Error
-	if err == nil || ctx.Err() != nil || (!errors.As(err, &networkError) && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF)) {
-		return reading, err
-	}
-	timer := time.NewTimer(350 * time.Millisecond)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return reading, ctx.Err()
-	case <-timer.C:
-		return c.Read(ctx, address, "", true)
-	}
+	return c.Read(ctx, address, "", true)
 }
 
 func DiscoveryError(err error) string {
@@ -162,6 +150,34 @@ func DiscoveryError(err error) string {
 }
 
 func (c *Client) get(ctx context.Context, client *http.Client, address string, dst any) error {
+	err := c.getOnce(ctx, client, address, dst)
+	var networkError net.Error
+	var responseError *httpError
+	transient := errors.As(err, &networkError) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+	if errors.As(err, &responseError) {
+		switch responseError.code {
+		case 408, 429, 500, 502, 503, 504:
+			transient = true
+		}
+	}
+	if err == nil || ctx.Err() != nil || !transient {
+		return err
+	}
+	timer := time.NewTimer(350 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return c.getOnce(ctx, client, address, dst)
+	}
+}
+
+type httpError struct{ code int }
+
+func (e *httpError) Error() string { return fmt.Sprintf("device returned HTTP %d", e.code) }
+
+func (c *Client) getOnce(ctx context.Context, client *http.Client, address string, dst any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
 		return err
@@ -175,7 +191,7 @@ func (c *Client) get(ctx context.Context, client *http.Client, address string, d
 		return ErrAuthentication
 	}
 	if response.StatusCode != 200 {
-		return fmt.Errorf("device returned HTTP %d", response.StatusCode)
+		return &httpError{code: response.StatusCode}
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1048577))
 	if err != nil {

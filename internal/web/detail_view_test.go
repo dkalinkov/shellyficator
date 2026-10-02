@@ -70,9 +70,9 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 		state, configuration      string
 	}{
 		{"online", true, true, true, "On", "Matches"},
-		{"offline", false, false, false, "Unavailable", "Unavailable"},
+		{"offline", false, false, false, "Unavailable", "Matches"},
 		{"status failed", true, false, true, "Unavailable", "Matches"},
-		{"config failed", true, true, false, "On", "Unavailable"},
+		{"config failed", true, true, false, "On", "Matches"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			record.Set("reachable", test.reachable)
@@ -84,6 +84,9 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 			}
 			if !test.status && (result.Outputs[0].StateTone != "muted" || result.Outputs[0].Values[0].Value != "Unavailable" || result.Summary[0].Tone != "muted") {
 				t.Fatalf("cached status presented as current: %+v", result)
+			}
+			if !test.config && result.Table.ConfigurationTone != "muted" {
+				t.Fatal("cached comparison presented as current")
 			}
 		})
 	}

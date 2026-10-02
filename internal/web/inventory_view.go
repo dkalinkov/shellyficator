@@ -22,6 +22,8 @@ type DeviceTable struct {
 	SettingsWarning                                     string
 	InputsChanged                                       bool
 	RestartRequired                                     bool
+	StatusInfo                                          string
+	ConfigurationStale                                  bool
 }
 
 type TableInput struct {
@@ -31,10 +33,16 @@ type TableInput struct {
 	State, StateTone, Output, OutputTone                   string
 	Values                                                 []Metric
 	Changed                                                bool
+	StatusInfo                                             string
 }
 
 func tableDevice(record *core.Record, baseline map[string]any, differences int) DeviceTable {
 	status, config := inventory.Object(record, "status"), inventory.Object(record, "config")
+	currentStatus, currentConfig := inventory.StatusCurrent(record), inventory.ConfigCurrent(record)
+	statusRead := inventory.FormatTime(record.GetString("last_status_read"))
+	if record.GetString("last_status_read") == "" && status != nil {
+		statusRead = "Unknown"
+	}
 	model := record.GetString("model")
 	if name := map[string]string{
 		"S4SW-001P8EU": "Mini 1PM", "S4SW-002P16EU": "2PM",
@@ -52,7 +60,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		ConfigurationInfo: "Settings last read · " + inventory.FormatTime(record.GetString("last_captured")),
 		Note:              previewText(record.GetString("notes"), 320),
 	}
-	if !record.GetBool("reachable") || !record.GetBool("config_available") {
+	if !currentConfig {
 		view.SettingsWarning = "Settings unavailable"
 		if config != nil {
 			view.SettingsWarning += " · showing saved copy"
@@ -67,24 +75,37 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 	if parsed, err := url.Parse(record.GetString("address")); err == nil {
 		view.Address = parsed.Host
 	}
-	if !record.GetBool("reachable") {
+	if record.GetBool("identity_mismatch") {
+		view.Connectivity, view.ConnectivityTone, view.ConnectivityIcon = "Identity mismatch", "error", "warning"
+	} else if !record.GetBool("reachable") {
 		view.Connectivity, view.ConnectivityTone = "Offline", "error"
 		view.ConnectivityIcon = "close-circle"
-	} else if !record.GetBool("status_available") {
+	} else if record.GetInt("consecutive_failures") > 0 {
+		view.Connectivity, view.ConnectivityTone = "Last seen", "muted"
+		view.ConnectionInfo += "\nCheck missed · retrying before marking offline"
+	} else if !currentStatus {
 		view.Connectivity, view.ConnectivityTone = "Read failed", "warning"
 		view.ConnectivityIcon = "warning"
 	}
 	if problem := record.GetString("problem"); problem != "" {
 		view.ConnectionInfo += "\n" + problem
 	}
-	currentStatus := record.GetBool("reachable") && record.GetBool("status_available")
+	if !currentStatus && status != nil {
+		view.StatusInfo = "Last reported · " + statusRead + "\nCurrent status could not be checked."
+		view.ConnectionInfo += "\nShowing last reported values"
+	}
 	sys, _ := status["sys"].(map[string]any)
 	restart, _ := sys["restart_required"].(bool)
 	view.RestartRequired = currentStatus && restart
 	cloudStatus, _ := status["cloud"].(map[string]any)
 	cloudConfig, _ := config["cloud"].(map[string]any)
-	view.Cloud = serviceConnection(cloudStatus, cloudConfig, currentStatus, record.GetBool("reachable") && record.GetBool("config_available"))
-	view.Cloud.Info += "\nStatus checked · " + inventory.FormatTime(record.GetString("last_checked"))
+	view.Cloud = serviceConnection(cloudStatus, cloudConfig, currentStatus, currentConfig)
+	if !currentStatus && status != nil {
+		view.Cloud = serviceConnection(cloudStatus, cloudConfig, true, config != nil)
+		view.Cloud.Tone = "muted"
+		view.Cloud.Info = view.StatusInfo
+	}
+	view.Cloud.Info += "\nStatus last read · " + statusRead
 	if view.Cloud.Value == "Disabled" {
 		view.Cloud.Info += "\nSettings last read · " + inventory.FormatTime(record.GetString("last_captured"))
 	}
@@ -102,19 +123,24 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 					view.SignalTone = "error"
 				}
 			} else {
-				view.Signal += " · last reported"
+				view.Signal += " · last reported\nStatus last read · " + statusRead
 			}
 		}
 	}
 	if baseline != nil {
 		view.Configuration, view.ConfigurationTone = "Unavailable", "warning"
-		if record.GetBool("reachable") && record.GetBool("config_available") {
+		if config != nil {
 			view.Configuration, view.ConfigurationTone = "Matches", "ok"
 			if differences > 0 {
 				view.Configuration, view.ConfigurationTone = fmt.Sprintf("%d changes", differences), "warning"
 				if differences == 1 {
 					view.Configuration = "1 change"
 				}
+			}
+			if !currentConfig {
+				view.ConfigurationStale = true
+				view.ConfigurationTone = "muted"
+				view.ConfigurationInfo += "\nLast known comparison · current settings could not be checked"
 			}
 		}
 		view.ConfigurationInfo += "\nCompared with approved baseline"
@@ -128,6 +154,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		inputReading, _ := status[key].(map[string]any)
 		id := strings.TrimPrefix(key, "input:")
 		line := TableInput{ID: id, Key: key, Type: inputType(input["type"]), Mode: "—", ModeTone: "muted", State: "—", StateTone: "muted", Output: "—", OutputTone: "muted"}
+		line.StatusInfo = view.StatusInfo
 		line.Name, _ = input["name"].(string)
 		var settings, reading map[string]any
 		for _, switchKey := range switches {
@@ -149,7 +176,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		if view.SettingsWarning != "" {
 			line.Info += "\n" + view.SettingsWarning
 		}
-		if currentStatus {
+		if status != nil {
 			if state, exists := inputReading["state"]; exists {
 				line.State, line.StateTone = boolState(state)
 				if state == nil {
@@ -157,6 +184,9 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 				}
 			}
 			line.Output, line.OutputTone = boolState(reading["output"])
+			if !currentStatus {
+				line.StateTone, line.OutputTone = "muted", "muted"
+			}
 		}
 		if locked, _ := settings["in_locked"].(bool); locked {
 			line.Restriction = "Locked"
@@ -181,7 +211,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		if value, ok := settings["initial_state"].(string); ok && value != "" {
 			line.Values = append(line.Values, Metric{"After power loss", inputMode(strings.ReplaceAll(value, "_", " "))})
 		}
-		if baseline != nil && view.SettingsWarning == "" {
+		if baseline != nil && config != nil {
 			beforeSwitch, _ := baseline[line.RelayKey].(map[string]any)
 			beforeInput, _ := baseline[key].(map[string]any)
 			for _, pair := range []struct {

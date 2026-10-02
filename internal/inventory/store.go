@@ -17,6 +17,17 @@ type Store struct{ App core.App }
 
 func New(app core.App) *Store { return &Store{App: app} }
 
+const OfflineGrace = 90 * time.Second
+const OfflineFailures = 3
+
+func StatusCurrent(record *core.Record) bool {
+	return record.GetBool("reachable") && record.GetBool("status_available") && record.GetInt("consecutive_failures") == 0 && !record.GetBool("identity_mismatch")
+}
+
+func ConfigCurrent(record *core.Record) bool {
+	return record.GetBool("reachable") && record.GetBool("config_available") && record.GetInt("consecutive_failures") == 0 && !record.GetBool("identity_mismatch")
+}
+
 func Object(record *core.Record, name string) map[string]any {
 	var result map[string]any
 	_ = json.Unmarshal([]byte(record.GetString(name)), &result)
@@ -40,7 +51,8 @@ func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record,
 			}
 			record = core.NewRecord(collection)
 		}
-		for key, value := range map[string]any{"device_id": reading.Identity.ID, "mac": reading.Identity.MAC, "model": reading.Identity.Model, "generation": reading.Identity.Gen, "firmware": reading.Identity.Version, "address": reading.Address, "auth_enabled": reading.Identity.Auth, "reachable": true, "status_available": reading.Status != nil, "problem": reading.Problem, "last_seen": time.Now().UTC(), "last_checked": time.Now().UTC()} {
+		now := time.Now().UTC()
+		for key, value := range map[string]any{"device_id": reading.Identity.ID, "mac": reading.Identity.MAC, "model": reading.Identity.Model, "generation": reading.Identity.Gen, "firmware": reading.Identity.Version, "address": reading.Address, "auth_enabled": reading.Identity.Auth, "reachable": true, "status_available": reading.Status != nil, "problem": reading.Problem, "last_seen": now, "last_checked": now, "consecutive_failures": 0, "identity_mismatch": false} {
 			record.Set(key, value)
 		}
 		if reading.Identity.Name != "" {
@@ -48,6 +60,7 @@ func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record,
 		}
 		if reading.Status != nil {
 			record.Set("status", reading.Status)
+			record.Set("last_status_read", now)
 		}
 		// Configuration availability follows reads; capture only adds a snapshot.
 		if capture || reading.ConfigAttempted || reading.Config != nil {
@@ -87,17 +100,29 @@ func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record,
 	return saved, err
 }
 
-func (s *Store) Failed(id string, problem string) error {
+func (s *Store) Failed(id string, problem string, identityMismatch bool) error {
 	return s.App.RunInTransaction(func(app core.App) error {
 		record, err := app.FindRecordById("devices", id)
 		if err != nil {
 			return err
 		}
-		record.Set("reachable", false)
+		now := time.Now().UTC()
+		failures := record.GetInt("consecutive_failures") + 1
+		record.Set("consecutive_failures", failures)
+		// A later timeout cannot hide an identity mismatch; only a validated
+		// successful reading clears it.
+		identityMismatch = identityMismatch || record.GetBool("identity_mismatch")
+		record.Set("identity_mismatch", identityMismatch)
+		if identityMismatch {
+			record.Set("reachable", false)
+			problem = "Address now belongs to a different device. Rediscover this device."
+		} else if failures >= OfflineFailures && now.Sub(record.GetDateTime("last_seen").Time()) >= OfflineGrace {
+			record.Set("reachable", false)
+		}
 		record.Set("status_available", false)
 		record.Set("config_available", false)
 		record.Set("problem", problem)
-		record.Set("last_checked", time.Now().UTC())
+		record.Set("last_checked", now)
 		return app.Save(record)
 	})
 }
@@ -120,7 +145,7 @@ func (s *Store) MarkBaseline(id string) error {
 		if err != nil {
 			return err
 		}
-		if len(snapshots) == 0 || !record.GetBool("config_available") {
+		if len(snapshots) == 0 || !ConfigCurrent(record) {
 			return errors.New("capture configuration before approving a baseline")
 		}
 		record.Set("baseline", snapshots[0].Id)
