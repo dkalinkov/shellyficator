@@ -47,6 +47,13 @@
   .summary-online .dot { width: 6px; height: 6px; background: currentColor; }
   .summary-changed, .summary-unprotected { color: var(--table-amber); }
   .summary-filtered { margin-left: auto; }
+  .inventory-room-heading { border-bottom: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent); background: color-mix(in oklab, var(--label-color, var(--color-base-content)) 4%, transparent); color: var(--label-color, var(--color-base-content)); font-size: 14px; font-weight: 500; }
+  .inventory-room-toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 12px 16px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .inventory-room-toggle:hover { background: color-mix(in oklab, var(--label-color, var(--color-base-content)) 6%, transparent); }
+  .inventory-room-toggle:focus-visible { outline-offset: -2px; }
+  .inventory-room-name { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .inventory-room-heading[data-colored-label] .inventory-room-name::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--label-color); }
+  .inventory-room-count { @apply text-base-content/60; flex: none; font-size: 12px; font-weight: 400; }
 
   .device-table { table-layout: fixed; }
   .col-device { width: auto; }
@@ -247,6 +254,17 @@
 .t-acc[data-open="true"] .t-acc-chevron {
   transform: scaleY(-1);
 }
+/* Room disclosures contain device disclosures; keep closed inputs independent. */
+.inventory-room-group .device-group[data-open="false"] .t-acc-panel {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
+}
+.inventory-room-group .device-group[data-open="false"] .t-acc-panel-inner {
+  opacity: 0;
+  filter: blur(2px);
+  transition: opacity var(--acc-collapse) var(--acc-ease), filter var(--acc-collapse) var(--acc-ease);
+}
+.inventory-room-group .device-group[data-open="false"] .t-acc-chevron { transform: scaleY(1); }
 @media (prefers-reduced-motion: reduce) {
   .t-acc-panel, .t-acc-panel-inner, .t-acc-chevron {
     transition: none !important;

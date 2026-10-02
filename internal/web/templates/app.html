@@ -77,10 +77,11 @@
       <form action="/discover" method="post" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"><input type="hidden" name="csrf" value="{{.CSRF}}"><div class="field grow"><label for="target">Address or subnet</label><input id="target" name="target" class="input w-full font-mono text-sm" placeholder="192.168.1.0/24 or 192.168.1.31" required></div><button class="btn btn-outline" type="submit">Scan</button></form>
     </details>
   </section>
-  <form id="filters" action="/" method="get" class="mb-5 flex flex-wrap items-end gap-3" hx-get="/inventory" hx-trigger="input changed delay:350ms from:#search, change from:#room, change from:#tag-filter" hx-target="#inventory" hx-swap="innerHTML">
+  <form id="filters" action="/" method="get" class="mb-5 flex flex-wrap items-end gap-3" hx-get="/inventory" hx-trigger="input changed delay:350ms from:#search, change from:#room, change from:#tag-filter, change from:#group-by" hx-target="#inventory" hx-swap="innerHTML">
     <div class="field grow sm:max-w-sm"><label for="search">Search devices</label><input class="input w-full" id="search" name="q" value="{{.Query}}" placeholder="Name, address, tag, or note…"></div>
     <div class="field"><label for="room">Room</label><select id="room" class="select w-44" name="room">{{template "room-options" .}}</select></div>
     {{template "tag-filter" .}}
+    <div class="field"><label for="group-by">Group by</label><select id="group-by" class="select w-32" name="group"><option value="" {{if not .GroupBy}}selected{{end}}>None</option><option value="room" {{if eq .GroupBy "room"}}selected{{end}}>Room</option></select></div>
     <label class="ml-auto flex items-center gap-2 py-3 text-sm text-base-content/65"><input id="auto-refresh" type="checkbox" class="checkbox checkbox-xs" checked>Auto-refresh (30s)</label>
     <button class="btn btn-ghost" type="submit" hx-get="/inventory?refresh=1" hx-trigger="click" hx-include="#filters" hx-target="#inventory" hx-swap="innerHTML">Refresh <span class="loading loading-spinner loading-xs loading-indicator" aria-hidden="true"></span></button>
   </form>
@@ -104,10 +105,24 @@
   {{if or .Query .Room .SelectedTags}}<span class="summary-filtered">{{len .Devices}} shown</span>{{end}}
 </section>
 {{if .Devices}}
+{{if .RoomGroups}}
+{{range $index, $group := .RoomGroups}}
+<section class="inventory-room-group t-acc" data-room-group="{{.Room}}" data-open="true" aria-labelledby="room-heading-{{$index}}">
+  <h2 id="room-heading-{{$index}}" class="inventory-room-heading" data-room-label="{{.Room}}"><button type="button" id="room-toggle-{{$index}}" class="inventory-room-toggle t-acc-head" data-room-toggle aria-expanded="true" aria-controls="room-panel-{{$index}}"><span class="inventory-room-name">{{if .Room}}{{.Room}}{{else}}No room{{end}}</span><span class="inventory-room-count">{{len .Devices}} {{if eq (len .Devices) 1}}device{{else}}devices{{end}}</span><span class="t-acc-chevron" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6.5L8 10.5L12 6.5"/></svg></span></button></h2>
+  <div id="room-panel-{{$index}}" class="t-acc-panel" data-room-panel aria-hidden="false"><div class="t-acc-panel-inner">{{template "inventory-table" .Devices}}</div></div>
+</section>
+{{end}}
+{{else}}{{template "inventory-table" .Devices}}{{end}}
+{{else}}
+<p class="px-6 py-10 text-center text-sm text-base-content/55">{{if .Total}}No matching devices.{{else}}No devices.{{end}}</p>
+{{end}}
+</div>{{end}}
+
+{{define "inventory-table"}}
 <table class="table device-table w-full"><caption class="sr-only">Shelly device inventory</caption>
   <colgroup><col class="col-device"><col class="col-model"><col class="col-address"><col class="col-status"><col class="col-wifi"><col class="col-inputs"><col class="col-config"><col class="col-actions"></colgroup>
   <thead><tr><th scope="col">Device</th><th scope="col">Model</th><th scope="col">Address / room</th><th scope="col">Status</th><th scope="col">Wi-Fi</th><th scope="col">Inputs</th><th scope="col">Saved config</th><th scope="col"><span class="sr-only">Security and links</span></th></tr></thead>
-{{range .Devices}}{{$device := .}}
+{{range .}}{{$device := .}}
 <tbody class="device-group t-acc" data-open="false">
 <tr class="device-row {{if .Table.Note}}has-note{{end}} {{if .Table.InputsChanged}}device-row-changed{{end}} {{if eq .Table.ConnectivityTone "error"}}device-row-error{{end}}" data-row-href="/devices/{{.Record.Id}}">
   <th scope="row" class="device-identity"><a class="device-name" href="/devices/{{.Record.Id}}" data-tooltip="{{.Name}}&#10;{{.Table.Identity}}">{{.Name}}</a></th>
@@ -138,10 +153,7 @@
   </div></div></div>
 </td></tr>{{end}}
 </tbody>{{end}}</table>
-{{else}}
-<p class="px-6 py-10 text-center text-sm text-base-content/55">{{if .Total}}No matching devices.{{else}}No devices.{{end}}</p>
 {{end}}
-</div>{{end}}
 
 {{define "detail"}}{{template "head" .}}{{template "header" .}}
 <main id="main" class="mx-auto max-w-[1440px] px-5 py-9 lg:px-10">

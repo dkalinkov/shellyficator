@@ -512,6 +512,7 @@ document.addEventListener('htmx:configRequest', event => {
   event.detail.parameters.filter_q = document.getElementById('search').value;
   event.detail.parameters.filter_room = document.getElementById('room').value;
   event.detail.parameters.filter_tags = document.querySelector('[data-tag-filter] input[name="tags"]').value;
+  event.detail.parameters.filter_group = document.getElementById('group-by').value;
   event.detail.elt.querySelector('[data-organization-error]').hidden = true;
 });
 document.addEventListener('htmx:oobAfterSwap', event => {
@@ -565,7 +566,8 @@ if (organizationDialog) {
     closeLabelMenus();
     document.getElementById('organization-content').replaceChildren();
     const opener = document.getElementById(organizationOpener) || document.getElementById('search');
+    const collapsedRoom = opener.closest('[data-room-group][data-open="false"]');
     dismissTooltip(opener);
-    opener.focus({preventScroll: true});
+    (collapsedRoom?.querySelector('[data-room-toggle]') || opener).focus({preventScroll: true});
   });
 }

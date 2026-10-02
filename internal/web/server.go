@@ -68,10 +68,16 @@ type Channel struct {
 	Values           []Metric
 }
 type Metric struct{ Label, Value string }
+type RoomGroup struct {
+	Room    string
+	Devices []Device
+}
 type Page struct {
 	Title, Active, CSRF, Notice, Error, Query, Room string
+	GroupBy                                         string
 	Version                                         string
 	Devices                                         []Device
+	RoomGroups                                      []RoomGroup
 	Rooms, Tags                                     []string
 	SelectedTags                                    []string
 	Total, Reachable, Changed, Unprotected          int
@@ -300,15 +306,18 @@ func (s *Server) render(e *core.RequestEvent, name string, page Page) error {
 
 func (s *Server) list(e *core.RequestEvent) (Page, error) {
 	query := e.Request.URL.Query()
-	return s.listFiltered(e, query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","))
+	return s.listFiltered(e, query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","), query.Get("group"))
 }
 
-func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter string) (Page, error) {
+func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (Page, error) {
 	records, err := s.store.Devices()
 	if err != nil {
 		return Page{}, err
 	}
-	page := Page{Title: "Devices", Active: "devices", CSRF: csrf(e), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), Notice: e.Request.URL.Query().Get("notice")}
+	if groupBy != "room" {
+		groupBy = ""
+	}
+	page := Page{Title: "Devices", Active: "devices", CSRF: csrf(e), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), GroupBy: groupBy, Notice: e.Request.URL.Query().Get("notice")}
 	rooms := map[string]bool{}
 	tags := map[string]string{}
 	selectedTags := map[string]bool{}
@@ -394,10 +403,42 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 		page.Tags = append(page.Tags, tag)
 	}
 	sort.Slice(page.Tags, func(i, j int) bool { return strings.ToLower(page.Tags[i]) < strings.ToLower(page.Tags[j]) })
+	if page.GroupBy == "room" {
+		page.RoomGroups = groupDevicesByRoom(page.Devices)
+	}
 	s.mu.Lock()
 	page.Discovery = s.discovery
 	s.mu.Unlock()
 	return page, nil
+}
+
+func groupDevicesByRoom(devices []Device) []RoomGroup {
+	var groups []RoomGroup
+	indices := map[string]int{}
+	for _, device := range devices {
+		room := device.Record.GetString("room")
+		index, found := indices[room]
+		if !found {
+			index = len(groups)
+			indices[room] = index
+			groups = append(groups, RoomGroup{Room: room})
+		}
+		groups[index].Devices = append(groups[index].Devices, device)
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		a, b := groups[i].Room, groups[j].Room
+		if a == "" {
+			return false
+		}
+		if b == "" {
+			return true
+		}
+		if strings.ToLower(a) == strings.ToLower(b) {
+			return a < b
+		}
+		return strings.ToLower(a) < strings.ToLower(b)
+	})
+	return groups
 }
 
 func inventoryURL(page Page) string {
@@ -410,6 +451,9 @@ func inventoryURL(page Page) string {
 	}
 	if len(page.SelectedTags) > 0 {
 		query.Set("tags", strings.Join(page.SelectedTags, ","))
+	}
+	if page.GroupBy != "" {
+		query.Set("group", page.GroupBy)
 	}
 	if len(query) == 0 {
 		return "/"
@@ -757,7 +801,7 @@ func (s *Server) organization(e *core.RequestEvent) error {
 	if e.Request.Header.Get("HX-Request") != "true" {
 		return s.redirect(e, "/", "Room & tags saved.")
 	}
-	page, err := s.listFiltered(e, e.Request.FormValue("filter_q"), e.Request.FormValue("filter_room"), e.Request.FormValue("filter_tags"))
+	page, err := s.listFiltered(e, e.Request.FormValue("filter_q"), e.Request.FormValue("filter_room"), e.Request.FormValue("filter_tags"), e.Request.FormValue("filter_group"))
 	if err != nil {
 		return err
 	}
