@@ -21,6 +21,7 @@
   --acc-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --cloud-shine-duration: 2.4s;
   --cloud-connected-color: #75ffc7;
+  --inventory-badge-height: 28px;
 }
 
 @layer base {
@@ -58,28 +59,34 @@
   .inventory-room-count { @apply text-base-content/60; flex: none; font-size: 12px; font-weight: 400; }
 
   .device-table { table-layout: fixed; }
-  .col-device { width: auto; }
-  .col-model { width: 11%; }
-  .col-address { width: 16%; }
-  .col-status { width: 11%; }
-  .col-wifi { width: 10%; }
-  .col-inputs { width: 10%; }
-  .col-config { width: 11%; }
-  .col-actions { width: 170px; }
+  .col-device { width: 24%; }
+  .col-model, .col-address, .col-room, .col-status, .col-wifi, .col-config { width: auto; }
+  .col-actions { width: 150px; }
   .device-table thead th { @apply border-b border-base-content/10 px-3 py-3 text-xs font-medium text-base-content/60; }
+  .device-table thead th:not(:first-child) { text-align: center; }
   .device-table .device-row > th, .device-table .device-row > td { @apply border-b border-base-content/10 px-3 align-middle; padding-top: 8px; padding-bottom: 8px; height: 52px; font-size: 13px; font-weight: 400; white-space: nowrap; }
+  .device-table .device-row > td { text-align: center; }
+  .device-table .device-row :is(.model-chip, .room-chip, .input-toggle, .config-value.tone-ok, .config-value.tone-warning) { height: var(--inventory-badge-height); min-height: var(--inventory-badge-height); }
   .device-row { cursor: pointer; }
   .device-row:hover, .device-row:focus-within, .device-group[data-open="true"] .device-row { background: color-mix(in oklab, var(--table-blue) 5%, transparent); }
   .device-table .device-identity { border-left: 3px solid transparent; }
   .device-table .device-row-changed .device-identity { border-left-color: var(--table-amber); }
   .device-table .device-row-error .device-identity { border-left-color: var(--table-red); }
   .device-name { @apply block truncate font-medium text-base-content; font-size: 13px; }
+  .device-identity-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .device-identity-line .device-name { min-width: 0; }
+  .device-identity-line .input-toggle { flex: none; gap: 4px; padding: 4px 6px; }
   .device-name:hover { color: var(--table-blue); }
   .model-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 7px; border: 1px solid color-mix(in oklab, var(--table-blue) 20%, transparent); border-radius: 5px; color: var(--table-blue); background: color-mix(in oklab, var(--table-blue) 7%, transparent); font-size: 11px; white-space: nowrap; }
   .model-chip > :first-child { overflow: hidden; text-overflow: ellipsis; }
   .model-generation { color: var(--table-violet); font-size: 10px; font-weight: 500; }
-  .address-line { display: flex; align-items: center; gap: 7px; min-width: 0; }
-  .device-ip { @apply font-mono text-xs text-base-content/80; flex-shrink: 0; }
+  .device-ip { @apply block truncate font-mono text-xs text-base-content/80; }
+  .device-room .room-chip { max-width: 100%; }
+  .device-status { display: inline-flex; align-items: center; vertical-align: middle; gap: 2px; }
+  .device-status .icon-button { width: 28px; }
+  .device-status .status-indicator.tone-ok { color: var(--table-green); }
+  .device-status .status-indicator.tone-warning, .device-status .restart-indicator { color: var(--table-amber); }
+  .device-status .status-indicator.tone-error { color: var(--table-red); }
   .room-chip { @apply truncate text-[11px]; color: var(--label-color, var(--table-blue)); }
   .room-edit { min-width: 0; min-height: 28px; padding: 3px 6px; border: 1px solid color-mix(in oklab, var(--label-color, var(--table-blue)) 25%, transparent); border-radius: 5px; background: color-mix(in oklab, var(--label-color, var(--table-blue)) 8%, transparent); cursor: pointer; touch-action: manipulation; }
   .room-edit:hover { background: color-mix(in oklab, var(--label-color, var(--table-blue)) 16%, transparent); }
@@ -98,15 +105,14 @@
   .wifi-value { display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: 0; background: none; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; cursor: pointer; touch-action: manipulation; }
   .wifi-value .icon { width: 24px; height: 24px; stroke-width: 1.9; }
   .wifi-unit { font-size: 10px; font-weight: 400; }
-  .input-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; min-height: 32px; border: 1px solid color-mix(in oklab, var(--table-blue) 22%, transparent); border-radius: 5px; color: var(--table-blue); background: color-mix(in oklab, var(--table-blue) 8%, transparent); font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; touch-action: manipulation; }
-  .input-toggle:hover { background: color-mix(in oklab, var(--table-blue) 15%, transparent); }
+  .input-toggle { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; min-height: 32px; border: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent); border-radius: 5px; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); background: transparent; font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; touch-action: manipulation; }
+  .input-toggle:hover, .input-toggle:focus-visible { color: var(--table-blue); border-color: color-mix(in oklab, var(--table-blue) 22%, transparent); background: color-mix(in oklab, var(--table-blue) 5%, transparent); }
   .input-toggle.inputs-changed { color: var(--table-amber); border-color: color-mix(in oklab, var(--table-amber) 35%, transparent); background: color-mix(in oklab, var(--table-amber) 9%, transparent); }
   .t-acc-chevron svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .config-value { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
   .config-value.tone-ok, .config-value.tone-warning { padding: 4px 6px; border-radius: 5px; background: color-mix(in oklab, currentColor 8%, transparent); }
   .config-value .icon { width: 14px; height: 14px; }
-  .device-table .device-row > .device-actions { padding-left: 0; padding-right: 8px; }
-  .row-actions { display: flex; align-items: center; justify-content: end; gap: 2px; }
+  .row-actions { display: flex; align-items: center; justify-content: center; gap: 2px; }
   .icon-button { @apply inline-flex shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-base-content/60; width: 30px; height: 32px; cursor: pointer; touch-action: manipulation; }
   .icon-button:hover { background: color-mix(in oklab, currentColor 10%, transparent); }
   .cloud-indicator.tone-ok { color: var(--cloud-connected-color); background: color-mix(in oklab, currentColor 7%, transparent); }
@@ -226,7 +232,6 @@
 .htmx-request .loading.loading-indicator { display: inline-block; }
 /* Override DaisyUI's cell padding so closed disclosures occupy no space. */
 .device-table .device-row > th, .device-table .device-row > td { padding: 8px 12px; height: 52px; }
-.device-table .device-row > .device-actions { padding-left: 0; padding-right: 8px; }
 .device-table .input-detail-row > td { padding: 0; border: 0; height: auto; }
 
 .t-acc-panel {
@@ -287,25 +292,40 @@
 }
 .inventory-restoring .t-acc-panel, .inventory-restoring .t-acc-panel-inner, .inventory-restoring .t-acc-chevron { transition: none !important; }
 
-@media (max-width: 1100px) {
+@media (min-width: 1101px) and (max-width: 1199px) {
+  .col-device { width: 16%; }
+}
+@media (min-width: 1200px) and (max-width: 1280px) {
+  .col-device { width: 22%; }
+}
+@media (max-width: 1100px), (max-width: 1280px) and (pointer: coarse) {
   .device-table, .device-table tbody { display: block; }
   .device-table thead, .device-table colgroup { display: none; }
   .device-table .device-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; position: relative; padding: 16px; border-bottom: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent); }
-  .device-table .device-row > th, .device-table .device-row > td { display: block; padding: 0; height: auto; min-width: 0; border: 0; }
-  .device-table .device-row > .device-identity { grid-column: 1 / -1; padding-right: 140px; }
-  .device-table .device-row.has-note > .device-identity { padding-right: 172px; }
+  .device-table .device-row > th, .device-table .device-row > td { display: block; padding: 0; height: auto; min-width: 0; border: 0; text-align: left; }
+  .row-actions { justify-content: end; }
+  .device-table .device-row > .device-identity { grid-column: 1 / -1; padding-right: 108px; }
+  .device-table .device-row.has-note > .device-identity { padding-right: 140px; }
+  .device-model { grid-column: 1; grid-row: 2; }
+  .device-wifi { grid-column: 2; grid-row: 2; }
+  .device-address { grid-column: 1; grid-row: 3; }
+  .device-room { grid-column: 2; grid-row: 3; }
+  .device-connectivity { grid-column: 1; grid-row: 4; }
+  .device-config { grid-column: 2; grid-row: 4; }
   .device-name { white-space: normal; overflow-wrap: anywhere; }
   .device-table .device-row > .device-actions { position: absolute; top: 10px; right: 12px; padding: 0; }
-  .address-line { flex-wrap: wrap; gap: 3px 8px; }
   .device-ip { font-size: 11px; }
   .device-table .input-detail-row, .device-table .input-detail-row > td { display: block; }
   .input-scroll-hint { display: inline; }
 }
 @media (pointer: coarse) {
+  :root { --inventory-badge-height: 40px; }
   .tag-filter-search .input { font-size: 16px; }
   .tag-filter-option { min-height: 44px; }
   .tag-filter-footer .btn { min-height: 40px; }
   .icon-button { width: 40px; height: 40px; }
+  .col-actions { width: 190px; }
+  .device-status .icon-button { width: 30px; }
   .input-toggle { min-height: 40px; }
   .input-row { min-height: 48px; }
   .input-identity { min-height: 40px; }
@@ -315,13 +335,14 @@
   .room-edit { min-height: 40px; }
   .tag-chip button { width: 36px; min-height: 36px; }
 }
-@media (max-width: 1100px) and (pointer: coarse) {
-  .device-table .device-row > .device-identity { padding-right: 174px; }
-  .device-table .device-row.has-note > .device-identity { padding-right: 214px; }
+@media (max-width: 1280px) and (pointer: coarse) {
+  .device-status .icon-button { width: 36px; }
+  .device-table .device-row > .device-identity { padding-right: 134px; }
+  .device-table .device-row.has-note > .device-identity { padding-right: 174px; }
 }
 @media (max-width: 480px) {
   .device-table .device-row > .device-identity, .device-table .device-row.has-note > .device-identity { padding-right: 0; }
-  .device-table .device-row > .device-actions { position: static; grid-column: 1 / -1; }
+  .device-table .device-row > .device-actions { position: static; grid-column: 1 / -1; grid-row: 5; }
   .inventory-summary { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
   .summary-filtered { margin-left: 0; grid-column: 1 / -1; }
   .input-panel-body { padding-left: 12px; padding-right: 12px; }
