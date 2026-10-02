@@ -44,12 +44,15 @@ try {
   if (Array.isArray(saved)) saved.filter(room => typeof room === 'string').forEach(room => collapsedRooms.add(room));
 } catch { /* Room disclosure state is optional when storage is unavailable. */ }
 
-function setRoomOpen(group, open) {
-  group.dataset.open = String(open);
-  group.querySelector('[data-room-toggle]').setAttribute('aria-expanded', String(open));
-  const panel = group.querySelector('[data-room-panel]');
+function setDisclosureOpen(owner, button, panel, open) {
+  owner.dataset.open = String(open);
+  button.setAttribute('aria-expanded', String(open));
   panel.setAttribute('aria-hidden', String(!open));
   panel.inert = !open;
+}
+
+function setRoomOpen(group, open) {
+  setDisclosureOpen(group, group.querySelector('[data-room-toggle]'), group.querySelector('[data-room-panel]'), open);
 }
 
 function applyRoomState(root) {
@@ -67,11 +70,7 @@ function applyRoomState(root) {
 
 function setInputsOpen(button, open) {
   const group = button.closest('.device-group');
-  group.dataset.open = String(open);
-  button.setAttribute('aria-expanded', String(open));
-  const row = group.querySelector('.input-detail-row');
-  row.setAttribute('aria-hidden', String(!open));
-  row.inert = !open;
+  setDisclosureOpen(group, button, group.querySelector('.input-detail-row'), open);
 }
 
 function applyInputsState(root) {

@@ -121,7 +121,9 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConf
 		reading.ConfigAttempted = true
 		if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetConfig", &reading.Config); err != nil {
 			reading.Config = nil
-			reading.Problem = describe(err)
+			if reading.Problem == "" || errors.Is(err, ErrAuthentication) {
+				reading.Problem = describe(err)
+			}
 		}
 		if reading.Config != nil {
 			Redact(reading.Config)
@@ -241,20 +243,23 @@ func Redact(value map[string]any) {
 			value[key] = "[redacted]"
 			continue
 		}
-		switch nested := entry.(type) {
-		case map[string]any:
-			Redact(nested)
-		case []any:
-			for _, item := range nested {
-				if object, ok := item.(map[string]any); ok {
-					Redact(object)
-				}
-			}
-		case string:
-			if u, err := url.Parse(nested); err == nil && u.User != nil {
-				u.User = nil
-				value[key] = u.String()
-			}
+		value[key] = redactValue(entry)
+	}
+}
+
+func redactValue(value any) any {
+	switch nested := value.(type) {
+	case map[string]any:
+		Redact(nested)
+	case []any:
+		for i, item := range nested {
+			nested[i] = redactValue(item)
+		}
+	case string:
+		if u, err := url.Parse(nested); err == nil && u.User != nil {
+			u.User = nil
+			return u.String()
 		}
 	}
+	return value
 }

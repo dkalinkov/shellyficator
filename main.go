@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"log"
 	"os"
@@ -36,6 +37,8 @@ func main() {
 			for _, name := range []string{"operators", core.CollectionNameSuperusers} {
 				if _, err := tx.FindAuthRecordByEmail(name, email); err == nil {
 					return errors.New("account already exists; use the data admin interface to manage it")
+				} else if !errors.Is(err, sql.ErrNoRows) {
+					return err
 				}
 				collection, err := tx.FindCollectionByNameOrId(name)
 				if err != nil {

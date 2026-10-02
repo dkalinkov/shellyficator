@@ -1,0 +1,194 @@
+package web
+
+import (
+	"net/url"
+	"sort"
+	"strings"
+
+	"github.com/pocketbase/pocketbase/core"
+
+	"shellyficator/internal/inventory"
+	"shellyficator/internal/shelly"
+)
+
+func (s *Server) list(e *core.RequestEvent) (Page, error) {
+	query := e.Request.URL.Query()
+	return s.listFiltered(e, query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","), query.Get("group"))
+}
+
+func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (Page, error) {
+	// Readers see one completed polling pass, including dashboard/filter loads.
+	s.inventoryMu.RLock()
+	defer s.inventoryMu.RUnlock()
+	records, err := s.store.Devices()
+	if err != nil {
+		return Page{}, err
+	}
+	if groupBy != "room" {
+		groupBy = ""
+	}
+	page := Page{Title: "Devices", CSRF: csrf(e), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), GroupBy: groupBy, Notice: e.Request.URL.Query().Get("notice")}
+	rooms := map[string]bool{}
+	tags := map[string]string{}
+	selectedTags := map[string]bool{}
+	for _, tag := range page.SelectedTags {
+		selectedTags[strings.ToLower(tag)] = true
+	}
+	page.Total = len(records)
+	for _, record := range records {
+		name := record.GetString("name")
+		if name == "" {
+			name = record.GetString("device_id")
+		}
+		device := Device{Record: record, Name: name}
+		if record.GetBool("reachable") {
+			page.Reachable++
+		}
+		if !record.GetBool("auth_enabled") {
+			page.Unprotected++
+		}
+		baseline := s.store.Baseline(record)
+		differences := 0
+		if config := inventory.Object(record, "config"); baseline != nil && config != nil {
+			differences = len(inventory.Differences(baseline, config))
+			if differences > 0 {
+				page.Changed++
+			}
+		}
+		room := record.GetString("room")
+		if room != "" {
+			rooms[room] = true
+		}
+		matchesTags := len(selectedTags) == 0
+		for _, tag := range inventory.SplitTags(record.GetString("tags")) {
+			key := strings.ToLower(tag)
+			if _, known := tags[key]; !known {
+				tags[key] = tag
+			}
+			if selectedTags[key] {
+				matchesTags = true
+			}
+		}
+		haystack := strings.ToLower(strings.Join([]string{name, record.GetString("device_id"), record.GetString("address"), room, record.GetString("tags"), record.GetString("notes")}, " "))
+		if page.Query != "" && !strings.Contains(haystack, strings.ToLower(page.Query)) {
+			continue
+		}
+		if page.Room != "" && page.Room != room {
+			continue
+		}
+		if !matchesTags {
+			continue
+		}
+		device.Table = tableDevice(record, baseline, differences)
+		notes := s.store.ChannelNotes(record.Id)
+		for i := range device.Table.Inputs {
+			input := &device.Table.Inputs[i]
+			input.Note = previewText(notes[input.Key], 320)
+			input.RelayNote = previewText(notes[input.RelayKey], 320)
+		}
+		page.Devices = append(page.Devices, device)
+	}
+	for room := range rooms {
+		page.Rooms = append(page.Rooms, room)
+	}
+	// Keep an active filter available even after its last device moves rooms.
+	if page.Room != "" && !rooms[page.Room] {
+		page.Rooms = append(page.Rooms, page.Room)
+	}
+	sort.Strings(page.Rooms)
+	// Preserve active tags even when an edit removes their last assignment.
+	for i, tag := range page.SelectedTags {
+		key := strings.ToLower(tag)
+		if name, known := tags[key]; known {
+			page.SelectedTags[i] = name
+		} else {
+			tags[key] = tag
+		}
+	}
+	for _, tag := range tags {
+		page.Tags = append(page.Tags, tag)
+	}
+	sort.Slice(page.Tags, func(i, j int) bool { return strings.ToLower(page.Tags[i]) < strings.ToLower(page.Tags[j]) })
+	if page.GroupBy == "room" {
+		page.RoomGroups = groupDevicesByRoom(page.Devices)
+	}
+	s.mu.Lock()
+	page.Discovery = s.discovery
+	s.mu.Unlock()
+	return page, nil
+}
+
+func groupDevicesByRoom(devices []Device) []RoomGroup {
+	var groups []RoomGroup
+	indices := map[string]int{}
+	for _, device := range devices {
+		room := device.Record.GetString("room")
+		index, found := indices[room]
+		if !found {
+			index = len(groups)
+			indices[room] = index
+			groups = append(groups, RoomGroup{Room: room})
+		}
+		groups[index].Devices = append(groups[index].Devices, device)
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		a, b := groups[i].Room, groups[j].Room
+		if a == "" {
+			return false
+		}
+		if b == "" {
+			return true
+		}
+		if strings.ToLower(a) == strings.ToLower(b) {
+			return a < b
+		}
+		return strings.ToLower(a) < strings.ToLower(b)
+	})
+	return groups
+}
+
+func inventoryURL(page Page) string {
+	query := url.Values{}
+	if page.Query != "" {
+		query.Set("q", page.Query)
+	}
+	if page.Room != "" {
+		query.Set("room", page.Room)
+	}
+	if len(page.SelectedTags) > 0 {
+		query.Set("tags", strings.Join(page.SelectedTags, ","))
+	}
+	if page.GroupBy != "" {
+		query.Set("group", page.GroupBy)
+	}
+	if len(query) == 0 {
+		return "/"
+	}
+	return "/?" + query.Encode()
+}
+
+func (s *Server) dashboard(e *core.RequestEvent) error {
+	page, err := s.list(e)
+	if err != nil {
+		return err
+	}
+	page.Networks, _ = shelly.LocalNetworks()
+	return s.render(e, "dashboard", page)
+}
+func (s *Server) table(e *core.RequestEvent) error {
+	force := e.Request.URL.Query().Get("refresh") == "1"
+	done := s.refresh(force)
+	if done != nil {
+		select {
+		case <-done:
+		case <-e.Request.Context().Done():
+			return e.Request.Context().Err()
+		}
+	}
+	page, err := s.list(e)
+	if err != nil {
+		return err
+	}
+	e.Response.Header().Set("HX-Replace-Url", inventoryURL(page))
+	return s.render(e, "inventory-updated", page)
+}

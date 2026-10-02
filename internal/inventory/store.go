@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,10 +42,26 @@ func (s *Store) Devices() ([]*core.Record, error) {
 func (s *Store) Device(id string) (*core.Record, error) { return s.App.FindRecordById("devices", id) }
 
 func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record, error) {
+	return s.saveReading(reading, capture, false)
+}
+
+// ApproveReading captures a fresh configuration and selects that exact snapshot
+// as the baseline in the same transaction.
+func (s *Store) ApproveReading(reading shelly.Reading) (*core.Record, error) {
+	if reading.Config == nil {
+		return nil, errors.New("capture configuration before approving a baseline")
+	}
+	return s.saveReading(reading, true, true)
+}
+
+func (s *Store) saveReading(reading shelly.Reading, capture, approve bool) (*core.Record, error) {
 	var saved *core.Record
 	err := s.App.RunInTransaction(func(app core.App) error {
 		record, err := app.FindFirstRecordByFilter("devices", "mac = {:mac}", dbx.Params{"mac": reading.Identity.MAC})
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			collection, err := app.FindCollectionByNameOrId("devices")
 			if err != nil {
 				return err
@@ -68,7 +85,7 @@ func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record,
 		}
 		if reading.Config != nil {
 			record.Set("config", reading.Config)
-			record.Set("last_captured", time.Now().UTC())
+			record.Set("last_captured", now)
 			if sys, ok := reading.Config["sys"].(map[string]any); ok {
 				if device, ok := sys["device"].(map[string]any); ok {
 					if name, ok := device["name"].(string); ok {
@@ -92,6 +109,12 @@ func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record,
 			snapshot.Set("reason", "Manual capture")
 			if err := app.Save(snapshot); err != nil {
 				return err
+			}
+			if approve {
+				record.Set("baseline", snapshot.Id)
+				if err := app.Save(record); err != nil {
+					return err
+				}
 			}
 		}
 		saved = record
@@ -135,24 +158,6 @@ func (s *Store) Snapshots(id string) ([]*core.Record, error) {
 	return s.App.FindRecordsByFilter("snapshots", "device = {:id}", "-captured", 50, 0, dbx.Params{"id": id})
 }
 
-func (s *Store) MarkBaseline(id string) error {
-	return s.App.RunInTransaction(func(app core.App) error {
-		record, err := app.FindRecordById("devices", id)
-		if err != nil {
-			return err
-		}
-		snapshots, err := app.FindRecordsByFilter("snapshots", "device = {:id}", "-captured", 1, 0, dbx.Params{"id": id})
-		if err != nil {
-			return err
-		}
-		if len(snapshots) == 0 || !ConfigCurrent(record) {
-			return errors.New("capture configuration before approving a baseline")
-		}
-		record.Set("baseline", snapshots[0].Id)
-		return app.Save(record)
-	})
-}
-
 func (s *Store) Baseline(record *core.Record) map[string]any {
 	if record.GetString("baseline") == "" {
 		return nil
@@ -174,27 +179,32 @@ func (s *Store) ChannelNotes(id string) map[string]string {
 }
 
 func (s *Store) SaveChannelNote(id, component, notes string) error {
-	device, err := s.Device(id)
-	if err != nil {
-		return err
-	}
-	_, inStatus := Object(device, "status")[component]
-	_, inConfig := Object(device, "config")[component]
-	if !inStatus && !inConfig {
-		return errors.New("unknown device component")
-	}
-	record, err := s.App.FindFirstRecordByFilter("channel_notes", "device = {:id} && component = {:component}", dbx.Params{"id": id, "component": component})
-	if err != nil {
-		collection, err := s.App.FindCollectionByNameOrId("channel_notes")
+	return s.App.RunInTransaction(func(app core.App) error {
+		device, err := app.FindRecordById("devices", id)
 		if err != nil {
 			return err
 		}
-		record = core.NewRecord(collection)
-		record.Set("device", id)
-		record.Set("component", component)
-	}
-	record.Set("notes", strings.TrimSpace(notes))
-	return s.App.Save(record)
+		_, inStatus := Object(device, "status")[component]
+		_, inConfig := Object(device, "config")[component]
+		if !inStatus && !inConfig {
+			return errors.New("unknown device component")
+		}
+		record, err := app.FindFirstRecordByFilter("channel_notes", "device = {:id} && component = {:component}", dbx.Params{"id": id, "component": component})
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			collection, err := app.FindCollectionByNameOrId("channel_notes")
+			if err != nil {
+				return err
+			}
+			record = core.NewRecord(collection)
+			record.Set("device", id)
+			record.Set("component", component)
+		}
+		record.Set("notes", strings.TrimSpace(notes))
+		return app.Save(record)
+	})
 }
 
 type Difference struct{ Path, Before, After string }

@@ -14,6 +14,7 @@ type DetailChannel struct {
 	Key, Name, Kind, Icon, Notes, State, StateTone string
 	Values, Settings                               []Metric
 	Input                                          *TableInput
+	SavedSettings                                  bool
 }
 
 type DetailSummary struct {
@@ -146,7 +147,7 @@ func detailDevice(record *core.Record, baseline map[string]any, differences []in
 		reading, _ := status[key].(map[string]any)
 		parts := strings.SplitN(key, ":", 2)
 		kind, icon := detailKind(parts[0])
-		channel := DetailChannel{Key: key, Name: kind + " " + parts[1], Kind: kind, Icon: icon, Notes: notes[key], State: "Not reported", StateTone: "muted"}
+		channel := DetailChannel{Key: key, Name: kind + " " + parts[1], Kind: kind, Icon: icon, Notes: notes[key], State: "Not reported", StateTone: "muted", SavedSettings: !view.ConfigAvailable}
 		if name, ok := settings["name"].(string); ok && name != "" {
 			channel.Name = name
 		}
