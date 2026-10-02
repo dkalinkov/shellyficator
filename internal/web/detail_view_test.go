@@ -126,6 +126,72 @@ func TestDeviceDetailRendersFailureAndEmptyStates(t *testing.T) {
 	}
 }
 
+func TestDeviceDetailRendersSavedSettingsWithoutMutingLiveChannels(t *testing.T) {
+	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
+	record, _ := s.store.Device(id)
+	record.Set("status", map[string]any{
+		"switch:0":      map[string]any{"output": false},
+		"temperature:0": map[string]any{"tC": 0},
+	})
+	record.Set("config", map[string]any{
+		"switch:0":      map[string]any{"initial_state": "off"},
+		"temperature:0": map[string]any{"enable": false},
+	})
+	if err := s.store.App.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.store.SaveChannelNote(id, "temperature:0", "Sensor note"); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name            string
+		configAvailable bool
+	}{
+		{"failed configuration", false},
+		{"current configuration", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			record.Set("config_available", test.configAvailable)
+			if err := s.store.App.Save(record); err != nil {
+				t.Fatal(err)
+			}
+			event, response := detailEvent(s, id, "GET", "", nil)
+			if err := s.detail(event); err != nil {
+				t.Fatal(err)
+			}
+			body := response.Body.String()
+			if response.Code != http.StatusOK || strings.Contains(body, "Settings unavailable · showing saved copy") == test.configAvailable {
+				t.Fatal("configuration availability warning did not follow the latest read")
+			}
+			for _, channel := range []struct{ key, reading, setting, note string }{
+				{"switch:0", "Off", "<dt>After power loss</dt><dd>Off</dd>", "Add note"},
+				{"temperature:0", "0 °C", "<dt>Enabled</dt><dd>No</dd>", "Edit note"},
+			} {
+				var card string
+				for _, fragment := range strings.Split(body, "<article ")[1:] {
+					fragment = strings.SplitN(fragment, "</article>", 2)[0]
+					if strings.Contains(fragment, `class="detail-component">`+channel.key+"</p>") {
+						card = fragment
+						break
+					}
+				}
+				if card == "" || !strings.Contains(card, channel.reading) || strings.Contains(card, "Unavailable") || !strings.Contains(card, channel.setting) {
+					t.Fatalf("%s lost its current reading or preserved setting: %s", channel.key, card)
+				}
+				if strings.Contains(card, "detail-saved-settings") == test.configAvailable {
+					t.Fatalf("%s settings freshness differs from the configuration read", channel.key)
+				}
+				_, noteLink, _ := strings.Cut(card, `class="detail-note-link" href="`)
+				href, _, _ := strings.Cut(noteLink, `"`)
+				anchor, err := url.PathUnescape(href)
+				if err != nil || anchor != "#note-"+channel.key || !strings.Contains(noteLink, channel.note) || !strings.Contains(body, `id="note-`+channel.key+`"`) {
+					t.Fatalf("%s note link lost its editor or saved-note state: %s", channel.key, noteLink)
+				}
+			}
+		})
+	}
+}
+
 func TestDeviceDetailReportedFaults(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
 	record, _ := s.store.Device(id)

@@ -11,14 +11,11 @@ import (
 func TestOrganizationReusesLabelsAndPreservesDeviceData(t *testing.T) {
 	store := testStore(t)
 	reading := shelly.Reading{Identity: shelly.Identity{ID: "first", MAC: "AABBCCDDEEFF", Gen: 4}, Address: "http://192.168.1.2", Status: map[string]any{"switch:0": map[string]any{"output": false}}, Config: map[string]any{"switch:0": map[string]any{"in_mode": "momentary"}}}
-	first, err := store.SaveReading(reading, true)
+	first, err := store.ApproveReading(reading)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Metadata(first.Id, "Bedroom", "Lighting, ground floor", "Keep this note"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.MarkBaseline(first.Id); err != nil {
 		t.Fatal(err)
 	}
 	first, _ = store.Device(first.Id)

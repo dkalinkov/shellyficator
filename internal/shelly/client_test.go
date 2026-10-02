@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,7 +77,7 @@ func TestCaptureRedactsSecretsAndKeepsStatelessInput(t *testing.T) {
 		case "/rpc/Shelly.GetStatus":
 			_, _ = w.Write([]byte(`{"input:0":{"state":null},"switch:0":{"apower":0}}`))
 		case "/rpc/Shelly.GetConfig":
-			_, _ = w.Write([]byte(`{"wifi":{"sta":{"pass":"sensitive"}},"switch:0":{"in_mode":"momentary"}}`))
+			_, _ = w.Write([]byte(`{"wifi":{"sta":{"pass":"sensitive"}},"switch:0":{"in_mode":"momentary"},"extra":[[{"password":"sensitive"}],"mqtt://admin:sensitive@192.168.1.2"]}`))
 		default:
 			w.WriteHeader(404)
 		}
@@ -89,6 +90,9 @@ func TestCaptureRedactsSecretsAndKeepsStatelessInput(t *testing.T) {
 	encoded, _ := json.Marshal(reading.Config)
 	if strings.Contains(string(encoded), "sensitive") {
 		t.Fatal("secret present in capture")
+	}
+	if reading.Config["extra"].([]any)[1] != "mqtt://192.168.1.2" {
+		t.Fatal("URL redaction discarded the public connection address")
 	}
 	if reading.Status["input:0"].(map[string]any)["state"] != nil {
 		t.Fatal("stateless input changed")
@@ -167,6 +171,28 @@ func TestFailedStatusDoesNotReturnPartialDataOrRetryAccessErrors(t *testing.T) {
 			}
 			if mode == "authentication" && reading.Problem != ErrAuthentication.Error() {
 				t.Fatal("authentication failure was described as connectivity failure")
+			}
+		})
+	}
+}
+
+func TestReadPreservesAuthenticationFailureAcrossBothReads(t *testing.T) {
+	for _, statuses := range [][2]int{{http.StatusForbidden, http.StatusNotFound}, {http.StatusNotFound, http.StatusForbidden}} {
+		t.Run(fmt.Sprintf("status_%d_config_%d", statuses[0], statuses[1]), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/shelly":
+					_, _ = w.Write([]byte(`{"id":"test","mac":"AABBCCDDEEFF","gen":4}`))
+				case "/rpc/Shelly.GetStatus":
+					w.WriteHeader(statuses[0])
+				case "/rpc/Shelly.GetConfig":
+					w.WriteHeader(statuses[1])
+				}
+			}))
+			defer server.Close()
+			reading, err := NewClient("").Read(context.Background(), server.URL, "AABBCCDDEEFF", true)
+			if err != nil || reading.Problem != ErrAuthentication.Error() || reading.Status != nil || reading.Config != nil || !reading.ConfigAttempted {
+				t.Fatalf("authentication failure hidden by another read failure: %+v err=%v", reading, err)
 			}
 		})
 	}

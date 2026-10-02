@@ -3,25 +3,17 @@ package web
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/subtle"
 	"embed"
-	"encoding/hex"
-	"errors"
-	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
 	"net/url"
-	"os"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+
 	"shellyficator/internal/inventory"
 	"shellyficator/internal/shelly"
 )
@@ -47,22 +39,10 @@ type Server struct {
 	loginAttempts       map[string]loginAttempt
 }
 
-type loginAttempt struct {
-	count int
-	since time.Time
-}
-
-type Discovery struct {
-	Running                 bool
-	Total, Completed, Found int
-	Target, Message         string
-	Stage                   string
-}
 type Device struct {
-	Record           *core.Record
-	Name, Comparison string
-	Differences      int
-	Table            DeviceTable
+	Record *core.Record
+	Name   string
+	Table  DeviceTable
 }
 type Metric struct{ Label, Value string }
 type RoomGroup struct {
@@ -70,30 +50,28 @@ type RoomGroup struct {
 	Devices []Device
 }
 type Page struct {
-	Title, Active, CSRF, Notice, Error, Query, Room string
-	GroupBy                                         string
-	Version                                         string
-	Devices                                         []Device
-	RoomGroups                                      []RoomGroup
-	Rooms, Tags                                     []string
-	SelectedTags                                    []string
-	Total, Reachable, Changed, Unprotected          int
-	Discovery                                       Discovery
-	Networks                                        []shelly.Network
-	Device                                          *core.Record
-	Name                                            string
-	Detail                                          DeviceDetail
-	Differences                                     []inventory.Difference
-	HasBaseline                                     bool
-	Snapshots                                       []*core.Record
-	Config                                          string
+	Title, CSRF, Notice, Error, Query, Room string
+	GroupBy                                 string
+	Version                                 string
+	Devices                                 []Device
+	RoomGroups                              []RoomGroup
+	Rooms, Tags                             []string
+	SelectedTags                            []string
+	Total, Reachable, Changed, Unprotected  int
+	Discovery                               Discovery
+	Networks                                []shelly.Network
+	Device                                  *core.Record
+	Name                                    string
+	Detail                                  DeviceDetail
+	Differences                             []inventory.Difference
+	HasBaseline                             bool
+	Snapshots                               []*core.Record
 }
 
 func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client, version string) error {
 	// The app's first-run form creates both accounts; the PocketBase installer is redundant.
 	e.InstallerFunc = nil
-	functions := template.FuncMap{"get": func(r *core.Record, key string) string { return r.GetString(key) }, "flag": func(r *core.Record, key string) bool { return r.GetBool(key) }, "when": inventory.FormatTime, "value": inventory.Display, "tags": inventory.SplitTags}
-	templates, err := template.New("app").Funcs(functions).ParseFS(assets, "templates/*.html")
+	templates, err := parseTemplates()
 	if err != nil {
 		return err
 	}
@@ -105,16 +83,7 @@ func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client,
 	e.Router.GET("/assets/{path...}", apis.Static(static, false))
 	e.Router.GET("/healthz", func(e *core.RequestEvent) error { return e.String(200, "ok") })
 	e.Router.GET("/favicon.ico", func(e *core.RequestEvent) error { return e.NoContent(204) })
-	e.Router.GET("/login", func(e *core.RequestEvent) error {
-		count, err := store.App.CountRecords("operators")
-		if err != nil {
-			return err
-		}
-		if count == 0 {
-			return e.Redirect(http.StatusSeeOther, "/setup")
-		}
-		return s.render(e, "login", Page{Title: "Sign in", CSRF: csrf(e)})
-	})
+	e.Router.GET("/login", s.loginPage)
 	e.Router.GET("/setup", s.setupPage)
 	e.Router.POST("/setup", s.setup).BindFunc(checkCSRF)
 	e.Router.POST("/login", s.login).BindFunc(checkCSRF)
@@ -136,160 +105,15 @@ func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client,
 	return nil
 }
 
-func csrf(e *core.RequestEvent) string {
-	if cookie, err := e.Request.Cookie("shelly_csrf"); err == nil && len(cookie.Value) == 64 {
-		return cookie.Value
+func parseTemplates() (*template.Template, error) {
+	functions := template.FuncMap{
+		"get":   func(r *core.Record, key string) string { return r.GetString(key) },
+		"flag":  func(r *core.Record, key string) bool { return r.GetBool(key) },
+		"when":  inventory.FormatTime,
+		"value": inventory.Display,
+		"tags":  inventory.SplitTags,
 	}
-	var token [32]byte
-	_, _ = rand.Read(token[:])
-	value := hex.EncodeToString(token[:])
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_csrf", Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secureCookie(e), MaxAge: 86400})
-	return value
-}
-
-func secureCookie(e *core.RequestEvent) bool {
-	return e.Request.TLS != nil || os.Getenv("SHELLY_COOKIE_SECURE") == "true"
-}
-
-func checkCSRF(e *core.RequestEvent) error {
-	e.Request.Body = http.MaxBytesReader(e.Response, e.Request.Body, 32768)
-	if err := e.Request.ParseForm(); err != nil {
-		return e.BadRequestError("Invalid form", nil)
-	}
-	cookie, err := e.Request.Cookie("shelly_csrf")
-	token := e.Request.FormValue("csrf")
-	if err != nil || len(token) != 64 || subtle.ConstantTimeCompare([]byte(token), []byte(cookie.Value)) != 1 {
-		return e.ForbiddenError("Refresh the page and try again", nil)
-	}
-	if origin := e.Request.Header.Get("Origin"); origin != "" {
-		u, err := url.Parse(origin)
-		if err != nil || u.Host != e.Request.Host {
-			return e.ForbiddenError("Invalid request origin", nil)
-		}
-	}
-	return e.Next()
-}
-
-func (s *Server) requireLogin(e *core.RequestEvent) error {
-	e.Response.Header().Set("Cache-Control", "no-store")
-	e.Response.Header().Set("Referrer-Policy", "same-origin")
-	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
-	cookie, err := e.Request.Cookie("shelly_session")
-	if err == nil {
-		record, err := s.store.App.FindAuthRecordByToken(cookie.Value, core.TokenTypeAuth)
-		if err == nil && record.Collection().Name == "operators" {
-			e.Auth = record
-			return e.Next()
-		}
-	}
-	if e.Request.Header.Get("HX-Request") == "true" {
-		e.Response.Header().Set("HX-Redirect", "/login")
-		return e.NoContent(401)
-	}
-	return e.Redirect(http.StatusSeeOther, "/login")
-}
-
-func (s *Server) login(e *core.RequestEvent) error {
-	ip := e.RemoteIP()
-	s.mu.Lock()
-	for key, attempt := range s.loginAttempts {
-		if time.Since(attempt.since) > 15*time.Minute {
-			delete(s.loginAttempts, key)
-		}
-	}
-	attempt := s.loginAttempts[ip]
-	if attempt.since.IsZero() {
-		attempt.since = time.Now()
-	}
-	attempt.count++
-	s.loginAttempts[ip] = attempt
-	s.mu.Unlock()
-	if attempt.count > 10 {
-		return e.TooManyRequestsError("Too many sign in attempts. Try again in 15 minutes.", nil)
-	}
-	record, err := s.store.App.FindAuthRecordByEmail("operators", strings.TrimSpace(e.Request.FormValue("email")))
-	if err != nil || !record.ValidatePassword(e.Request.FormValue("password")) {
-		e.Response.Header().Set("Cache-Control", "no-store")
-		return s.render(e, "login", Page{Title: "Sign in", CSRF: csrf(e), Error: "Email or password is incorrect."})
-	}
-	token, err := record.NewAuthToken()
-	if err != nil {
-		return e.InternalServerError("Could not sign in", nil)
-	}
-	s.mu.Lock()
-	delete(s.loginAttempts, ip)
-	s.mu.Unlock()
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: 86400})
-	return e.Redirect(http.StatusSeeOther, "/")
-}
-
-func (s *Server) setupPage(e *core.RequestEvent) error {
-	count, err := s.store.App.CountRecords("operators")
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		return e.Redirect(http.StatusSeeOther, "/login")
-	}
-	return s.render(e, "setup", Page{Title: "Create your account", CSRF: csrf(e)})
-}
-
-func (s *Server) setup(e *core.RequestEvent) error {
-	email, password := strings.TrimSpace(e.Request.FormValue("email")), e.Request.FormValue("password")
-	if len(password) < 12 {
-		return s.render(e, "setup", Page{Title: "Create your account", CSRF: csrf(e), Error: "Choose a password with at least 12 characters."})
-	}
-	err := s.store.App.RunInTransaction(func(app core.App) error {
-		count, err := app.CountRecords("operators")
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			return errors.New("setup already completed")
-		}
-		collection, err := app.FindCollectionByNameOrId("operators")
-		if err != nil {
-			return err
-		}
-		record := core.NewRecord(collection)
-		record.SetEmail(email)
-		record.SetPassword(password)
-		record.SetVerified(true)
-		if err := app.Save(record); err != nil {
-			return err
-		}
-		count, err = app.CountRecords(core.CollectionNameSuperusers, dbx.Not(dbx.HashExp{"email": core.DefaultInstallerEmail}))
-		if err != nil {
-			return err
-		}
-		if count == 0 {
-			collection, err = app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
-			if err != nil {
-				return err
-			}
-			admin := core.NewRecord(collection)
-			admin.SetEmail(email)
-			admin.SetPassword(password)
-			admin.SetVerified(true)
-			if err := app.Save(admin); err != nil {
-				return err
-			}
-			if installer, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, core.DefaultInstallerEmail); err == nil {
-				return app.Delete(installer)
-			}
-			return nil
-		}
-		return nil
-	})
-	if err != nil {
-		return s.render(e, "setup", Page{Title: "Create your account", CSRF: csrf(e), Error: "Could not create the account. Check the email and password, or sign in if setup is already complete."})
-	}
-	return s.redirect(e, "/login", "Account created.")
-}
-
-func (s *Server) logout(e *core.RequestEvent) error {
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: -1})
-	return e.Redirect(http.StatusSeeOther, "/login")
+	return template.New("app").Funcs(functions).ParseFS(assets, "templates/*.html")
 }
 
 func (s *Server) render(e *core.RequestEvent, name string, page Page) error {
@@ -301,546 +125,9 @@ func (s *Server) render(e *core.RequestEvent, name string, page Page) error {
 	return e.HTML(200, buffer.String())
 }
 
-func (s *Server) list(e *core.RequestEvent) (Page, error) {
-	query := e.Request.URL.Query()
-	return s.listFiltered(e, query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","), query.Get("group"))
-}
-
-func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (Page, error) {
-	// Readers see one completed polling pass, including dashboard/filter loads.
-	s.inventoryMu.RLock()
-	defer s.inventoryMu.RUnlock()
-	records, err := s.store.Devices()
-	if err != nil {
-		return Page{}, err
-	}
-	if groupBy != "room" {
-		groupBy = ""
-	}
-	page := Page{Title: "Devices", Active: "devices", CSRF: csrf(e), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), GroupBy: groupBy, Notice: e.Request.URL.Query().Get("notice")}
-	rooms := map[string]bool{}
-	tags := map[string]string{}
-	selectedTags := map[string]bool{}
-	for _, tag := range page.SelectedTags {
-		selectedTags[strings.ToLower(tag)] = true
-	}
-	page.Total = len(records)
-	for _, record := range records {
-		name := record.GetString("name")
-		if name == "" {
-			name = record.GetString("device_id")
-		}
-		device := Device{Record: record, Name: name, Comparison: "No baseline"}
-		if record.GetBool("reachable") {
-			page.Reachable++
-		}
-		if !record.GetBool("auth_enabled") {
-			page.Unprotected++
-		}
-		baseline := s.store.Baseline(record)
-		if baseline != nil {
-			device.Comparison = "Not checked"
-			if inventory.Object(record, "config") != nil {
-				device.Differences = len(inventory.Differences(baseline, inventory.Object(record, "config")))
-				device.Comparison = "Matches baseline"
-				if device.Differences > 0 {
-					device.Comparison = "Configuration changed"
-					page.Changed++
-				}
-			}
-		}
-		room := record.GetString("room")
-		if room != "" {
-			rooms[room] = true
-		}
-		matchesTags := len(selectedTags) == 0
-		for _, tag := range inventory.SplitTags(record.GetString("tags")) {
-			key := strings.ToLower(tag)
-			if _, known := tags[key]; !known {
-				tags[key] = tag
-			}
-			if selectedTags[key] {
-				matchesTags = true
-			}
-		}
-		haystack := strings.ToLower(strings.Join([]string{name, record.GetString("device_id"), record.GetString("address"), room, record.GetString("tags"), record.GetString("notes")}, " "))
-		if page.Query != "" && !strings.Contains(haystack, strings.ToLower(page.Query)) {
-			continue
-		}
-		if page.Room != "" && page.Room != room {
-			continue
-		}
-		if !matchesTags {
-			continue
-		}
-		device.Table = tableDevice(record, baseline, device.Differences)
-		notes := s.store.ChannelNotes(record.Id)
-		for i := range device.Table.Inputs {
-			input := &device.Table.Inputs[i]
-			input.Note = previewText(notes[input.Key], 320)
-			input.RelayNote = previewText(notes[input.RelayKey], 320)
-		}
-		page.Devices = append(page.Devices, device)
-	}
-	for room := range rooms {
-		page.Rooms = append(page.Rooms, room)
-	}
-	// Keep an active filter available even after its last device moves rooms.
-	if page.Room != "" && !rooms[page.Room] {
-		page.Rooms = append(page.Rooms, page.Room)
-	}
-	sort.Strings(page.Rooms)
-	// Preserve active tags even when an edit removes their last assignment.
-	for i, tag := range page.SelectedTags {
-		key := strings.ToLower(tag)
-		if name, known := tags[key]; known {
-			page.SelectedTags[i] = name
-		} else {
-			tags[key] = tag
-		}
-	}
-	for _, tag := range tags {
-		page.Tags = append(page.Tags, tag)
-	}
-	sort.Slice(page.Tags, func(i, j int) bool { return strings.ToLower(page.Tags[i]) < strings.ToLower(page.Tags[j]) })
-	if page.GroupBy == "room" {
-		page.RoomGroups = groupDevicesByRoom(page.Devices)
-	}
-	s.mu.Lock()
-	page.Discovery = s.discovery
-	s.mu.Unlock()
-	return page, nil
-}
-
-func groupDevicesByRoom(devices []Device) []RoomGroup {
-	var groups []RoomGroup
-	indices := map[string]int{}
-	for _, device := range devices {
-		room := device.Record.GetString("room")
-		index, found := indices[room]
-		if !found {
-			index = len(groups)
-			indices[room] = index
-			groups = append(groups, RoomGroup{Room: room})
-		}
-		groups[index].Devices = append(groups[index].Devices, device)
-	}
-	sort.Slice(groups, func(i, j int) bool {
-		a, b := groups[i].Room, groups[j].Room
-		if a == "" {
-			return false
-		}
-		if b == "" {
-			return true
-		}
-		if strings.ToLower(a) == strings.ToLower(b) {
-			return a < b
-		}
-		return strings.ToLower(a) < strings.ToLower(b)
-	})
-	return groups
-}
-
-func inventoryURL(page Page) string {
-	query := url.Values{}
-	if page.Query != "" {
-		query.Set("q", page.Query)
-	}
-	if page.Room != "" {
-		query.Set("room", page.Room)
-	}
-	if len(page.SelectedTags) > 0 {
-		query.Set("tags", strings.Join(page.SelectedTags, ","))
-	}
-	if page.GroupBy != "" {
-		query.Set("group", page.GroupBy)
-	}
-	if len(query) == 0 {
-		return "/"
-	}
-	return "/?" + query.Encode()
-}
-
-func (s *Server) dashboard(e *core.RequestEvent) error {
-	page, err := s.list(e)
-	if err != nil {
-		return err
-	}
-	page.Networks, _ = shelly.LocalNetworks()
-	return s.render(e, "dashboard", page)
-}
-func (s *Server) table(e *core.RequestEvent) error {
-	force := e.Request.URL.Query().Get("refresh") == "1"
-	done := s.refresh(force)
-	if done != nil {
-		select {
-		case <-done:
-		case <-e.Request.Context().Done():
-			return e.Request.Context().Err()
-		}
-	}
-	page, err := s.list(e)
-	if err != nil {
-		return err
-	}
-	e.Response.Header().Set("HX-Replace-Url", inventoryURL(page))
-	return s.render(e, "inventory-updated", page)
-}
-func (s *Server) progress(e *core.RequestEvent) error {
-	s.mu.Lock()
-	job := s.discovery
-	s.mu.Unlock()
-	return s.render(e, "discovery", Page{Discovery: job})
-}
-
-func (s *Server) refresh(force bool) <-chan struct{} {
-	s.mu.Lock()
-	if s.refreshing {
-		// A manual request during status polling gets a configuration pass too.
-		if force && !s.refreshForced {
-			s.refreshForcePending = true
-		}
-		done := s.refreshDone
-		s.mu.Unlock()
-		return done
-	}
-	if !force && time.Since(s.lastRefresh) < 30*time.Second {
-		s.mu.Unlock()
-		return nil
-	}
-	s.refreshing = true
-	s.refreshForced = force
-	s.lastRefresh = time.Now()
-	s.refreshDone = make(chan struct{})
-	done := s.refreshDone
-	s.mu.Unlock()
-	go func() {
-		for {
-			s.refreshDevices(force)
-			s.mu.Lock()
-			if s.refreshForcePending {
-				s.refreshForcePending = false
-				s.refreshForced = true
-				force = true
-				s.lastRefresh = time.Now()
-				s.mu.Unlock()
-				continue
-			}
-			s.refreshing = false
-			s.refreshForced = false
-			close(done)
-			s.mu.Unlock()
-			return
-		}
-	}()
-	return done
-}
-
-func (s *Server) refreshDevices(force bool) {
-	s.inventoryMu.Lock()
-	defer s.inventoryMu.Unlock()
-	records, err := s.store.Devices()
-	if err != nil {
-		s.store.App.Logger().Error("Could not load devices for refresh", "error", err)
-		return
-	}
-	limit := make(chan struct{}, 4)
-	var group sync.WaitGroup
-	for _, record := range records {
-		limit <- struct{}{}
-		group.Add(1)
-		go func(record *core.Record) {
-			defer func() { <-limit; group.Done() }()
-			lastRead := record.GetDateTime("last_captured").Time()
-			readConfig := force || !record.GetBool("reachable") || record.GetInt("consecutive_failures") > 0 || !record.GetBool("config_available") || time.Since(lastRead) >= 5*time.Minute
-			timeout := 12 * time.Second
-			if readConfig {
-				timeout = 20 * time.Second
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), readConfig)
-			if err != nil {
-				problem := "Device could not be reached. Last successful readings are preserved."
-				if errors.Is(err, shelly.ErrIdentity) {
-					problem = "Address now belongs to a different device. Rediscover this device."
-				}
-				if saveErr := s.store.Failed(record.Id, problem, errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
-					s.store.App.Logger().Error("Could not save device check failure", "device", record.Id)
-				}
-				return
-			}
-			if _, err := s.store.SaveReading(reading, false); err != nil {
-				s.store.App.Logger().Error("Could not save device reading", "device", record.Id)
-			}
-		}(record)
-	}
-	group.Wait()
-}
-
-func (s *Server) discover(e *core.RequestEvent) error {
-	target := strings.TrimSpace(e.Request.FormValue("target"))
-	automatic := e.Request.FormValue("mode") == "auto"
-	var addresses []string
-	if !automatic {
-		var err error
-		addresses, err = shelly.Targets(target)
-		if err != nil {
-			return s.redirect(e, "/", err.Error())
-		}
-	} else {
-		target = "network announcements"
-	}
-	s.mu.Lock()
-	if s.discovery.Running {
-		s.mu.Unlock()
-		return s.redirect(e, "/", "Discovery is already running.")
-	}
-	s.discovery = Discovery{Running: true, Total: len(addresses), Target: target, Stage: "Scanning addresses"}
-	if automatic {
-		s.discovery.Stage = "Finding devices"
-	}
-	s.mu.Unlock()
-	go s.runDiscovery(automatic, addresses)
-	return s.redirect(e, "/", "")
-}
-
-func (s *Server) runDiscovery(automatic bool, addresses []string) {
-	announcementFailed := false
-	if automatic {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		type neighborResult struct {
-			addresses []string
-			err       error
-		}
-		neighborCh := make(chan neighborResult, 1)
-		go func() {
-			if s.neighbors == nil {
-				neighborCh <- neighborResult{}
-				return
-			}
-			addresses, err := s.neighbors(ctx)
-			neighborCh <- neighborResult{addresses, err}
-		}()
-		announced, err := s.announcements(ctx)
-		neighbors := <-neighborCh
-		cancel()
-		announcementFailed = err != nil
-		addresses = shelly.DiscoveryAddresses(append(announced, neighbors.addresses...))
-		if s.store != nil {
-			s.store.App.Logger().Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
-		}
-		s.mu.Lock()
-		s.discovery.Total = len(addresses)
-		s.discovery.Stage = "Verifying devices"
-		s.mu.Unlock()
-	}
-	limit := make(chan struct{}, 4)
-	var group sync.WaitGroup
-	foundMACs := map[string]bool{}
-	for _, address := range addresses {
-		limit <- struct{}{}
-		group.Add(1)
-		go func(address string) {
-			defer func() { <-limit; group.Done() }()
-			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
-			defer cancel()
-			reading, err := s.client.Discover(ctx, address)
-			found := false
-			if err == nil {
-				_, err = s.store.SaveReading(reading, true)
-				found = err == nil
-			}
-			s.mu.Lock()
-			s.discovery.Completed++
-			if found && !foundMACs[reading.Identity.MAC] {
-				foundMACs[reading.Identity.MAC] = true
-				s.discovery.Found++
-			}
-			if !automatic && len(addresses) == 1 && err != nil {
-				s.discovery.Message = shelly.DiscoveryError(err)
-			}
-			s.mu.Unlock()
-		}(address)
-		if !automatic {
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
-	group.Wait()
-	s.mu.Lock()
-	s.discovery.Running = false
-	if s.discovery.Message == "" {
-		s.discovery.Message = fmt.Sprintf("Devices found: %d.", s.discovery.Found)
-		if automatic && s.discovery.Found == 0 {
-			s.discovery.Message = fmt.Sprintf("No supported devices responded at %d discovered addresses.", len(addresses))
-			if len(addresses) == 0 {
-				s.discovery.Message = "No Shelly announcements received. Check multicast access."
-				if announcementFailed {
-					s.discovery.Message = "mDNS query failed. Check multicast access."
-				}
-			}
-		}
-		if automatic && announcementFailed && s.discovery.Found > 0 {
-			s.discovery.Message += " Some mDNS queries failed."
-		}
-	}
-	s.mu.Unlock()
-}
-
-func (s *Server) detail(e *core.RequestEvent) error {
-	record, err := s.store.Device(e.Request.PathValue("id"))
-	if err != nil {
-		return e.NotFoundError("Device not found", nil)
-	}
-	page := Page{Title: "Device", Active: "devices", CSRF: csrf(e), Device: record, Notice: e.Request.URL.Query().Get("notice"), Name: record.GetString("name")}
-	page.Rooms, page.Tags, err = s.store.OrganizationOptions()
-	if err != nil {
-		return err
-	}
-	if page.Name == "" {
-		page.Name = record.GetString("device_id")
-	}
-	config := inventory.Object(record, "config")
-	baseline := s.store.Baseline(record)
-	page.HasBaseline = baseline != nil
-	if page.HasBaseline && config != nil {
-		page.Differences = inventory.Differences(baseline, config)
-	}
-	page.Snapshots, err = s.store.Snapshots(record.Id)
-	if err != nil {
-		return err
-	}
-	page.Detail = detailDevice(record, baseline, page.Differences, s.store.ChannelNotes(record.Id))
-	for _, group := range [][]DetailChannel{page.Detail.Outputs, page.Detail.Inputs, page.Detail.Other} {
-		for _, channel := range group {
-			page.Detail.Notes = append(page.Detail.Notes, ChannelNoteEditor{Channel: channel, DeviceID: record.Id, CSRF: page.CSRF})
-		}
-	}
-	page.Title = page.Name
-	return s.render(e, "detail", page)
-}
-
-func (s *Server) refreshDevice(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	record, err := s.store.Device(id)
-	if err != nil {
-		return e.NotFoundError("Device not found", nil)
-	}
-	ctx, cancel := context.WithTimeout(e.Request.Context(), 12*time.Second)
-	defer cancel()
-	reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), false)
-	if err != nil {
-		if saveErr := s.store.Failed(id, "Status could not be read. Check device identity and connectivity.", errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
-			return saveErr
-		}
-		return s.redirect(e, "/devices/"+id, "Refresh failed. Check device access.")
-	}
-	// A status refresh must retain a warning about an unavailable configuration.
-	if !record.GetBool("config_available") && reading.Problem == "" {
-		reading.Problem = "Configuration is unavailable. Capture config to retry."
-	}
-	if _, err := s.store.SaveReading(reading, false); err != nil {
-		return err
-	}
-	if reading.Status == nil {
-		return s.redirect(e, "/devices/"+id, "Device reached, but status could not be read.")
-	}
-	return s.redirect(e, "/devices/"+id, "Status refreshed.")
-}
-
 func (s *Server) redirect(e *core.RequestEvent, path, notice string) error {
 	if notice != "" {
 		path += "?notice=" + url.QueryEscape(notice)
 	}
 	return e.Redirect(http.StatusSeeOther, path)
-}
-
-func (s *Server) metadata(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	if err := s.store.Metadata(id, e.Request.FormValue("room"), e.Request.FormValue("tags"), e.Request.FormValue("notes")); err != nil {
-		return e.BadRequestError("Could not save device information", nil)
-	}
-	return s.redirect(e, "/devices/"+id, "Device info saved.")
-}
-
-func (s *Server) organizationEditor(e *core.RequestEvent) error {
-	record, err := s.store.Device(e.Request.PathValue("id"))
-	if err != nil {
-		return e.NotFoundError("Device not found", nil)
-	}
-	page := Page{Device: record, CSRF: csrf(e), Name: record.GetString("name")}
-	if page.Name == "" {
-		page.Name = record.GetString("device_id")
-	}
-	page.Rooms, page.Tags, err = s.store.OrganizationOptions()
-	if err != nil {
-		return err
-	}
-	return s.render(e, "organization-editor", page)
-}
-
-func (s *Server) organization(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	if err := s.store.Organization(id, e.Request.FormValue("room"), e.Request.FormValue("tags")); err != nil {
-		return e.BadRequestError("Could not save room & tags. Room names allow 100 characters; tags allow 500 in total.", nil)
-	}
-	if e.Request.Header.Get("HX-Request") != "true" {
-		return s.redirect(e, "/", "Room & tags saved.")
-	}
-	page, err := s.listFiltered(e, e.Request.FormValue("filter_q"), e.Request.FormValue("filter_room"), e.Request.FormValue("filter_tags"), e.Request.FormValue("filter_group"))
-	if err != nil {
-		return err
-	}
-	e.Response.Header().Set("HX-Replace-Url", inventoryURL(page))
-	return s.render(e, "organization-saved", page)
-}
-
-func (s *Server) channelNote(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	if err := s.store.SaveChannelNote(id, e.Request.FormValue("component"), e.Request.FormValue("notes")); err != nil {
-		return e.BadRequestError("Could not save channel note", nil)
-	}
-	return s.redirect(e, "/devices/"+id, "Note saved.")
-}
-
-func (s *Server) captureReading(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	record, err := s.store.Device(id)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(e.Request.Context(), 20*time.Second)
-	defer cancel()
-	reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), true)
-	if err != nil {
-		if saveErr := s.store.Failed(id, "Configuration could not be captured. Check device identity and connectivity.", errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
-			return saveErr
-		}
-		return err
-	}
-	if reading.Config == nil {
-		_, _ = s.store.SaveReading(reading, true)
-		return errors.New("configuration could not be read; check connectivity and shared device credentials")
-	}
-	_, err = s.store.SaveReading(reading, true)
-	return err
-}
-
-func (s *Server) capture(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	if err := s.captureReading(e); err != nil {
-		return s.redirect(e, "/devices/"+id, "Capture failed. Check device access.")
-	}
-	return s.redirect(e, "/devices/"+id, "Configuration captured.")
-}
-
-func (s *Server) baseline(e *core.RequestEvent) error {
-	id := e.Request.PathValue("id")
-	if err := s.captureReading(e); err != nil {
-		return s.redirect(e, "/devices/"+id, "Baseline unchanged: config read failed.")
-	}
-	if err := s.store.MarkBaseline(id); err != nil {
-		return e.BadRequestError("Could not approve baseline", nil)
-	}
-	return s.redirect(e, "/devices/"+id, "Baseline updated.")
 }

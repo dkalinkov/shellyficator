@@ -10,7 +10,7 @@
         {{with tags (get .Device "tags")}}<div class="detail-organization">{{range .}}<a href="#notes" class="detail-tag" data-tag-label="{{.}}">{{.}}</a>{{end}}</div>{{end}}
       </div>
     </div>
-    <div class="detail-actions"><form action="/devices/{{.Device.Id}}/refresh" method="post" data-device-action hx-post="/devices/{{.Device.Id}}/refresh" hx-target="#overview" hx-select="#overview" hx-swap="outerHTML" hx-select-oob="#device-heading,#channels,#configuration,#detail-history,#detail-connection,#device-feedback" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn btn-sm btn-outline w-full"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>Refresh status</button></form><a class="btn btn-sm detail-open-ui w-full" href="{{get .Device "address"}}" target="_blank" rel="noopener noreferrer">Open device UI<svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg></a></div>
+    <div class="detail-actions"><form action="/devices/{{.Device.Id}}/refresh" method="post" hx-post="/devices/{{.Device.Id}}/refresh" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button type="submit" class="btn btn-sm btn-outline w-full"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>Refresh status</button></form><a class="btn btn-sm detail-open-ui w-full" href="{{get .Device "address"}}" target="_blank" rel="noopener noreferrer">Open device UI<svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg></a></div>
   </header>
   <nav class="detail-nav" aria-label="Device sections"><a href="#overview" aria-current="location">Overview</a><a href="#channels">Channels & inputs</a><a href="#configuration">Configuration</a><a href="#notes">Notes</a></nav>
   <section id="overview" class="detail-overview" aria-label="Device overview">
@@ -25,9 +25,7 @@
         {{if .Detail.Outputs}}<div class="detail-output-grid">{{range .Detail.Outputs}}
           <article id="channel-{{.Key}}" class="panel detail-channel" aria-label="{{.Kind}} {{.Name}}">
             <div class="detail-channel-heading"><span class="detail-channel-icon tone-{{.StateTone}}"><svg class="icon" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg></span><div><h3>{{.Name}}</h3><p class="detail-component">{{.Key}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div>
-            {{if .Values}}<dl class="detail-channel-values">{{range .Values}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>{{end}}
-            {{if .Settings}}<dl class="detail-settings {{if not $.Detail.ConfigAvailable}}detail-saved-settings{{end}}">{{range .Settings}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>{{end}}
-            <a class="detail-note-link" href="#note-{{.Key}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg>{{if .Notes}}Edit note{{else}}Add note{{end}}</a>
+            {{template "detail-channel-body" .}}
           </article>
         {{end}}</div>{{end}}
         {{if .Detail.Inputs}}
@@ -36,17 +34,22 @@
             <div class="detail-input-heading"><div><h4>{{.Name}}</h4><p class="detail-component">{{.Key}}{{if and .Input (ne .Input.Type "—")}} · {{.Input.Type}}{{end}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div>
             {{if .Input}}<div class="detail-input-mapping">{{if .Input.RelayKey}}<span class="mode-chip tone-{{if .Input.Changed}}warning{{else}}{{.Input.ModeTone}}{{end}}" tabindex="0" data-tooltip="{{.Input.Info}}">{{.Input.Mode}}</span><svg class="icon detail-mapping-arrow" aria-hidden="true"><use href="#icon-arrow-right"></use></svg><a href="#channel-{{.Input.RelayKey}}" class="detail-relay-label">Relay {{.Input.RelayID}}</a>{{else}}<span class="tone-muted">No mapped relay</span>{{end}}</div>
             {{if .Input.Values}}<dl class="detail-input-settings {{if not $.Detail.ConfigAvailable}}detail-saved-settings{{end}}">{{range .Input.Values}}<div><dt>{{.Label}}</dt><dd class="{{if or (and (eq .Label "Locked") (eq .Value "Yes")) (and (eq .Label "Enabled") (eq .Value "No"))}}tone-warning{{end}}">{{.Value}}</dd></div>{{end}}</dl>{{end}}{{end}}
-            <a class="detail-note-link" href="#note-{{.Key}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg>{{if .Notes}}Edit note{{else}}Add note{{end}}</a>
+            {{template "detail-note-link" .}}
           </article>{{end}}
         </section>{{end}}
-        {{if .Detail.Other}}<div class="detail-other-components"><h3 class="detail-subheading">Other components</h3><div class="detail-output-grid">{{range .Detail.Other}}<article class="panel detail-channel"><div class="detail-channel-heading"><svg class="icon tone-blue" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg><div><h3>{{.Name}}</h3><p class="detail-component">{{.Key}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div><dl class="detail-channel-values">{{range .Values}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl><dl class="detail-settings">{{range .Settings}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl><a class="detail-note-link" href="#note-{{.Key}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg>{{if .Notes}}Edit note{{else}}Add note{{end}}</a></article>{{end}}</div></div>{{end}}
+        {{if .Detail.Other}}<div class="detail-other-components"><h3 class="detail-subheading">Other components</h3><div class="detail-output-grid">{{range .Detail.Other}}
+          <article class="panel detail-channel">
+            <div class="detail-channel-heading"><svg class="icon tone-blue" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg><div><h3>{{.Name}}</h3><p class="detail-component">{{.Key}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div>
+            {{template "detail-channel-body" .}}
+          </article>
+        {{end}}</div></div>{{end}}
         {{if not (or .Detail.Outputs .Detail.Inputs .Detail.Other)}}<p class="panel detail-empty">No channel data yet.</p>{{end}}
       </section>
       <section id="configuration" class="panel detail-config" aria-labelledby="config-title">
-        <div class="detail-panel-heading"><h2 id="config-title">Configuration</h2><form action="/devices/{{.Device.Id}}/capture" method="post" data-device-action hx-post="/devices/{{.Device.Id}}/capture" hx-target="#overview" hx-select="#overview" hx-swap="outerHTML" hx-select-oob="#device-heading,#channels,#configuration,#detail-history,#detail-connection,#device-feedback" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="btn btn-sm btn-outline" type="submit"><svg class="icon" aria-hidden="true"><use href="#icon-camera"></use></svg>Capture config</button></form></div>
+        <div class="detail-panel-heading"><h2 id="config-title">Configuration</h2><form action="/devices/{{.Device.Id}}/capture" method="post" hx-post="/devices/{{.Device.Id}}/capture" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button class="btn btn-sm btn-outline" type="submit"><svg class="icon" aria-hidden="true"><use href="#icon-camera"></use></svg>Capture config</button></form></div>
         <div class="detail-config-status"><span class="state-chip tone-{{.Detail.Table.ConfigurationTone}}"><svg class="icon" aria-hidden="true"><use href="{{if eq .Detail.Table.ConfigurationTone "ok"}}#icon-check{{else}}#icon-config{{end}}"></use></svg>{{if and .HasBaseline (not .Detail.ConfigAvailable)}}Comparison unavailable{{else if eq .Detail.Table.ConfigurationTone "ok"}}Matches baseline{{else}}{{.Detail.Table.Configuration}}{{end}}</span></div>
         {{if and .HasBaseline .Detail.ConfigAvailable .Differences}}<p class="detail-diff-hint">Scroll to compare →</p><div class="detail-diff-scroll" tabindex="0" role="region" aria-label="Configuration changes"><table class="detail-diff"><caption class="sr-only">Changes from the approved baseline to the latest settings read</caption><thead><tr><th scope="col">Setting</th><th scope="col">Baseline</th><th scope="col">Latest</th></tr></thead><tbody>{{range .Differences}}<tr><th scope="row">{{.Path}}</th><td>{{.Before}}</td><td class="tone-warning">{{.After}}</td></tr>{{end}}</tbody></table></div>{{end}}
-        <div class="detail-approval"><p>Saves a comparison baseline. Device settings stay unchanged.</p><form action="/devices/{{.Device.Id}}/baseline" method="post" data-device-action hx-post="/devices/{{.Device.Id}}/baseline" hx-target="#overview" hx-select="#overview" hx-swap="outerHTML" hx-select-oob="#device-heading,#channels,#configuration,#detail-history,#detail-connection,#device-feedback" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="btn btn-sm btn-primary">{{if .HasBaseline}}Approve current config{{else}}Set approved baseline{{end}}</button></form></div>
+        <div class="detail-approval"><p>Saves a comparison baseline. Device settings stay unchanged.</p><form action="/devices/{{.Device.Id}}/baseline" method="post" hx-post="/devices/{{.Device.Id}}/baseline" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button type="submit" class="btn btn-sm btn-primary">{{if .HasBaseline}}Approve current config{{else}}Set approved baseline{{end}}</button></form></div>
       </section>
       <section id="detail-history" class="panel detail-history" aria-labelledby="history-title"><div class="detail-panel-heading"><h2 id="history-title">Capture history</h2><span class="detail-count">{{len .Snapshots}}{{if eq (len .Snapshots) 50}} latest{{end}}</span></div><ol class="detail-timeline">{{range .Snapshots}}<li class="{{if eq .Id (get $.Device "baseline")}}detail-baseline-capture{{end}}"><div><p>{{get . "reason"}}{{if eq .Id (get $.Device "baseline")}}<span class="state-chip tone-violet">Approved baseline</span>{{end}}</p>{{if get . "firmware"}}<span>Firmware {{get . "firmware"}}</span>{{end}}</div><time datetime="{{get . "captured"}}">{{when (get . "captured")}}</time></li>{{else}}<li class="detail-empty-history">No captures yet.</li>{{end}}</ol></section>
       {{if .Detail.Notes}}<section class="panel detail-channel-notes" aria-labelledby="channel-notes-title"><div class="detail-panel-heading"><h2 id="channel-notes-title"><svg class="icon tone-violet" aria-hidden="true"><use href="#icon-note"></use></svg>Channel notes</h2></div>
@@ -60,6 +63,18 @@
     </aside>
   </div>
 </main><script src="/assets/detail.js" defer></script></body></html>{{end}}
+
+{{define "detail-action-attributes"}}data-device-action hx-target="#overview" hx-select="#overview" hx-swap="outerHTML" hx-select-oob="#device-heading,#channels,#configuration,#detail-history,#detail-connection,#device-feedback" hx-disabled-elt="find button"{{end}}
+
+{{define "detail-action-csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
+
+{{define "detail-channel-body"}}
+{{if .Values}}<dl class="detail-channel-values">{{range .Values}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>{{end}}
+{{if .Settings}}<dl class="detail-settings {{if .SavedSettings}}detail-saved-settings{{end}}">{{range .Settings}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>{{end}}
+{{template "detail-note-link" .}}
+{{end}}
+
+{{define "detail-note-link"}}<a class="detail-note-link" href="#note-{{.Key}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg>{{if .Notes}}Edit note{{else}}Add note{{end}}</a>{{end}}
 
 {{define "detail-note"}}
 <details class="detail-note-editor" id="editor-{{.Channel.Key}}"><summary><svg class="icon tone-violet" aria-hidden="true"><use href="#icon-note"></use></svg><span>{{.Channel.Name}}</span><span class="detail-component">{{.Channel.Key}}</span><span class="detail-note-preview">{{if .Channel.Notes}}{{.Channel.Notes}}{{else}}Add note{{end}}</span></summary><form method="post" action="/devices/{{.DeviceID}}/channel-notes"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="component" value="{{.Channel.Key}}"><label class="sr-only" for="note-{{.Channel.Key}}">Note for {{.Channel.Name}}</label><textarea id="note-{{.Channel.Key}}" class="textarea w-full" name="notes" rows="3" maxlength="8000">{{.Channel.Notes}}</textarea><button class="btn btn-sm btn-outline" type="submit">Save note</button></form></details>

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,19 +29,15 @@ func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*Server, string)
 	device := httptest.NewServer(handler)
 	t.Cleanup(device.Close)
 	store := inventory.New(app)
-	record, err := store.SaveReading(shelly.Reading{
+	record, err := store.ApproveReading(shelly.Reading{
 		Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Address: device.URL,
 		Status: map[string]any{"input:0": map[string]any{"state": nil}, "switch:0": map[string]any{"output": false}},
 		Config: map[string]any{"input:0": map[string]any{"type": "button", "enable": true}, "switch:0": map[string]any{"in_mode": "momentary"}},
-	}, true)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.MarkBaseline(record.Id); err != nil {
-		t.Fatal(err)
-	}
-	functions := template.FuncMap{"get": func(r *core.Record, key string) string { return r.GetString(key) }, "flag": func(r *core.Record, key string) bool { return r.GetBool(key) }, "when": inventory.FormatTime, "value": inventory.Display, "tags": inventory.SplitTags}
-	templates, err := template.New("app").Funcs(functions).ParseFS(assets, "templates/*.html")
+	templates, err := parseTemplates()
 	if err != nil {
 		t.Fatal(err)
 	}
