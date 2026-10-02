@@ -12,7 +12,7 @@ document.addEventListener('htmx:beforeRequest', event => {
   if (event.detail.elt.id !== 'inventory') return;
   const tooltip = document.getElementById('app-tooltip');
   const editor = document.getElementById('organization-dialog');
-  if (document.hidden || event.detail.elt.dataset.paused === 'true' || (tooltip && !tooltip.hidden) || (editor && editor.open)) event.preventDefault();
+  if (document.hidden || event.detail.elt.dataset.paused === 'true' || (tooltip && !tooltip.hidden) || (editor && editor.open) || document.querySelector('[data-tag-filter] [aria-expanded="true"]')) event.preventDefault();
 });
 
 // Keep ordinary links and buttons native; the remaining row area opens details.
@@ -102,6 +102,11 @@ function hideTooltip() {
   tooltip.hidden = true;
 }
 
+function dismissTooltip(element = trigger) {
+  suppressed = element;
+  hideTooltip();
+}
+
 function showTooltip(element) {
   clearTimeout(showTimer);
   clearTimeout(hideTimer);
@@ -129,7 +134,7 @@ function scheduleHide() {
   clearTimeout(showTimer);
   clearTimeout(hideTimer);
   hideTimer = setTimeout(() => {
-    if (pinned || tooltip.matches(':hover') || (trigger && (trigger.matches(':hover') || trigger === document.activeElement))) return;
+    if (pinned || tooltip.matches(':hover') || (trigger && (trigger.matches(':hover') || trigger.matches(':focus-visible')))) return;
     hideTooltip();
   }, 180);
 }
@@ -143,16 +148,18 @@ document.addEventListener('pointerover', event => {
   showTimer = setTimeout(() => showTooltip(element), 250);
 });
 document.addEventListener('pointerout', event => {
+  if (event.pointerType === 'touch') return;
   const element = event.target.closest('[data-tooltip]');
   if (!element || element.contains(event.relatedTarget)) return;
   if (suppressed === element) suppressed = null;
+  if (trigger === element) pinned = false;
   scheduleHide();
 });
 tooltip.addEventListener('pointerenter', () => clearTimeout(hideTimer));
 tooltip.addEventListener('pointerleave', scheduleHide);
 document.addEventListener('focusin', event => {
   const element = event.target.closest('[data-tooltip]');
-  if (element) showTooltip(element);
+  if (element && element.matches(':focus-visible')) showTooltip(element);
 });
 document.addEventListener('focusout', event => {
   if (suppressed === event.target) suppressed = null;
@@ -162,14 +169,15 @@ document.addEventListener('focusout', event => {
   }
 });
 document.addEventListener('pointerdown', event => {
-  if (trigger && !trigger.contains(event.target) && !tooltip.contains(event.target)) hideTooltip();
+  const element = event.target.closest('[data-tooltip]');
+  if (element && !element.matches('.tooltip-trigger')) dismissTooltip(element);
+  else if (trigger && !trigger.contains(event.target) && !tooltip.contains(event.target)) dismissTooltip();
 });
 document.addEventListener('click', event => {
   const element = event.target.closest('.tooltip-trigger');
   if (!element) return;
   if (trigger === element && pinned) {
-    suppressed = element;
-    hideTooltip();
+    dismissTooltip(element);
   } else {
     suppressed = null;
     showTooltip(element);
@@ -178,8 +186,9 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && trigger) {
-    suppressed = trigger;
-    hideTooltip();
+    event.preventDefault();
+    event.stopPropagation();
+    dismissTooltip();
   }
 });
 document.addEventListener('htmx:beforeSwap', event => {

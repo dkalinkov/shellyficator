@@ -8,7 +8,8 @@
 - Room names allow 100 characters; tags allow 500 total. Reject invalid updates atomically.
 - Save from cached data, preserving notes, readings, baselines, filters, expansion, focus, and scroll. Pause polling while editing.
 - Keep login/CSRF protection. Comboboxes support arrows, Enter, Escape, and `aria-activedescendant`; support touch.
-- Keep desktop rows on one line; rooms are blue and tags violet.
+- Keep desktop rows on one line; each room/tag has a name-based color shared by its labels and suggestions.
+- Inventory tag filtering uses a fixed-height summary/count and a searchable checkbox popup. Selections apply immediately, match any selected tag, and stay visible in the popup; selecting or clearing never adds rows to the toolbar. Close with Done, Escape, outside click, or focus leaving the control. See [Carbon multiselect guidance](https://www.carbondesignsystem.com/building-blocks/core/components/dropdown/guidelines#multiselect) and [PatternFly filter counts](https://www.patternfly.org/patterns/filters/design-guidelines/#badge-count).
 
 Implemented and verified; see [status](../IMPLEMENTATION.md).
 
