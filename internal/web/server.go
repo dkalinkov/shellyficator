@@ -30,17 +30,20 @@ import (
 var assets embed.FS
 
 type Server struct {
-	store         *inventory.Store
-	client        *shelly.Client
-	announcements func(context.Context) ([]string, error)
-	neighbors     func(context.Context) ([]string, error)
-	templates     *template.Template
-	version       string
-	mu            sync.Mutex
-	discovery     Discovery
-	refreshing    bool
-	lastRefresh   time.Time
-	loginAttempts map[string]loginAttempt
+	store               *inventory.Store
+	client              *shelly.Client
+	announcements       func(context.Context) ([]string, error)
+	neighbors           func(context.Context) ([]string, error)
+	templates           *template.Template
+	version             string
+	mu                  sync.Mutex
+	discovery           Discovery
+	refreshing          bool
+	lastRefresh         time.Time
+	refreshDone         chan struct{}
+	refreshForced       bool
+	refreshForcePending bool
+	loginAttempts       map[string]loginAttempt
 }
 
 type loginAttempt struct {
@@ -373,7 +376,15 @@ func (s *Server) dashboard(e *core.RequestEvent) error {
 	return s.render(e, "dashboard", page)
 }
 func (s *Server) table(e *core.RequestEvent) error {
-	s.refresh(e.Request.URL.Query().Get("refresh") == "1")
+	force := e.Request.URL.Query().Get("refresh") == "1"
+	done := s.refresh(force)
+	if force && done != nil {
+		select {
+		case <-done:
+		case <-e.Request.Context().Done():
+			return e.Request.Context().Err()
+		}
+	}
 	page, err := s.list(e)
 	if err != nil {
 		return err
@@ -387,46 +398,85 @@ func (s *Server) progress(e *core.RequestEvent) error {
 	return s.render(e, "discovery", Page{Discovery: job})
 }
 
-func (s *Server) refresh(force bool) {
+func (s *Server) refresh(force bool) <-chan struct{} {
 	s.mu.Lock()
-	if s.refreshing || (!force && time.Since(s.lastRefresh) < 10*time.Second) {
+	if s.refreshing {
+		// A manual request during status polling gets a configuration pass too.
+		if force && !s.refreshForced {
+			s.refreshForcePending = true
+		}
+		done := s.refreshDone
 		s.mu.Unlock()
-		return
+		return done
+	}
+	if !force && time.Since(s.lastRefresh) < 30*time.Second {
+		s.mu.Unlock()
+		return nil
 	}
 	s.refreshing = true
+	s.refreshForced = force
 	s.lastRefresh = time.Now()
+	s.refreshDone = make(chan struct{})
+	done := s.refreshDone
 	s.mu.Unlock()
 	go func() {
-		defer func() { s.mu.Lock(); s.refreshing = false; s.mu.Unlock() }()
-		records, err := s.store.Devices()
-		if err != nil {
+		for {
+			s.refreshDevices(force)
+			s.mu.Lock()
+			if s.refreshForcePending {
+				s.refreshForcePending = false
+				s.refreshForced = true
+				force = true
+				s.lastRefresh = time.Now()
+				s.mu.Unlock()
+				continue
+			}
+			s.refreshing = false
+			s.refreshForced = false
+			close(done)
+			s.mu.Unlock()
 			return
 		}
-		limit := make(chan struct{}, 4)
-		var group sync.WaitGroup
-		for _, record := range records {
-			limit <- struct{}{}
-			group.Add(1)
-			go func(record *core.Record) {
-				defer func() { <-limit; group.Done() }()
-				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-				defer cancel()
-				reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), false)
-				if err != nil {
-					problem := "Device could not be reached. Last successful readings are preserved."
-					if errors.Is(err, shelly.ErrIdentity) {
-						problem = "Address now belongs to a different device. Rediscover this device."
-					}
-					_ = s.store.Failed(record.Id, problem)
-					return
-				}
-				if _, err := s.store.SaveReading(reading, false); err != nil {
-					s.store.App.Logger().Error("Could not save device reading", "device", record.Id)
-				}
-			}(record)
-		}
-		group.Wait()
 	}()
+	return done
+}
+
+func (s *Server) refreshDevices(force bool) {
+	records, err := s.store.Devices()
+	if err != nil {
+		s.store.App.Logger().Error("Could not load devices for refresh", "error", err)
+		return
+	}
+	limit := make(chan struct{}, 4)
+	var group sync.WaitGroup
+	for _, record := range records {
+		limit <- struct{}{}
+		group.Add(1)
+		go func(record *core.Record) {
+			defer func() { <-limit; group.Done() }()
+			lastRead := record.GetDateTime("last_captured").Time()
+			readConfig := force || !record.GetBool("reachable") || !record.GetBool("config_available") || time.Since(lastRead) >= 5*time.Minute
+			timeout := 8 * time.Second
+			if readConfig {
+				timeout = 12 * time.Second
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), readConfig)
+			if err != nil {
+				problem := "Device could not be reached. Last successful readings are preserved."
+				if errors.Is(err, shelly.ErrIdentity) {
+					problem = "Address now belongs to a different device. Rediscover this device."
+				}
+				_ = s.store.Failed(record.Id, problem)
+				return
+			}
+			if _, err := s.store.SaveReading(reading, false); err != nil {
+				s.store.App.Logger().Error("Could not save device reading", "device", record.Id)
+			}
+		}(record)
+	}
+	group.Wait()
 }
 
 func (s *Server) discover(e *core.RequestEvent) error {

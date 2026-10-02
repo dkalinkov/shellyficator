@@ -21,7 +21,7 @@ See [implementation status](IMPLEMENTATION.md) for delivered features and remain
 - Keep captures timestamped and immutable through the app. Baseline approval requires a fresh read and changes only on explicit approval. Data admin can modify all records.
 - Compare per-channel input type, relay behaviour, enable/lock flags, power-loss state, and timers. Detached mode is valid; flag differences from the approved baseline.
 - Distinguish changed, added, and removed settings. Snapshots omit secrets and may omit scripts/schedules; physical-control acceptance still requires a physical check.
-- Status refresh runs every 10 seconds while visible, with pause/manual controls and shared results across viewers. Configuration reads and issue scans are separate; a persisted refresh interval remains planned.
+- Status refresh runs every 30 seconds while visible, with pause/manual controls and shared results across viewers. Read configuration on recovery, every five minutes, and on manual Refresh; retry unavailable settings on the next poll. Automatic reads update current settings without creating snapshots or approving baselines. Issue scans and a persisted refresh interval remain planned.
 - Issue reports record start/completion times, per-device outcomes, and setting links. Check drift, reachability, disabled authentication, and reported faults; distinguish authentication failures from connectivity failures.
 - Keep stale, missing, stateless, false, and zero readings distinct.
 
@@ -29,7 +29,7 @@ See [implementation status](IMPLEMENTATION.md) for delivered features and remain
 
 - Compact searchable desktop rows; stacked entries on phones. Row clicks open details; name links retain keyboard and native browser behaviour.
 - Expand inputs beneath the row without navigating. Preserve filters, expansion, focus, and scroll through updates.
-- Show input type/state, relay mode/state, enable/lock/invert flags, power-loss behaviour, and channel notes. Input modes come from captures; physical state, relay state, and Wi-Fi come from polling.
+- Show input type/state, relay mode/state, enable/lock/invert flags, power-loss behaviour, and channel notes. Modes/settings come from the latest configuration read; physical state, relay state, and Wi-Fi come from status polling. Label the settings read time explicitly; failed configuration reads preserve saved settings and show an unavailable warning independently of live status.
 - Show reachability, drift counts, unavailable comparisons, and faults as text. Omit power, voltage, current, and energy from the UI; keep temperature, uptime, firmware, MAC, and connection details on the device page/tooltips.
 - Colours: green reachable/matching; red offline/faults; amber drift/security gaps; blue models/input controls/rooms; violet tags/detached mode. Wi-Fi: green ≥ -60 dBm, amber ≥ -70, red below -70; mute stale readings.
 - Tooltips support hover, focus, touch, and Escape. Respect reduced motion.

@@ -49,7 +49,8 @@ func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record,
 		if reading.Status != nil {
 			record.Set("status", reading.Status)
 		}
-		if capture {
+		// Configuration availability follows reads; capture only adds a snapshot.
+		if capture || reading.ConfigAttempted || reading.Config != nil {
 			record.Set("config_available", reading.Config != nil)
 		}
 		if reading.Config != nil {
