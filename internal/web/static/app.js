@@ -38,6 +38,33 @@ try {
   if (Array.isArray(saved)) saved.forEach(id => expandedInputs.add(id));
 } catch { /* Disclosure state is optional when storage is unavailable. */ }
 
+const collapsedRooms = new Set();
+try {
+  const saved = JSON.parse(sessionStorage.getItem('shelly-collapsed-rooms') || '[]');
+  if (Array.isArray(saved)) saved.filter(room => typeof room === 'string').forEach(room => collapsedRooms.add(room));
+} catch { /* Room disclosure state is optional when storage is unavailable. */ }
+
+function setRoomOpen(group, open) {
+  group.dataset.open = String(open);
+  group.querySelector('[data-room-toggle]').setAttribute('aria-expanded', String(open));
+  const panel = group.querySelector('[data-room-panel]');
+  panel.setAttribute('aria-hidden', String(!open));
+  panel.inert = !open;
+}
+
+function applyRoomState(root) {
+  for (const group of root.querySelectorAll('[data-room-group]')) {
+    const button = group.querySelector('[data-room-toggle]');
+    const panel = group.querySelector('[data-room-panel]');
+    // Room-based IDs stay stable when filtering changes section order.
+    const key = encodeURIComponent(group.dataset.roomGroup);
+    button.id = 'room-toggle-' + key;
+    panel.id = 'room-panel-' + key;
+    button.setAttribute('aria-controls', panel.id);
+    setRoomOpen(group, !collapsedRooms.has(group.dataset.roomGroup));
+  }
+}
+
 function setInputsOpen(button, open) {
   const group = button.closest('.device-group');
   group.dataset.open = String(open);
@@ -53,8 +80,9 @@ function applyInputsState(root) {
   }
 }
 
-function restoreInputs(root) {
+function restoreInventoryDisclosures(root) {
   root.classList.add('inventory-restoring');
+  applyRoomState(root);
   applyInputsState(root);
   requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('inventory-restoring')));
 }
@@ -69,17 +97,28 @@ document.addEventListener('click', event => {
   else expandedInputs.delete(id);
   try { sessionStorage.setItem('shelly-expanded-inputs', JSON.stringify([...expandedInputs])); } catch { /* Optional. */ }
 });
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-room-toggle]');
+  if (!button) return;
+  const group = button.closest('[data-room-group]');
+  const open = button.getAttribute('aria-expanded') !== 'true';
+  setRoomOpen(group, open);
+  if (open) collapsedRooms.delete(group.dataset.roomGroup);
+  else collapsedRooms.add(group.dataset.roomGroup);
+  try { sessionStorage.setItem('shelly-collapsed-rooms', JSON.stringify([...collapsedRooms])); } catch { /* Optional. */ }
+});
 document.addEventListener('htmx:beforeSwap', event => {
   if (event.detail.target.id !== 'inventory' || !event.detail.shouldSwap) return;
   // HTMX restores focus during the swap. Insert panels already open so that
   // focus restoration cannot collapse the page and clamp its scroll position.
   const content = document.createElement('template');
   content.innerHTML = event.detail.serverResponse;
+  applyRoomState(content.content);
   applyInputsState(content.content);
   event.detail.serverResponse = content.innerHTML;
 });
 const inventory = document.getElementById('inventory');
-if (inventory) restoreInputs(inventory);
+if (inventory) restoreInventoryDisclosures(inventory);
 
 // One shared tooltip also works for rows replaced by HTMX.
 const tooltip = document.getElementById('app-tooltip');
