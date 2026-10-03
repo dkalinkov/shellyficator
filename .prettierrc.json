@@ -1,7 +1,7 @@
 {
   "plugins": ["prettier-plugin-go-template"],
   "printWidth": 100,
-  "singleAttributePerLine": true,
+  "singleAttributePerLine": false,
   "htmlWhitespaceSensitivity": "ignore",
   "overrides": [
     {

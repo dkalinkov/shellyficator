@@ -11,10 +11,7 @@
         devices
       </span>
       <span class="summary-online text-success">
-        <span
-          class="status status-success"
-          aria-hidden="true"
-        ></span>
+        <span class="status status-success" aria-hidden="true"></span>
         <strong>{{ .Reachable }}</strong>
         reachable
       </span>
@@ -90,14 +87,8 @@
           in-[.inventory-restoring]:transition-none"
           aria-hidden="true"
         >
-          <svg
-            class="icon size-3.5"
-            viewBox="0 0 16 16"
-          >
-            <path
-              class="[vector-effect:non-scaling-stroke]"
-              d="M4 6.5L8 10.5L12 6.5"
-            />
+          <svg class="icon size-3.5" viewBox="0 0 16 16">
+            <path class="[vector-effect:non-scaling-stroke]" d="M4 6.5L8 10.5L12 6.5" />
           </svg>
         </span>
       </button>
@@ -148,10 +139,7 @@
 
 {{ define "inventory-updated" }}
   {{ template "inventory" . }}
-  <select
-    id="tag-filter-options"
-    hx-swap-oob="innerHTML"
-  >
+  <select id="tag-filter-options" hx-swap-oob="innerHTML">
     {{ template "tag-filter-options" . }}
   </select>
 {{ end }}

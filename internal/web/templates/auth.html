@@ -1,89 +1,121 @@
 {{ define "login" }}
   <!doctype html>
-  <html
-    lang="en"
-    data-theme="abyss"
-  >
+  <html lang="en" data-theme="abyss">
     {{ template "head" . }}
-    <body class="min-h-screen bg-base-100 font-sans text-base-content">
+    <body class="login-page min-h-screen font-sans">
       {{ template "page-tools" . }}
-      <main
-        id="main"
-        class="mx-auto flex min-h-screen max-w-md items-center px-6 py-12"
-      >
-        <section class="card card-border w-full bg-base-200/50 p-8">
-          {{ template "brand" . }}
-          <p class="mt-3 text-xs text-base-content/60 italic">
-            Keeping your Shellys in line. Allegedly.
-          </p>
-          {{ template "version" . }}
-          <h1 class="mt-6 text-2xl font-semibold">Sign in</h1>
-          {{ if .Error }}
-            <div
-              class="alert alert-error mt-5"
-              role="alert"
-            >
-              {{ .Error }}
+      <main id="main" class="login-main">
+        <div class="login-shell">
+          <section class="login-hero" aria-labelledby="login-tagline">
+            <div class="login-hero-copy">
+              <h2 id="login-tagline">
+                Keeping your
+                <br />
+                Shellys in line.
+                <span>Allegedly.</span>
+              </h2>
             </div>
-          {{ end }}
-          <form
-            action="/login"
-            method="post"
-            class="mt-7 flex flex-col gap-5"
-          >
-            <input
-              type="hidden"
-              name="csrf"
-              value="{{ .CSRF }}"
-            />
-            <div class="flex flex-col gap-2">
-              <label for="email">Email</label>
-              <input
-                class="input w-full"
-                id="email"
-                type="email"
-                name="email"
-                autocomplete="username"
-                required
+            <figure class="login-mascot-scene">
+              <svg class="login-circuit" viewBox="0 0 500 420" fill="none" aria-hidden="true">
+                <circle cx="250" cy="222" r="162" />
+                <circle cx="250" cy="222" r="196" stroke-dasharray="2 10" />
+                <path
+                  d="M0 130h60l35 35h40M500 94h-65l-38 38h-40M0 325h66l35-35h35M500 333h-63l-34-34h-40"
+                />
+                <circle cx="135" cy="165" r="4" />
+                <circle cx="357" cy="132" r="4" />
+                <circle cx="136" cy="290" r="4" />
+                <circle cx="363" cy="299" r="4" />
+              </svg>
+              <img
+                class="login-mascot"
+                src="/assets/mascot-full.png"
+                width="1280"
+                height="1280"
+                alt="Shellyficator's lime relay robot, winking with screw-terminal ears and little boots."
+                fetchpriority="high"
               />
+              <figcaption class="login-mascot-caption">Probably in charge.</figcaption>
+            </figure>
+          </section>
+          <section class="login-form-panel" aria-labelledby="login-title">
+            <div class="login-form-content">
+              <div class="login-form-heading">
+                <h1 id="login-title">Welcome back.</h1>
+                <p class="login-description">Sign in to manage your Shellys.</p>
+              </div>
+              {{ if .Error }}
+                <div class="login-error" role="alert">
+                  {{ .Error }}
+                </div>
+              {{ end }}
+              <form action="/login" method="post" class="login-form">
+                <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+                <div class="login-field">
+                  <label for="email">Email</label>
+                  <input
+                    class="input login-input"
+                    id="email"
+                    type="email"
+                    name="email"
+                    placeholder="you@example.com"
+                    autocomplete="username"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    required
+                  />
+                </div>
+                <div class="login-field">
+                  <label for="password">Password</label>
+                  <div class="login-password">
+                    <input
+                      class="input login-input"
+                      id="password"
+                      type="password"
+                      name="password"
+                      placeholder="Your password"
+                      autocomplete="current-password"
+                      required
+                    />
+                    <button
+                      class="login-password-toggle"
+                      type="button"
+                      aria-label="Show password"
+                      aria-controls="password"
+                      data-password-toggle
+                      hidden
+                    >
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                        <circle cx="12" cy="12" r="3" />
+                        <path class="login-eye-slash" d="m4 4 16 16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <button type="submit" class="login-submit">
+                  <span>Sign in</span>
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#icon-arrow-right"></use>
+                  </svg>
+                </button>
+              </form>
             </div>
-            <div class="flex flex-col gap-2">
-              <label for="password">Password</label>
-              <input
-                class="input w-full"
-                id="password"
-                type="password"
-                name="password"
-                autocomplete="current-password"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              class="btn btn-primary w-full"
-            >
-              Sign in
-            </button>
-          </form>
-        </section>
+          </section>
+        </div>
       </main>
+      <script src="/assets/auth.js" defer></script>
     </body>
   </html>
 {{ end }}
 
 {{ define "setup" }}
   <!doctype html>
-  <html
-    lang="en"
-    data-theme="abyss"
-  >
+  <html lang="en" data-theme="abyss">
     {{ template "head" . }}
     <body class="min-h-screen bg-base-100 font-sans text-base-content">
       {{ template "page-tools" . }}
-      <main
-        id="main"
-        class="mx-auto flex min-h-screen max-w-lg items-center px-6 py-12"
-      >
+      <main id="main" class="mx-auto flex min-h-screen max-w-lg items-center px-6 py-12">
         <section class="card card-border w-full bg-base-200/50 p-8">
           {{ template "brand" . }}
           <p class="mt-3 text-xs text-base-content/60 italic">
@@ -93,23 +125,12 @@
           <h1 class="mt-6 text-2xl font-semibold">Create account</h1>
           <p class="mt-3 text-sm text-base-content/60">Also used for PocketBase admin.</p>
           {{ if .Error }}
-            <div
-              class="alert alert-error mt-5"
-              role="alert"
-            >
+            <div class="alert alert-error mt-5" role="alert">
               {{ .Error }}
             </div>
           {{ end }}
-          <form
-            action="/setup"
-            method="post"
-            class="mt-7 flex flex-col gap-5"
-          >
-            <input
-              type="hidden"
-              name="csrf"
-              value="{{ .CSRF }}"
-            />
+          <form action="/setup" method="post" class="mt-7 flex flex-col gap-5">
+            <input type="hidden" name="csrf" value="{{ .CSRF }}" />
             <div class="flex flex-col gap-2">
               <label for="email">Email</label>
               <input
@@ -134,12 +155,7 @@
               />
               <p class="text-xs text-base-content/45">At least 12 characters.</p>
             </div>
-            <button
-              type="submit"
-              class="btn btn-primary w-full"
-            >
-              Create account
-            </button>
+            <button type="submit" class="btn btn-primary w-full">Create account</button>
           </form>
         </section>
       </main>

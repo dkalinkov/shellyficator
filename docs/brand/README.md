@@ -10,6 +10,7 @@ Keep Archivo 900, the readable upright 9000 stamp, and the existing tagline.
 | Use | Files |
 | --- | --- |
 | Full character, transparent master | [PNG](shellyficator-mascot.png) |
+| Full character, embedded login artwork | [PNG](../../internal/web/static/mascot-full.png) |
 | Compact face, transparent master | [PNG](shellyficator-mascot-head.png) |
 | Wordmark for dark backgrounds | [SVG](shellyficator-logo.svg), [PNG](shellyficator-logo.png) |
 | Wordmark for light backgrounds | [SVG](shellyficator-logo-light.svg), [PNG](shellyficator-logo-light.png) |

@@ -1,16 +1,7 @@
 {{ define "detail-channels" }}
-  <section
-    id="channels"
-    class="min-w-0 scroll-mt-18"
-    aria-labelledby="channels-title"
-  >
+  <section id="channels" class="min-w-0 scroll-mt-18" aria-labelledby="channels-title">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h2
-        id="channels-title"
-        class="text-xl font-semibold tracking-tight"
-      >
-        Channels & inputs
-      </h2>
+      <h2 id="channels-title" class="text-xl font-semibold tracking-tight">Channels & inputs</h2>
       <div
         class="grid min-w-0 gap-1 text-right text-[11px] text-base-content/60 max-[480px]:text-left"
       >
@@ -35,10 +26,7 @@
             <div class="card-body">
               <div class="flex items-center gap-2.5">
                 <span class="badge badge-lg badge-soft size-10 p-0 {{ badgeClass .StateTone }}">
-                  <svg
-                    class="icon"
-                    aria-hidden="true"
-                  >
+                  <svg class="icon" aria-hidden="true">
                     <use href="#icon-{{ .Icon }}"></use>
                   </svg>
                 </span>
@@ -70,14 +58,8 @@
           class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10
             p-4"
         >
-          <h3
-            id="physical-inputs-title"
-            class="card-title"
-          >
-            <svg
-              class="icon text-info"
-              aria-hidden="true"
-            >
+          <h3 id="physical-inputs-title" class="card-title">
+            <svg class="icon text-info" aria-hidden="true">
               <use href="#icon-input"></use>
             </svg>
             Physical inputs
@@ -120,10 +102,7 @@
                   >
                     {{ .Input.Mode }}
                   </span>
-                  <svg
-                    class="icon text-base-content/45"
-                    aria-hidden="true"
-                  >
+                  <svg class="icon text-base-content/45" aria-hidden="true">
                     <use href="#icon-arrow-right"></use>
                   </svg>
                   <a
@@ -168,10 +147,7 @@
             <article class="card card-sm card-border min-w-0 bg-base-200/50">
               <div class="card-body">
                 <div class="flex items-center gap-2.5">
-                  <svg
-                    class="icon text-info"
-                    aria-hidden="true"
-                  >
+                  <svg class="icon text-info" aria-hidden="true">
                     <use href="#icon-{{ .Icon }}"></use>
                   </svg>
                   <div class="min-w-0 flex-1">

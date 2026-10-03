@@ -1,18 +1,9 @@
 {{ define "detail-channel-notes" }}
   {{ if .Detail.Notes }}
-    <section
-      class="card card-sm card-border bg-base-200/50"
-      aria-labelledby="channel-notes-title"
-    >
+    <section class="card card-sm card-border bg-base-200/50" aria-labelledby="channel-notes-title">
       <div class="border-b border-base-content/10 p-4">
-        <h2
-          id="channel-notes-title"
-          class="card-title"
-        >
-          <svg
-            class="icon text-secondary"
-            aria-hidden="true"
-          >
+        <h2 id="channel-notes-title" class="card-title">
+          <svg class="icon text-secondary" aria-hidden="true">
             <use href="#icon-note"></use>
           </svg>
           Channel notes
@@ -31,14 +22,8 @@
     aria-labelledby="notes-title"
   >
     <div class="border-b border-base-content/10 p-4">
-      <h2
-        id="notes-title"
-        class="card-title"
-      >
-        <svg
-          class="icon text-secondary"
-          aria-hidden="true"
-        >
+      <h2 id="notes-title" class="card-title">
+        <svg class="icon text-secondary" aria-hidden="true">
           <use href="#icon-note"></use>
         </svg>
         Organization & notes
@@ -50,19 +35,10 @@
       method="post"
       data-metadata-form
     >
-      <input
-        type="hidden"
-        name="csrf"
-        value="{{ .CSRF }}"
-      />
+      <input type="hidden" name="csrf" value="{{ .CSRF }}" />
       {{ template "organization-fields" . }}
       <div class="flex flex-col gap-2">
-        <label
-          class="text-xs"
-          for="device-notes"
-        >
-          Note
-        </label>
+        <label class="text-xs" for="device-notes">Note</label>
         <textarea
           id="device-notes"
           class="textarea w-full scroll-mt-18 pointer-coarse:text-base"
@@ -72,10 +48,7 @@
         >
 {{ .Device.Notes }}</textarea>
       </div>
-      <button
-        class="btn btn-sm btn-primary w-full pointer-coarse:min-h-10"
-        type="submit"
-      >
+      <button class="btn btn-sm btn-primary w-full pointer-coarse:min-h-10" type="submit">
         Save changes
       </button>
     </form>
@@ -88,10 +61,7 @@
       text-[11px] text-secondary pointer-coarse:min-h-10"
     href="#note-{{ .Key }}"
   >
-    <svg
-      class="icon"
-      aria-hidden="true"
-    >
+    <svg class="icon" aria-hidden="true">
       <use href="#icon-note"></use>
     </svg>
     {{ if .Notes }}
@@ -110,10 +80,7 @@
     id="editor-{{ .Channel.Key }}"
   >
     <summary class="collapse-title flex min-h-11 items-center gap-2 py-3 text-xs">
-      <svg
-        class="icon text-secondary"
-        aria-hidden="true"
-      >
+      <svg class="icon text-secondary" aria-hidden="true">
         <use href="#icon-note"></use>
       </svg>
       <span class="wrap-anywhere">{{ .Channel.Name }}</span>
@@ -135,20 +102,9 @@
       method="post"
       action="/devices/{{ .DeviceID }}/channel-notes"
     >
-      <input
-        type="hidden"
-        name="csrf"
-        value="{{ .CSRF }}"
-      />
-      <input
-        type="hidden"
-        name="component"
-        value="{{ .Channel.Key }}"
-      />
-      <label
-        class="sr-only"
-        for="note-{{ .Channel.Key }}"
-      >
+      <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+      <input type="hidden" name="component" value="{{ .Channel.Key }}" />
+      <label class="sr-only" for="note-{{ .Channel.Key }}">
         Note for
         {{ .Channel.Name }}
       </label>

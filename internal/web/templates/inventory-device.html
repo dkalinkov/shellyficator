@@ -1,8 +1,5 @@
 {{ define "inventory-device" }}
-  <tbody
-    class="device-group t-acc group/device inventory-card:block"
-    data-open="false"
-  >
+  <tbody class="device-group t-acc group/device inventory-card:block" data-open="false">
     <tr
       class="device-row cursor-pointer hover:bg-info/5 focus-within:bg-info/5
       group-data-[open=true]/device:bg-info/5 *:h-13 *:border-b *:border-base-content/10
@@ -65,14 +62,8 @@
                 in-[.inventory-restoring]:transition-none"
                 aria-hidden="true"
               >
-                <svg
-                  class="icon size-3.5"
-                  viewBox="0 0 16 16"
-                >
-                  <path
-                    class="[vector-effect:non-scaling-stroke]"
-                    d="M4 6.5L8 10.5L12 6.5"
-                  />
+                <svg class="icon size-3.5" viewBox="0 0 16 16">
+                  <path class="[vector-effect:non-scaling-stroke]" d="M4 6.5L8 10.5L12 6.5" />
                 </svg>
               </span>
             </button>
@@ -137,10 +128,7 @@
             aria-label="{{ .Table.Connectivity }}: {{ .Name }}"
             data-tooltip="{{ .Table.Connectivity }}&#10;{{ .Table.ConnectionInfo }}"
           >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
+            <svg class="icon" aria-hidden="true">
               <use href="#icon-{{ .Table.ConnectivityIcon }}"></use>
             </svg>
           </a>
@@ -186,10 +174,7 @@
               aria-label="Restart required for {{ .Name }}"
               data-tooltip="Restart required&#10;Status checked · {{ .Info.LastChecked }}"
             >
-              <svg
-                class="icon"
-                aria-hidden="true"
-              >
+              <svg class="icon" aria-hidden="true">
                 <use href="#icon-refresh"></use>
               </svg>
             </a>
@@ -205,10 +190,7 @@
             aria-label="{{ .Table.Signal }}"
             data-tooltip="{{ .Table.Signal }}"
           >
-            <svg
-              class="icon size-6"
-              aria-hidden="true"
-            >
+            <svg class="icon size-6" aria-hidden="true">
               <use href="#icon-wifi"></use>
             </svg>
             <span>{{ .Table.SignalValue }}</span>
@@ -229,17 +211,11 @@
           data-tooltip="{{ .Table.ConfigurationInfo }}"
         >
           {{ if eq .Table.ConfigurationTone "warning" }}
-            <svg
-              class="icon size-3.5"
-              aria-hidden="true"
-            >
+            <svg class="icon size-3.5" aria-hidden="true">
               <use href="#icon-warning"></use>
             </svg>
           {{ else if eq .Table.ConfigurationTone "ok" }}
-            <svg
-              class="icon size-3.5"
-              aria-hidden="true"
-            >
+            <svg class="icon size-3.5" aria-hidden="true">
               <use href="#icon-check"></use>
             </svg>
           {{ end }}
@@ -265,17 +241,11 @@
               Add tags
             {{- end }}"
           >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
+            <svg class="icon" aria-hidden="true">
               <use href="#icon-tag"></use>
             </svg>
             {{ if .Info.TagsText }}
-              <span
-                class="tag-count text-[9px] font-medium"
-                aria-hidden="true"
-              >
+              <span class="tag-count text-[9px] font-medium" aria-hidden="true">
                 {{ len .Info.Tags }}
               </span>
             {{ end }}
@@ -299,10 +269,7 @@
               No device password
             {{- end }}"
           >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
+            <svg class="icon" aria-hidden="true">
               <use
                 href="{{ if .Info.AuthEnabled -}}
                   #icon-lock
@@ -320,10 +287,7 @@
               aria-label="Note for {{ .Name }}"
               data-tooltip="{{ .Table.Note }}"
             >
-              <svg
-                class="icon"
-                aria-hidden="true"
-              >
+              <svg class="icon" aria-hidden="true">
                 <use href="#icon-note"></use>
               </svg>
             </a>
@@ -336,10 +300,7 @@
             aria-label="Open device UI for {{ .Name }}"
             data-tooltip="Open device UI"
           >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
+            <svg class="icon" aria-hidden="true">
               <use href="#icon-external"></use>
             </svg>
           </a>
@@ -347,15 +308,8 @@
       </td>
     </tr>
     {{ if .Table.Inputs }}
-      <tr
-        class="input-detail-row inventory-card:block"
-        aria-hidden="true"
-        inert
-      >
-        <td
-          colspan="8"
-          class="p-0 inventory-card:block"
-        >
+      <tr class="input-detail-row inventory-card:block" aria-hidden="true" inert>
+        <td colspan="8" class="p-0 inventory-card:block">
           <div
             id="inputs-{{ .Info.ID }}"
             class="t-acc-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-250

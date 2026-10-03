@@ -19,10 +19,7 @@
             text-[var(--label-color,var(--color-info))] pointer-coarse:min-h-10"
           data-room-label="{{ .Device.Room }}"
         >
-          <svg
-            class="icon self-center"
-            aria-hidden="true"
-          >
+          <svg class="icon self-center" aria-hidden="true">
             <use href="#icon-pin"></use>
           </svg>
           {{ if .Device.Room }}
@@ -39,10 +36,7 @@
             data-tooltip="{{ .Detail.Table.ConnectionInfo }}"
             tabindex="0"
           >
-            <span
-              class="status bg-current text-inherit"
-              aria-hidden="true"
-            ></span>
+            <span class="status bg-current text-inherit" aria-hidden="true"></span>
             {{ .Detail.Table.Connectivity }}
           </span>
           <span
@@ -84,14 +78,8 @@
         {{ template "detail-action-attributes" }}
       >
         {{ template "detail-action-csrf" .CSRF }}
-        <button
-          type="submit"
-          class="btn btn-sm btn-outline w-full pointer-coarse:min-h-10"
-        >
-          <svg
-            class="icon"
-            aria-hidden="true"
-          >
+        <button type="submit" class="btn btn-sm btn-outline w-full pointer-coarse:min-h-10">
+          <svg class="icon" aria-hidden="true">
             <use href="#icon-refresh"></use>
           </svg>
           Refresh status
@@ -104,10 +92,7 @@
         rel="noopener noreferrer"
       >
         Open device UI
-        <svg
-          class="icon"
-          aria-hidden="true"
-        >
+        <svg class="icon" aria-hidden="true">
           <use href="#icon-external"></use>
         </svg>
       </a>
@@ -116,11 +101,7 @@
 {{ end }}
 
 {{ define "detail-overview" }}
-  <section
-    id="overview"
-    class="scroll-mt-18"
-    aria-label="Device overview"
-  >
+  <section id="overview" class="scroll-mt-18" aria-label="Device overview">
     <dl class="my-6 grid grid-cols-2 gap-2 min-[481px]:grid-cols-3 min-[481px]:gap-3">
       {{ range .Detail.Summary }}
         <div
@@ -128,10 +109,7 @@
             last:col-span-2 min-[481px]:last:col-span-1"
         >
           <dt class="stat-title flex items-center gap-2 text-[11px]">
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
+            <svg class="icon" aria-hidden="true">
               <use href="#icon-{{ .Icon }}"></use>
             </svg>
             {{ .Label }}
@@ -153,10 +131,7 @@
     {{ end }}
     {{ range .Detail.Faults }}
       <p class="alert alert-error alert-soft mb-4 text-xs wrap-anywhere">
-        <svg
-          class="icon"
-          aria-hidden="true"
-        >
+        <svg class="icon" aria-hidden="true">
           <use href="#icon-warning"></use>
         </svg>
         <span>{{ . }}</span>
@@ -172,14 +147,8 @@
     aria-labelledby="connection-title"
   >
     <div class="border-b border-base-content/10 p-4">
-      <h2
-        id="connection-title"
-        class="card-title"
-      >
-        <svg
-          class="icon text-info"
-          aria-hidden="true"
-        >
+      <h2 id="connection-title" class="card-title">
+        <svg class="icon text-info" aria-hidden="true">
           <use href="#icon-network"></use>
         </svg>
         Connection
@@ -223,10 +192,7 @@
                 </svg>
               </span>
             {{ else }}
-              <svg
-                class="icon text-info opacity-80"
-                aria-hidden="true"
-              >
+              <svg class="icon text-info opacity-80" aria-hidden="true">
                 <use href="#icon-{{ .Icon }}"></use>
               </svg>
             {{ end }}{{ .Label }}
@@ -262,19 +228,10 @@
 {{ end }}
 
 {{ define "detail-identity" }}
-  <section
-    class="card card-sm card-border min-w-0 bg-base-200/50"
-    aria-labelledby="identity-title"
-  >
+  <section class="card card-sm card-border min-w-0 bg-base-200/50" aria-labelledby="identity-title">
     <div class="border-b border-base-content/10 p-4">
-      <h2
-        id="identity-title"
-        class="card-title"
-      >
-        <svg
-          class="icon text-info"
-          aria-hidden="true"
-        >
+      <h2 id="identity-title" class="card-title">
+        <svg class="icon text-info" aria-hidden="true">
           <use href="#icon-device"></use>
         </svg>
         Device information

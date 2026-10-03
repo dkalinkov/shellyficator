@@ -57,10 +57,7 @@
     {{ if .Changed }}input-row-changed bg-warning/4{{ end }}"
     aria-label="Input {{ .ID }}"
   >
-    <th
-      scope="row"
-      class="font-normal"
-    >
+    <th scope="row" class="font-normal">
       <a
         class="input-identity group/input flex min-h-7 max-w-60 items-center gap-2
           pointer-coarse:min-h-10"
@@ -99,10 +96,7 @@
             role="img"
             aria-label="{{ .Restriction }}"
           >
-            <svg
-              class="icon size-3.5"
-              aria-hidden="true"
-            >
+            <svg class="icon size-3.5" aria-hidden="true">
               <use href="#icon-warning"></use>
             </svg>
           </span>
@@ -159,10 +153,7 @@
             aria-label="Input {{ .ID }} note"
             data-tooltip="Input {{ .ID }} note&#10;{{ .Note }}"
           >
-            <svg
-              class="icon size-4"
-              aria-hidden="true"
-            >
+            <svg class="icon size-4" aria-hidden="true">
               <use href="#icon-note"></use>
             </svg>
             <span
@@ -181,10 +172,7 @@
             aria-label="Relay {{ .RelayID }} note"
             data-tooltip="Relay {{ .RelayID }} note&#10;{{ .RelayNote }}"
           >
-            <svg
-              class="icon size-4"
-              aria-hidden="true"
-            >
+            <svg class="icon size-4" aria-hidden="true">
               <use href="#icon-note"></use>
             </svg>
             <span
