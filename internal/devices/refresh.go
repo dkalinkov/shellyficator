@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pocketbase/pocketbase/core"
-
 	"shellyficator/internal/shelly"
 )
 
@@ -55,19 +53,23 @@ func (s *Service) Refresh(force bool) <-chan struct{} {
 }
 
 func (s *Service) refreshDevices(force bool) {
-	s.inventoryMu.Lock()
-	defer s.inventoryMu.Unlock()
 	if s.ctx.Err() != nil {
 		return
 	}
+	s.inventoryMu.RLock()
 	records, err := s.store.Devices()
+	s.inventoryMu.RUnlock()
 	if err != nil {
 		s.store.App.Logger().Error("Could not load devices for refresh", "error", err)
 		return
 	}
 	limit := make(chan struct{}, 4)
 	var group sync.WaitGroup
-	for _, record := range records {
+	results := make([]struct {
+		reading shelly.Reading
+		err     error
+	}, len(records))
+	for i, record := range records {
 		select {
 		case limit <- struct{}{}:
 		case <-s.ctx.Done():
@@ -75,7 +77,7 @@ func (s *Service) refreshDevices(force bool) {
 			return
 		}
 		group.Add(1)
-		go func(record *core.Record) {
+		go func() {
 			defer func() { <-limit; group.Done() }()
 			lastRead := record.GetDateTime("last_captured").Time()
 			readConfig := force || !record.GetBool("reachable") || record.GetInt("consecutive_failures") > 0 || !record.GetBool("config_available") || time.Since(lastRead) >= 5*time.Minute
@@ -85,24 +87,31 @@ func (s *Service) refreshDevices(force bool) {
 			}
 			ctx, cancel := context.WithTimeout(s.ctx, timeout)
 			defer cancel()
-			reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), readConfig)
-			if s.ctx.Err() != nil {
-				return
-			}
-			if err != nil {
-				problem := "Device could not be reached. Last successful readings are preserved."
-				if errors.Is(err, shelly.ErrIdentity) {
-					problem = "Address now belongs to a different device. Rediscover this device."
-				}
-				if saveErr := s.store.Failed(record.Id, problem, errors.Is(err, shelly.ErrIdentity)); saveErr != nil {
-					s.store.App.Logger().Error("Could not save device check failure", "device", record.Id)
-				}
-				return
-			}
-			if _, err := s.store.SaveReading(reading, false); err != nil {
-				s.store.App.Logger().Error("Could not save device reading", "device", record.Id)
-			}
-		}(record)
+			results[i].reading, results[i].err = s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), readConfig)
+		}()
 	}
 	group.Wait()
+	// Keep the last completed pass available while network reads are in flight.
+	// Publish the whole result together so inventory never sees a partial pass.
+	s.inventoryMu.Lock()
+	defer s.inventoryMu.Unlock()
+	if s.ctx.Err() != nil {
+		return
+	}
+	for i, result := range results {
+		record := records[i]
+		if result.err != nil {
+			problem := "Device could not be reached. Last successful readings are preserved."
+			if errors.Is(result.err, shelly.ErrIdentity) {
+				problem = "Address now belongs to a different device. Rediscover this device."
+			}
+			if saveErr := s.store.Failed(record.Id, problem, errors.Is(result.err, shelly.ErrIdentity)); saveErr != nil {
+				s.store.App.Logger().Error("Could not save device check failure", "device", record.Id)
+			}
+			continue
+		}
+		if _, err := s.store.SaveReading(result.reading, false); err != nil {
+			s.store.App.Logger().Error("Could not save device reading", "device", record.Id)
+		}
+	}
 }

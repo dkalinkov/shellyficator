@@ -63,6 +63,53 @@ func waitForRefresh(t *testing.T, done <-chan struct{}) {
 	}
 }
 
+func TestInventoryFiltersUseSavedReadingsWithoutContactingDevices(t *testing.T) {
+	var requests atomic.Int32
+	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		switch r.URL.Path {
+		case "/shelly":
+			_, _ = w.Write([]byte(`{"id":"test-device","mac":"AABBCCDDEEFF","gen":4}`))
+		case "/rpc/Shelly.GetStatus":
+			_, _ = w.Write([]byte(`{"switch:0":{"output":true}}`))
+		}
+	})
+	if err := s.store.Organization(id, "Kitchen", "light"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.store.Device(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{"", "q=test-device", "room=Kitchen", "tags=light", "group=room", "q=test-device&room=Kitchen&tags=light&group=room"} {
+		t.Run(query, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory?"+query, nil), Response: response}}
+			if err := s.table(event); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusOK || !strings.Contains(renderedText(response.Body.String()), "test-device") || !strings.Contains(renderedText(response.Body.String()), "Off") {
+				t.Fatalf("filter response lost saved device readings: %s", response.Body.String())
+			}
+			if requests.Load() != 0 {
+				t.Fatalf("filter change contacted devices: %d requests", requests.Load())
+			}
+		})
+	}
+	after, err := s.store.Device(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.GetString("last_checked") != before.GetString("last_checked") || after.GetString("last_status_read") != before.GetString("last_status_read") || after.GetInt("consecutive_failures") != before.GetInt("consecutive_failures") {
+		t.Fatal("filter changes modified device refresh state")
+	}
+	if done := s.devices.Refresh(false); done == nil {
+		t.Fatal("filter changes consumed the automatic refresh interval")
+	} else {
+		waitForRefresh(t, done)
+	}
+}
+
 func TestManualRefreshWaitsForSettingsAndReturnsUpdatedTable(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	s, _ := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -85,9 +132,9 @@ func TestManualRefreshWaitsForSettingsAndReturnsUpdatedTable(t *testing.T) {
 		}
 	})
 	response := httptest.NewRecorder()
-	event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory?refresh=1", nil), Response: response}}
+	event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory/refresh?refresh=1", nil), Response: response}}
 	result := make(chan error, 1)
-	go func() { result <- s.table(event) }()
+	go func() { result <- s.refreshInventory(event) }()
 	waitForRefresh(t, started)
 	select {
 	case err := <-result:
@@ -136,9 +183,9 @@ func TestAutomaticRefreshWaitsForCompletedResultsAndSharesThePass(t *testing.T) 
 		}
 	})
 	response := httptest.NewRecorder()
-	event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory?group=room", nil), Response: response}}
+	event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory/refresh?group=room", nil), Response: response}}
 	result := make(chan error, 1)
-	go func() { result <- s.table(event) }()
+	go func() { result <- s.refreshInventory(event) }()
 	waitForRefresh(t, started)
 	select {
 	case err := <-result:
@@ -146,11 +193,27 @@ func TestAutomaticRefreshWaitsForCompletedResultsAndSharesThePass(t *testing.T) 
 	default:
 	}
 	done := s.devices.Refresh(false)
+	// Filters can use the last saved readings while the shared poll is blocked.
+	filteredResponse := httptest.NewRecorder()
+	filtered := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory?q=test-device&group=room", nil), Response: filteredResponse}}
+	filteredResult := make(chan error, 1)
+	go func() { filteredResult <- s.table(filtered) }()
+	select {
+	case err := <-filteredResult:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("filter query waited for device polling")
+	}
+	if requests.Load() != 1 || !strings.Contains(renderedText(filteredResponse.Body.String()), "Off") || filteredResponse.Header().Get("HX-Replace-Url") != "/?group=room&q=test-device" {
+		t.Fatal("filter query lost saved readings or filters, or contacted devices")
+	}
 	// A disconnected viewer stops waiting without cancelling the shared poll.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	cancelled := &core.RequestEvent{Event: router.Event{Request: httptest.NewRequest("GET", "/inventory", nil).WithContext(ctx), Response: httptest.NewRecorder()}}
-	if err := s.table(cancelled); !errors.Is(err, context.Canceled) {
+	cancelled := &core.RequestEvent{Event: router.Event{Request: httptest.NewRequest("GET", "/inventory/refresh", nil).WithContext(ctx), Response: httptest.NewRecorder()}}
+	if err := s.refreshInventory(cancelled); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled viewer did not stop waiting: %v", err)
 	}
 	select {

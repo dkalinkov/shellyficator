@@ -5,7 +5,7 @@
     method="get"
     class="mb-5 flex flex-wrap items-end gap-3"
     hx-get="/inventory"
-    hx-trigger="input changed delay:350ms from:#search, change from:#room, change from:#tag-filter, change from:#group-by"
+    hx-trigger="submit, keyup[key=='Enter'] from:#search, input changed delay:350ms from:#search, change from:#room, change from:#tag-filter, change from:#group-by"
     hx-target="#inventory"
     hx-swap="innerHTML"
     hx-sync="#inventory:replace"
@@ -65,8 +65,8 @@
     </label>
     <button
       class="btn btn-ghost"
-      type="submit"
-      hx-get="/inventory?refresh=1"
+      type="button"
+      hx-get="/inventory/refresh?refresh=1"
       hx-trigger="click"
       hx-include="#filters"
       hx-target="#inventory"

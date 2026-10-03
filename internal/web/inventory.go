@@ -183,7 +183,7 @@ func (s *Server) discover(e *core.RequestEvent) error {
 	return s.redirect(e, "/", "")
 }
 
-func (s *Server) table(e *core.RequestEvent) error {
+func (s *Server) refreshInventory(e *core.RequestEvent) error {
 	force := e.Request.URL.Query().Get("refresh") == "1"
 	done := s.devices.Refresh(force)
 	if done != nil {
@@ -193,6 +193,10 @@ func (s *Server) table(e *core.RequestEvent) error {
 			return e.Request.Context().Err()
 		}
 	}
+	return s.table(e)
+}
+
+func (s *Server) table(e *core.RequestEvent) error {
 	page, err := s.list(e)
 	if err != nil {
 		return err
