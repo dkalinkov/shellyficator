@@ -1,8 +1,109 @@
-document.addEventListener('htmx:responseError', event => {
-  if (event.detail.elt.matches('[data-organization-form], [data-organization-open]')) return;
-  const alert = document.getElementById('request-error');
-  if (alert) alert.hidden = false;
+const toastStack = document.getElementById('toast-stack');
+const toastTemplate = document.getElementById('toast-template');
+const toasts = new Set();
+const toastStyles = {
+  success: ['alert-success', 'check-circle'],
+  info: ['alert-info', 'note'],
+  warning: ['alert-warning', 'warning'],
+  error: ['alert-error', 'close-circle'],
+};
+
+function showToast(message, level = 'info') {
+  if (!toastStack || !toastTemplate || typeof message !== 'string' || !message.trim()) return;
+  if (!Object.hasOwn(toastStyles, level)) level = 'info';
+  const duration = level === 'error' || level === 'warning' ? 8000 : 5000;
+  for (const toast of toasts) {
+    if (toast.message === message && toast.level === level) {
+      toast.pause();
+      toast.remaining = duration;
+      toast.resume();
+      return;
+    }
+  }
+
+  const element = toastTemplate.content.firstElementChild.cloneNode(true);
+  const [color, icon] = toastStyles[level];
+  element.classList.add(color);
+  element.setAttribute('role', level === 'error' ? 'alert' : 'status');
+  element.querySelector('[data-toast-text]').textContent = message;
+  element.querySelector('[data-toast-icon]').setAttribute('href', '#icon-' + icon);
+  const opener = document.activeElement;
+  const toast = {element, message, level, remaining: duration, timer: null, started: 0};
+  toast.pause = () => {
+    if (toast.timer === null) return;
+    clearTimeout(toast.timer);
+    toast.timer = null;
+    toast.remaining = Math.max(0, toast.remaining - (performance.now() - toast.started));
+  };
+  toast.resume = () => {
+    if (!toasts.has(toast) || toast.timer !== null || document.hidden || element.matches(':hover, :focus-within')) return;
+    toast.started = performance.now();
+    toast.timer = setTimeout(() => toast.dismiss(), toast.remaining);
+  };
+  toast.dismiss = (immediate = false) => {
+    if (!toasts.delete(toast)) return;
+    toast.pause();
+    if (element.contains(document.activeElement)) {
+      const target = opener?.isConnected && opener !== document.body && !opener.disabled
+        ? opener : document.querySelector('#search, .detail-nav a');
+      target?.focus({preventScroll: true});
+    }
+    element.inert = true;
+    element.classList.remove('is-open');
+    const delay = immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 0 : parseFloat(getComputedStyle(element).getPropertyValue('--toast-close'));
+    if (delay) setTimeout(() => element.remove(), delay);
+    else element.remove();
+  };
+  element.querySelector('button').addEventListener('click', () => toast.dismiss());
+  element.addEventListener('pointerenter', toast.pause);
+  element.addEventListener('pointerleave', toast.resume);
+  element.addEventListener('focusin', toast.pause);
+  element.addEventListener('focusout', () => requestAnimationFrame(toast.resume));
+
+  // Repeated polling failures share one toast; keep the corner stack compact.
+  if (toasts.size >= 3) {
+    [...toasts].find(item => !item.element.matches(':hover, :focus-within'))?.dismiss(true);
+  }
+  toasts.add(toast);
+  toastStack.append(element);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (toasts.has(toast)) element.classList.add('is-open');
+  }));
+  toast.resume();
+}
+
+function clearNoticeURL() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('notice')) return;
+  url.searchParams.delete('notice');
+  url.searchParams.delete('notice_level');
+  window.history.replaceState(window.history.state, '', url);
+}
+
+const initialNotice = toastStack?.querySelector('[data-initial-notice]');
+if (initialNotice) {
+  showToast(initialNotice.textContent.trim(), initialNotice.dataset.level);
+  initialNotice.remove();
+  clearNoticeURL();
+}
+document.addEventListener('notify', event => showToast(event.detail.message, event.detail.level));
+document.addEventListener('visibilitychange', () => {
+  for (const toast of toasts) {
+    if (document.hidden) toast.pause();
+    else toast.resume();
+  }
 });
+document.addEventListener('htmx:afterSettle', clearNoticeURL);
+for (const name of ['htmx:responseError', 'htmx:sendError', 'htmx:timeout']) {
+  document.addEventListener(name, event => {
+    const source = event.detail.elt;
+    if (source.matches('[data-organization-form], [data-organization-open]') || event.detail.xhr?.getResponseHeader('HX-Redirect')) return;
+    let message = source.id === 'inventory' ? 'Refresh failed. Try again.' : 'Request failed. Try again.';
+    try { message = JSON.parse(event.detail.xhr.responseText).message || message; } catch { /* Network failure. */ }
+    showToast(message, 'error');
+  });
+}
 document.addEventListener('change', event => {
   if (event.target.id !== 'auto-refresh') return;
   const table = document.getElementById('inventory');

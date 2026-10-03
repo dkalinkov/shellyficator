@@ -182,7 +182,7 @@ func (s *Server) progress(e *core.RequestEvent) error {
 
 func (s *Server) discover(e *core.RequestEvent) error {
 	if err := s.devices.Discover(e.Request.FormValue("target"), e.Request.FormValue("mode") == "auto"); err != nil {
-		return s.redirect(e, "/", err.Error())
+		return s.redirect(e, "/", err.Error(), "error")
 	}
 	return s.redirect(e, "/", "")
 }

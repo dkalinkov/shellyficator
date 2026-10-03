@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -69,9 +70,22 @@ func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Op
 	return nil
 }
 
-func (s *Server) redirect(e *core.RequestEvent, path, notice string) error {
+func (s *Server) redirect(e *core.RequestEvent, path, notice string, level ...string) error {
 	if notice != "" {
 		path += "?notice=" + url.QueryEscape(notice)
+		if len(level) > 0 {
+			path += "&notice_level=" + url.QueryEscape(level[0])
+		}
 	}
 	return e.Redirect(http.StatusSeeOther, path)
+}
+
+func (s *Server) notify(e *core.RequestEvent, message, level string) {
+	if message == "" {
+		return
+	}
+	trigger, _ := json.Marshal(map[string]any{"notify": map[string]string{
+		"message": message, "level": level, "target": "#toast-stack",
+	}})
+	e.Response.Header().Set("HX-Trigger", string(trigger))
 }

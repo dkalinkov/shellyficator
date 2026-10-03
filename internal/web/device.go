@@ -16,7 +16,11 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	return s.render(e, "detail", devicePage(s.pageMeta(e, "Device"), details))
+	meta := s.pageMeta(e, "Device")
+	if e.Request.Header.Get("HX-Request") == "true" {
+		s.notify(e, meta.Notice, meta.NoticeLevel)
+	}
+	return s.render(e, "detail", devicePage(meta, details))
 }
 
 func (s *Server) refreshDevice(e *core.RequestEvent) error {
@@ -26,13 +30,13 @@ func (s *Server) refreshDevice(e *core.RequestEvent) error {
 		return e.NotFoundError("Device not found", nil)
 	}
 	if errors.Is(err, domain.ErrDeviceRead) {
-		return s.redirect(e, "/devices/"+id, "Refresh failed. Check device access.")
+		return s.redirect(e, "/devices/"+id, "Refresh failed. Check device access.", "error")
 	}
 	if err != nil {
 		return err
 	}
 	if !result.StatusAvailable {
-		return s.redirect(e, "/devices/"+id, "Device reached, but status could not be read.")
+		return s.redirect(e, "/devices/"+id, "Device reached, but status could not be read.", "warning")
 	}
 	return s.redirect(e, "/devices/"+id, "Status refreshed.")
 }
@@ -69,6 +73,7 @@ func (s *Server) organization(e *core.RequestEvent) error {
 		return err
 	}
 	e.Response.Header().Set("HX-Replace-Url", inventoryURL(page))
+	s.notify(e, "Room & tags saved.", "success")
 	return s.render(e, "organization-saved", page)
 }
 
@@ -84,7 +89,7 @@ func (s *Server) capture(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	_, err := s.devices.Capture(e.Request.Context(), id)
 	if err != nil {
-		return s.redirect(e, "/devices/"+id, "Capture failed. Check device access.")
+		return s.redirect(e, "/devices/"+id, "Capture failed. Check device access.", "error")
 	}
 	return s.redirect(e, "/devices/"+id, "Configuration captured.")
 }
@@ -96,7 +101,7 @@ func (s *Server) baseline(e *core.RequestEvent) error {
 		return e.BadRequestError("Could not approve baseline", nil)
 	}
 	if err != nil {
-		return s.redirect(e, "/devices/"+id, "Baseline unchanged: config read failed.")
+		return s.redirect(e, "/devices/"+id, "Baseline unchanged: config read failed.", "error")
 	}
 	return s.redirect(e, "/devices/"+id, "Baseline updated.")
 }
