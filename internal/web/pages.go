@@ -5,7 +5,7 @@ import (
 )
 
 type PageMeta struct {
-	Title, CSRF, Notice, Version string
+	Title, CSRF, Notice, NoticeLevel, Version string
 }
 
 type AuthPage struct {

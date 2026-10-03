@@ -46,7 +46,12 @@ func badgeClass(tone string) string {
 }
 
 func (s *Server) pageMeta(e *core.RequestEvent, title string) PageMeta {
-	return PageMeta{Title: title, CSRF: s.csrf(e), Notice: e.Request.URL.Query().Get("notice"), Version: s.version}
+	query := e.Request.URL.Query()
+	level := query.Get("notice_level")
+	if level != "error" && level != "warning" {
+		level = "success"
+	}
+	return PageMeta{Title: title, CSRF: s.csrf(e), Notice: query.Get("notice"), NoticeLevel: level, Version: s.version}
 }
 
 func (s *Server) render(e *core.RequestEvent, name string, data any) error {

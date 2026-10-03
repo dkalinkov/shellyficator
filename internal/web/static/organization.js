@@ -547,7 +547,6 @@ document.addEventListener('htmx:afterRequest', event => {
   if (source.matches('[data-organization-form]')) {
     if (event.detail.successful) {
       organizationDialog.close();
-      document.getElementById('organization-status').textContent = 'Room & tags saved.';
     } else {
       const error = source.querySelector('[data-organization-error]');
       let message = 'Could not save. Try again.';
@@ -556,9 +555,7 @@ document.addEventListener('htmx:afterRequest', event => {
       error.hidden = false;
     }
   } else if (source.matches('[data-organization-open]') && !event.detail.successful) {
-    const error = document.getElementById('request-error');
-    error.textContent = 'Could not open room & tags.';
-    error.hidden = false;
+    showToast('Could not open room & tags. Try again.', 'error');
   }
 });
 if (organizationDialog) {
