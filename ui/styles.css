@@ -36,8 +36,181 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Archivo";
+  src: url("/assets/archivo-900.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+}
+
 @theme {
   --font-sans: "Plex", sans-serif;
+}
+
+/* Compact application masthead; the shared brand also fits narrow auth cards. */
+.project-header {
+  border-bottom: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
+  background: var(--color-base-200);
+}
+
+.project-header-inner {
+  width: min(100%, 1440px);
+  min-height: 64px;
+  margin-inline: auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 24px;
+}
+
+.project-home {
+  display: flex;
+  color: var(--color-base-content);
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.brand-symbol {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  color: var(--color-primary);
+}
+
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.brand-name {
+  font-family: "Archivo", "Plex", sans-serif;
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.brand-number {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 26px;
+  color: var(--color-base-300);
+  font: 600 16px/1 "Plex", sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .6px;
+}
+
+/* Tilt the backing only, so the small numerals stay upright and crisp. */
+.brand-number::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--color-primary);
+  clip-path: polygon(0 0, calc(100% - 3px) 0, 100% 3px, 100% 100%, 3px 100%, 0 calc(100% - 3px));
+  transform: rotate(-6deg);
+}
+
+.project-utilities {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.project-version {
+  margin: 0 5px 0 0;
+  color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+  font: 400 11px/1 "Plex", sans-serif;
+  white-space: nowrap;
+}
+
+.project-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.project-action {
+  min-height: 38px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in oklab, var(--color-base-content) 78%, transparent);
+  font: 500 12px/1 "Plex", sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.project-action:hover {
+  color: var(--color-base-content);
+  background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
+  border-color: color-mix(in oklab, var(--color-base-content) 9%, transparent);
+}
+
+.project-action svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.project-action .external-icon {
+  width: 12px;
+  height: 12px;
+  opacity: .7;
+  margin-left: 1px;
+}
+
+.project-action-divider {
+  height: 20px;
+  width: 1px;
+  background: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+  margin-inline: 5px;
+}
+
+@media (min-width: 1024px) {
+  .project-header-inner { padding-inline: 40px; }
+}
+
+@media (max-width: 767px) {
+  .project-version { display: none; }
+}
+
+@media (pointer: coarse) {
+  .project-action { min-height: 40px; min-width: 40px; }
+}
+
+@media (max-width: 639px) {
+  .project-header-inner { min-height: 60px; padding: 10px 12px; column-gap: 8px; }
+  .brand { gap: 5px; }
+  .brand-name { font-size: 20px; letter-spacing: -.8px; }
+  .brand-symbol { width: 28px; height: 28px; }
+  .brand-wordmark { gap: 3px; }
+  .brand-number { width: 42px; height: 24px; font-size: 14px; letter-spacing: .4px; }
+  .project-utilities, .project-actions { gap: 0; }
+  .project-action { min-height: 40px; width: 40px; padding: 0; }
+  .project-action > span, .project-action .external-icon, .project-action-divider { display: none; }
+  .project-action svg { width: 18px; height: 18px; }
 }
 
 /* Toast motion from transitions-dev; arriving is slower than dismissing. */

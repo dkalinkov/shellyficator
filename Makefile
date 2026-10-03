@@ -8,7 +8,9 @@ VENDOR_ASSETS := internal/web/static/htmx.min.js \
 	internal/web/static/fonts.LICENSE \
 	internal/web/static/plex-400.woff2 \
 	internal/web/static/plex-500.woff2 \
-	internal/web/static/plex-600.woff2
+	internal/web/static/plex-600.woff2 \
+	internal/web/static/archivo-900.woff2 \
+	internal/web/static/archivo.LICENSE
 
 css: internal/web/static/app.css $(VENDOR_ASSETS)
 

@@ -7,3 +7,5 @@ for (const weight of [400, 500, 600]) {
   copyFileSync(`node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-${weight}-normal.woff2`, `${target}/plex-${weight}.woff2`);
 }
 copyFileSync('node_modules/@fontsource/ibm-plex-sans/LICENSE', `${target}/fonts.LICENSE`);
+copyFileSync('node_modules/@fontsource/archivo/files/archivo-latin-900-normal.woff2', `${target}/archivo-900.woff2`);
+copyFileSync('node_modules/@fontsource/archivo/LICENSE', `${target}/archivo.LICENSE`);
