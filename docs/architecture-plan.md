@@ -8,6 +8,7 @@ available to HTML/HTMX handlers, background work, and future agent endpoints.
 
 | Package | Responsibility |
 | --- | --- |
+| `internal/bootstrap` | Typed process configuration, CLI commands, concrete dependency assembly, and serving/shutdown lifecycle. |
 | `internal/domain` | Shared device, identity, reading, snapshot, comparison, organization, progress, and result types; pure business rules. Standard-library dependencies only. |
 | `internal/devices` | Device queries and workflows, discovery, shared refresh coordination, cancellation, capture, baseline approval, and local metadata changes. Consumes small repository/client/discovery interfaces. |
 | `internal/inventory` | PocketBase queries, record mapping, and transactional persistence. Returns domain types. |
@@ -22,7 +23,11 @@ presentation. Services must not import concrete persistence or network adapters.
 Production web code must not query PocketBase records or contact devices directly.
 Page/partial models own formatted labels, colors, and display values; templates
 consume explicit fields instead of generic database getters. Full pages and HTMX
-partials share view builders. Composition and shutdown belong to startup wiring.
+partials share view builders. Composition and shutdown belong to bootstrap.
+Bootstrap may import the concrete layers; they must not import bootstrap. The
+root executable owns embedded/linker build metadata, launches the configured
+application, and reports fatal errors. Bootstrap configuration types stay outside
+the business domain.
 
 ## Implementation sequence
 
@@ -97,3 +102,18 @@ The final built binary also passed a restart against the temporary database,
 retaining notes, organization, and the PocketBase health route. Temporary servers
 and fixture files were removed. The user approved a local commit after reviewing
 the completed refactor.
+
+The subsequent bootstrap extraction moves environment loading, typed process
+configuration, CLI registration, dependency assembly, and lifecycle hooks into
+`internal/bootstrap`. Serving dependencies remain lazy; version and setup do not
+create device services. The web adapter receives version and cookie settings as
+typed options. Shutdown and startup failures close admission and drain device
+work before PocketBase releases storage. The root executable retains build
+metadata and error reporting, and dependency checks enforce its thin boundary.
+
+The extraction passed independent review, `go test ./...`, `go test -race ./...`,
+`go vet ./...`, `make build`, formatting checks, and diff checks. Integration tests
+cover dotenv precedence, setup/version isolation, secure cookies, and cancellation
+of active refresh work during termination and failed startup. The built binary
+also passed temporary-database setup/login, occupied-listener failure, serving,
+SIGTERM shutdown, and restart checks. Temporary processes and fixtures were removed.

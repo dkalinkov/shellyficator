@@ -1,4 +1,4 @@
-package main
+package bootstrap
 
 import (
 	"os"
@@ -69,6 +69,57 @@ func TestUnreadableEnvIsAnError(t *testing.T) {
 			}
 			if err := loadEnv(); err == nil {
 				t.Fatal("unreadable configuration was treated as an optional missing file")
+			}
+		})
+	}
+}
+
+func TestLoadConfigCapturesSettingsWithoutRequiringSetup(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for _, key := range []string{"SHELLY_ADMIN_EMAIL", "SHELLY_ADMIN_PASSWORD", "SHELLY_DEVICE_PASSWORD", "SHELLY_COOKIE_SECURE"} {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(".env", []byte("SHELLY_ADMIN_EMAIL=operator@example.com\nSHELLY_ADMIN_PASSWORD=default-password\nSHELLY_DEVICE_PASSWORD=device-default\nSHELLY_COOKIE_SECURE=true\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(".env.local", []byte("SHELLY_ADMIN_PASSWORD=local-password\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHELLY_DEVICE_PASSWORD", "")
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.AdminEmail != "operator@example.com" || config.AdminPassword != "local-password" || config.DevicePassword != "" || !config.CookieSecure {
+		t.Fatal("typed configuration did not preserve dotenv and process precedence")
+	}
+	t.Setenv("SHELLY_ADMIN_PASSWORD", "changed-after-loading")
+	if config.AdminPassword != "local-password" {
+		t.Fatal("configuration changed after it was loaded")
+	}
+
+	t.Chdir(t.TempDir())
+	t.Setenv("SHELLY_ADMIN_EMAIL", "")
+	t.Setenv("SHELLY_ADMIN_PASSWORD", "")
+	if _, err := LoadConfig(); err != nil {
+		t.Fatal("configuration required credentials for commands that do not use setup")
+	}
+}
+
+func TestCookieSecureUsesTheExistingExplicitTrueValue(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for _, value := range []string{"", "false", "true", "TRUE", "1"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("SHELLY_COOKIE_SECURE", value)
+			config, err := LoadConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if config.CookieSecure != (value == "true") {
+				t.Fatal("secure-cookie environment behavior changed")
 			}
 		})
 	}
