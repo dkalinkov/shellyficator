@@ -35,11 +35,7 @@
     {{ template "tag-filter" . }}
     <div class="flex flex-col gap-2">
       <label for="group-by">Group by</label>
-      <select
-        id="group-by"
-        class="select w-32"
-        name="group"
-      >
+      <select id="group-by" class="select w-32" name="group">
         <option
           value=""
           {{ if not .GroupBy }}selected{{ end }}
@@ -55,12 +51,7 @@
       </select>
     </div>
     <label class="ml-auto flex items-center gap-2 py-3 text-sm text-base-content/65">
-      <input
-        id="auto-refresh"
-        type="checkbox"
-        class="checkbox checkbox-xs"
-        checked
-      />
+      <input id="auto-refresh" type="checkbox" class="checkbox checkbox-xs" checked />
       Auto-refresh (30s)
     </label>
     <button
@@ -109,10 +100,7 @@
       name="tags"
       value="{{ range $index, $tag := .SelectedTags }}{{ if $index }},{{ end }}{{ $tag }}{{ end }}"
     />
-    <div
-      class="join w-full"
-      data-filter-control
-    >
+    <div class="join w-full" data-filter-control>
       <button
         id="filter-tags"
         type="button"
@@ -143,11 +131,7 @@
         >
           {{ len .SelectedTags }}
         </span>
-        <svg
-          class="icon"
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-        >
+        <svg class="icon" aria-hidden="true" viewBox="0 0 24 24">
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
@@ -159,10 +143,7 @@
         data-filter-clear
         {{ if not .SelectedTags }}hidden{{ end }}
       >
-        <svg
-          class="icon"
-          aria-hidden="true"
-        >
+        <svg class="icon" aria-hidden="true">
           <use href="#icon-close"></use>
         </svg>
       </button>
@@ -177,12 +158,7 @@
       hidden
     >
       <div class="shrink-0 px-3 pt-3 pb-2">
-        <label
-          for="filter-tag-search"
-          class="sr-only"
-        >
-          Search tags
-        </label>
+        <label for="filter-tag-search" class="sr-only">Search tags</label>
         <input
           id="filter-tag-search"
           type="search"
@@ -206,28 +182,15 @@
         >
           Clear all
         </button>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm pointer-coarse:min-h-10"
-          data-filter-done
-        >
+        <button type="button" class="btn btn-ghost btn-sm pointer-coarse:min-h-10" data-filter-done>
           Done
         </button>
       </div>
     </div>
-    <select
-      id="tag-filter-options"
-      data-picker-source
-      hidden
-      disabled
-    >
+    <select id="tag-filter-options" data-picker-source hidden disabled>
       {{ template "tag-filter-options" . }}
     </select>
-    <p
-      class="sr-only"
-      data-filter-status
-      role="status"
-    ></p>
+    <p class="sr-only" data-filter-status role="status"></p>
   </div>
 {{ end }}
 

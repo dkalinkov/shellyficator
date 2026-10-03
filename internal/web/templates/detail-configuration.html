@@ -7,12 +7,7 @@
     <div
       class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"
     >
-      <h2
-        id="config-title"
-        class="card-title"
-      >
-        Configuration
-      </h2>
+      <h2 id="config-title" class="card-title">Configuration</h2>
       <form
         action="/devices/{{ .Device.ID }}/capture"
         method="post"
@@ -20,14 +15,8 @@
         {{ template "detail-action-attributes" }}
       >
         {{ template "detail-action-csrf" .CSRF }}
-        <button
-          class="btn btn-sm btn-outline pointer-coarse:min-h-10"
-          type="submit"
-        >
-          <svg
-            class="icon"
-            aria-hidden="true"
-          >
+        <button class="btn btn-sm btn-outline pointer-coarse:min-h-10" type="submit">
+          <svg class="icon" aria-hidden="true">
             <use href="#icon-camera"></use>
           </svg>
           Capture config
@@ -39,10 +28,7 @@
         class="badge badge-sm badge-soft h-auto min-h-5 py-1 whitespace-normal
           {{ badgeClass .Detail.Table.ConfigurationTone }}"
       >
-        <svg
-          class="icon"
-          aria-hidden="true"
-        >
+        <svg class="icon" aria-hidden="true">
           <use href="#icon-{{ .Detail.ConfigurationIcon }}"></use>
         </svg>
         {{ .Detail.ConfigurationLabel }}
@@ -124,12 +110,7 @@
     <div
       class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"
     >
-      <h2
-        id="history-title"
-        class="card-title"
-      >
-        Capture history
-      </h2>
+      <h2 id="history-title" class="card-title">Capture history</h2>
       <span class="badge badge-xs badge-ghost">
         {{ len .Snapshots }}{{ if eq (len .Snapshots) 50 }}{{ " latest" }}{{ end }}
       </span>
@@ -158,10 +139,7 @@
                   <span class="badge badge-xs badge-soft badge-secondary">Approved baseline</span>
                 {{ end }}
               </p>
-              <time
-                class="text-[11px] text-base-content/60"
-                datetime="{{ .CapturedISO }}"
-              >
+              <time class="text-[11px] text-base-content/60" datetime="{{ .CapturedISO }}">
                 {{ .Captured }}
               </time>
             </div>
@@ -188,9 +166,5 @@
 {{ end }}
 
 {{ define "detail-action-csrf" }}
-  <input
-    type="hidden"
-    name="csrf"
-    value="{{ . }}"
-  />
+  <input type="hidden" name="csrf" value="{{ . }}" />
 {{ end }}

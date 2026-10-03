@@ -1,53 +1,17 @@
 {{ define "head" }}
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1"
-    />
-    <meta
-      name="color-scheme"
-      content="dark"
-    />
-    <meta
-      name="htmx-config"
-      content='{"historyCacheSize":0}'
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="htmx-config" content='{"historyCacheSize":0}' />
     <title>{{ .Title }} · Shellyficator</title>
-    <link
-      rel="icon"
-      href="/assets/logo-mascot-32.png"
-      type="image/png"
-      sizes="32x32"
-    />
-    <link
-      rel="apple-touch-icon"
-      href="/assets/logo-mascot-180.png"
-      sizes="180x180"
-    />
-    <link
-      rel="preload"
-      href="/assets/archivo-900.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="stylesheet"
-      href="/assets/app.css"
-    />
-    <script
-      src="/assets/htmx.min.js"
-      defer
-    ></script>
-    <script
-      src="/assets/app.js"
-      defer
-    ></script>
-    <script
-      src="/assets/organization.js"
-      defer
-    ></script>
+    <link rel="icon" href="/assets/logo-mascot-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/assets/logo-mascot-180.png" sizes="180x180" />
+    <link rel="preload" href="/assets/archivo-900.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/assets/app.css" />
+    <script src="/assets/htmx.min.js" defer></script>
+    <script src="/assets/app.js" defer></script>
+    <script src="/assets/organization.js" defer></script>
   </head>
 {{ end }}
 
@@ -71,11 +35,7 @@
 {{ end }}
 
 {{ define "brand" }}
-  <span
-    class="brand"
-    role="img"
-    aria-label="Shellyficator 9000"
-  >
+  <span class="brand" role="img" aria-label="Shellyficator 9000">
     <img
       class="brand-symbol"
       src="/assets/logo-mascot.png"
@@ -84,10 +44,7 @@
       alt=""
       aria-hidden="true"
     />
-    <span
-      class="brand-wordmark"
-      aria-hidden="true"
-    >
+    <span class="brand-wordmark" aria-hidden="true">
       <span class="brand-name">Shellyficator</span>
       <span class="brand-number">9000</span>
     </span>
@@ -95,10 +52,7 @@
 {{ end }}
 
 {{ define "version" }}
-  <p
-    class="mt-2 text-xs text-base-content/45"
-    aria-label="App version"
-  >
+  <p class="mt-2 text-xs text-base-content/45" aria-label="App version">
     v{{ .Version }}
   </p>
 {{ end }}
@@ -106,21 +60,11 @@
 {{ define "header" }}
   <header class="project-header">
     <div class="project-header-inner">
-      <a
-        class="project-home"
-        href="/"
-        aria-label="Shellyficator home"
-      >
+      <a class="project-home" href="/" aria-label="Shellyficator home">
         {{ template "brand" . }}
       </a>
-      <nav
-        aria-label="Main navigation"
-        class="project-utilities"
-      >
-        <p
-          class="project-version"
-          aria-label="App version"
-        >
+      <nav aria-label="Main navigation" class="project-utilities">
+        <p class="project-version" aria-label="App version">
           v{{ .Version }}
         </p>
         <div class="project-actions">
@@ -132,45 +76,19 @@
             aria-label="Data admin (opens in a new tab)"
             title="Data admin (opens in a new tab)"
           >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
+            <svg class="icon" aria-hidden="true">
               <use href="#icon-config"></use>
             </svg>
             <span>Data admin</span>
-            <svg
-              class="icon external-icon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
+            <svg class="icon external-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 17 17 7M7 7h10v10" />
             </svg>
           </a>
-          <span
-            class="project-action-divider"
-            aria-hidden="true"
-          ></span>
-          <form
-            action="/logout"
-            method="post"
-          >
-            <input
-              type="hidden"
-              name="csrf"
-              value="{{ .CSRF }}"
-            />
-            <button
-              class="project-action"
-              type="submit"
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <svg
-                class="icon"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
+          <span class="project-action-divider" aria-hidden="true"></span>
+          <form action="/logout" method="post">
+            <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+            <button class="project-action" type="submit" aria-label="Sign out" title="Sign out">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 5H4v14h5M14 8l4 4-4 4M8 12h10" />
               </svg>
               <span>Sign out</span>
@@ -205,25 +123,16 @@
         items-start gap-3 px-4 py-3 text-sm shadow-xl"
       aria-atomic="true"
     >
-      <svg
-        class="icon mt-0.5"
-        aria-hidden="true"
-      >
+      <svg class="icon mt-0.5" aria-hidden="true">
         <use data-toast-icon></use>
       </svg>
-      <span
-        class="min-w-0 leading-relaxed wrap-anywhere"
-        data-toast-text
-      ></span>
+      <span class="min-w-0 leading-relaxed wrap-anywhere" data-toast-text></span>
       <button
         type="button"
         class="btn btn-sm btn-square btn-ghost -m-1 pointer-coarse:min-h-10 pointer-coarse:min-w-10"
         aria-label="Dismiss notification"
       >
-        <svg
-          class="icon"
-          aria-hidden="true"
-        >
+        <svg class="icon" aria-hidden="true">
           <use href="#icon-close"></use>
         </svg>
       </button>

@@ -1,17 +1,11 @@
 {{ define "dashboard" }}
   <!doctype html>
-  <html
-    lang="en"
-    data-theme="abyss"
-  >
+  <html lang="en" data-theme="abyss">
     {{ template "head" . }}
     <body class="min-h-screen bg-base-100 font-sans text-base-content">
       {{ template "page-tools" . }}
       {{ template "header" . }}
-      <main
-        id="main"
-        class="mx-auto max-w-[1440px] px-5 py-7 lg:px-10"
-      >
+      <main id="main" class="mx-auto max-w-[1440px] px-5 py-7 lg:px-10">
         {{ template "discovery-controls" . }}
         {{ template "filters" . }}
         <div

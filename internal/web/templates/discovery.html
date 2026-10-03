@@ -1,43 +1,14 @@
 {{ define "discovery-controls" }}
-  <section
-    aria-labelledby="devices-title"
-    class="mb-6"
-  >
+  <section aria-labelledby="devices-title" class="mb-6">
     <div class="flex flex-wrap items-center justify-between gap-5">
-      <h1
-        id="devices-title"
-        class="text-2xl font-semibold tracking-tight"
-      >
-        Devices
-      </h1>
-      <form
-        action="/discover"
-        method="post"
-      >
-        <input
-          type="hidden"
-          name="csrf"
-          value="{{ .CSRF }}"
-        />
-        <input
-          type="hidden"
-          name="mode"
-          value="auto"
-        />
-        <button
-          class="btn btn-primary"
-          type="submit"
-        >
-          Discover
-        </button>
+      <h1 id="devices-title" class="text-2xl font-semibold tracking-tight">Devices</h1>
+      <form action="/discover" method="post">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+        <input type="hidden" name="mode" value="auto" />
+        <button class="btn btn-primary" type="submit">Discover</button>
       </form>
     </div>
-    <div
-      hx-get="/discovery/progress"
-      hx-trigger="every 2s"
-      hx-swap="innerHTML"
-      aria-live="polite"
-    >
+    <div hx-get="/discovery/progress" hx-trigger="every 2s" hx-swap="innerHTML" aria-live="polite">
       {{ template "discovery" . }}
     </div>
     <details class="mt-3">
@@ -45,24 +16,10 @@
       {{ if .Networks }}
         <div class="mt-4 flex flex-wrap gap-2">
           {{ range .Networks }}
-            <form
-              action="/discover"
-              method="post"
-            >
-              <input
-                type="hidden"
-                name="csrf"
-                value="{{ $.CSRF }}"
-              />
-              <input
-                type="hidden"
-                name="target"
-                value="{{ .Prefix }}"
-              />
-              <button
-                class="btn btn-sm btn-outline"
-                type="submit"
-              >
+            <form action="/discover" method="post">
+              <input type="hidden" name="csrf" value="{{ $.CSRF }}" />
+              <input type="hidden" name="target" value="{{ .Prefix }}" />
+              <button class="btn btn-sm btn-outline" type="submit">
                 Scan
                 {{ .Prefix }}
               </button>
@@ -75,11 +32,7 @@
         method="post"
         class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
       >
-        <input
-          type="hidden"
-          name="csrf"
-          value="{{ .CSRF }}"
-        />
+        <input type="hidden" name="csrf" value="{{ .CSRF }}" />
         <div class="flex grow flex-col gap-2">
           <label for="target">Address or subnet</label>
           <input
@@ -90,12 +43,7 @@
             required
           />
         </div>
-        <button
-          class="btn btn-outline"
-          type="submit"
-        >
-          Scan
-        </button>
+        <button class="btn btn-outline" type="submit">Scan</button>
       </form>
     </details>
   </section>
@@ -105,10 +53,7 @@
   {{ if .Discovery.Running }}
     <div class="mt-5 border-t border-base-content/10 pt-4">
       <div class="flex items-center gap-3 text-sm">
-        <span
-          class="loading loading-spinner loading-xs text-primary"
-          aria-hidden="true"
-        ></span>
+        <span class="loading loading-spinner loading-xs text-primary" aria-hidden="true"></span>
         <span>
           {{ .Discovery.Stage }}{{ if .Discovery.Total }}
             · {{ .Discovery.Completed }} / {{ .Discovery.Total }} addresses ·
