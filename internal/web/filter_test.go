@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
@@ -44,8 +43,8 @@ func tagFilterTestServer(t *testing.T) (*Server, string) {
 			t.Fatal(err)
 		}
 	}
-	// Listing tests do not need a background device refresh.
-	s.lastRefresh = time.Now()
+	// Listing tests use the saved inventory without starting device jobs.
+	s.devices.Close()
 	return s, first
 }
 

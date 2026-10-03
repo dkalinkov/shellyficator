@@ -1,0 +1,254 @@
+package devices
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/pocketbase/pocketbase"
+
+	"shellyficator/internal/inventory"
+	"shellyficator/internal/shelly"
+	_ "shellyficator/migrations"
+)
+
+func testService(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Server) {
+	t.Helper()
+	app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: t.TempDir()})
+	if err := app.Bootstrap(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = app.ResetBootstrapState() })
+	if err := app.RunAllMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	device := httptest.NewServer(handler)
+	t.Cleanup(device.Close)
+	s := New(inventory.New(app), shelly.NewClient(""))
+	t.Cleanup(s.Close)
+	return s, device
+}
+
+func refreshTestService(t *testing.T, handler http.HandlerFunc) (*Service, string) {
+	t.Helper()
+	s, device := testService(t, handler)
+	record, err := s.store.ApproveReading(shelly.Reading{
+		Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Address: device.URL,
+		Status: map[string]any{"input:0": map[string]any{"state": nil}, "switch:0": map[string]any{"output": false}},
+		Config: map[string]any{"input:0": map[string]any{"type": "button", "enable": true}, "switch:0": map[string]any{"in_mode": "momentary"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s, record.Id
+}
+
+func waitForJob(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("device job did not finish")
+	}
+}
+
+func closeService(t *testing.T, service *Service) {
+	t.Helper()
+	closed := make(chan struct{})
+	go func() { service.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("service did not cancel device work within one second")
+	}
+}
+
+func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
+	started, cancelled := make(chan struct{}, 4), make(chan struct{}, 4)
+	release := make(chan struct{})
+	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		select {
+		case <-r.Context().Done():
+			cancelled <- struct{}{}
+		case <-release:
+		}
+	})
+	t.Cleanup(func() { close(release) })
+	before, err := s.store.Device(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i < 8; i++ {
+		if _, err := s.store.SaveReading(shelly.Reading{
+			Identity: shelly.Identity{ID: fmt.Sprintf("device-%d", i), MAC: fmt.Sprintf("%012X", i), Gen: 4},
+			Address:  before.GetString("address"), Status: map[string]any{}, Config: map[string]any{},
+		}, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	done := s.Refresh(false)
+	for i := 0; i < 4; i++ {
+		waitForJob(t, started)
+	}
+	if s.Refresh(true) != done {
+		t.Fatal("queued manual refresh did not share completion")
+	}
+	closed := make(chan struct{})
+	go func() { s.Close(); close(closed) }()
+	waitForJob(t, closed)
+	waitForJob(t, done)
+	for i := 0; i < 4; i++ {
+		waitForJob(t, cancelled)
+	}
+	after, err := s.store.Device(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.GetInt("consecutive_failures") != before.GetInt("consecutive_failures") || !inventory.StatusCurrent(after) || !inventory.ConfigCurrent(after) || after.GetString("last_checked") != before.GetString("last_checked") || after.GetString("baseline") != before.GetString("baseline") {
+		t.Fatal("shutdown recorded an outage or changed the approved baseline")
+	}
+	snapshots, err := s.store.Snapshots(id)
+	if err != nil || len(snapshots) != 1 || snapshots[0].Id != before.GetString("baseline") {
+		t.Fatalf("shutdown changed snapshot history: count=%d err=%v", len(snapshots), err)
+	}
+	if s.Refresh(true) != nil || s.Discover("", true) == nil {
+		t.Fatal("closed service accepted new device work")
+	}
+	records, err := s.store.Devices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if record.GetInt("consecutive_failures") != 0 || !inventory.StatusCurrent(record) || !inventory.ConfigCurrent(record) {
+			t.Fatalf("shutdown changed device health: %s", record.Id)
+		}
+	}
+}
+
+func TestInventoryWaitsForCompletedPassAndLoadsRelatedData(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/shelly":
+			_, _ = w.Write([]byte(`{"id":"test-device","mac":"AABBCCDDEEFF","gen":4}`))
+		case "/rpc/Shelly.GetStatus":
+			close(started)
+			<-release
+			_, _ = w.Write([]byte(`{"switch:0":{"output":true}}`))
+		}
+	})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+	if err := s.store.SaveChannelNote(id, "switch:0", "Desk lamp"); err != nil {
+		t.Fatal(err)
+	}
+	done := s.Refresh(false)
+	waitForJob(t, started)
+	reading := make(chan struct{})
+	result := make(chan struct {
+		devices []Device
+		err     error
+	}, 1)
+	go func() {
+		close(reading)
+		devices, err := s.Inventory()
+		result <- struct {
+			devices []Device
+			err     error
+		}{devices, err}
+	}()
+	waitForJob(t, reading)
+	select {
+	case <-result:
+		t.Fatal("inventory returned while the polling pass was incomplete")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	waitForJob(t, done)
+	snapshot := <-result
+	if snapshot.err != nil || len(snapshot.devices) != 1 {
+		t.Fatalf("inventory snapshot: count=%d err=%v", len(snapshot.devices), snapshot.err)
+	}
+	device := snapshot.devices[0]
+	if inventory.Object(device.Record, "status")["switch:0"].(map[string]any)["output"] != true || device.Baseline["switch:0"].(map[string]any)["in_mode"] != "momentary" || device.ChannelNotes["switch:0"] != "Desk lamp" {
+		t.Fatal("inventory snapshot lost completed readings, baseline, or channel notes")
+	}
+}
+
+func TestCloseCancelsDiscoverySourcesAndRejectsDuplicateJob(t *testing.T) {
+	s := New(nil, nil)
+	t.Cleanup(s.Close)
+	started, cancelled := make(chan struct{}, 2), make(chan struct{}, 2)
+	query := func(ctx context.Context) ([]string, error) {
+		started <- struct{}{}
+		<-ctx.Done()
+		cancelled <- struct{}{}
+		return nil, ctx.Err()
+	}
+	s.announcements, s.neighbors = query, query
+	if err := s.Discover("", true); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		waitForJob(t, started)
+	}
+	if err := s.Discover("", true); err == nil || err.Error() != "Discovery is already running." {
+		t.Fatalf("duplicate discovery: %v", err)
+	}
+	closeService(t, s)
+	for i := 0; i < 2; i++ {
+		waitForJob(t, cancelled)
+	}
+	if s.Discovery().Running || s.Discover("", true) == nil {
+		t.Fatal("cancelled discovery stayed running or restarted")
+	}
+}
+
+func TestCloseCancelsManualDiscoveryRPC(t *testing.T) {
+	started, cancelled := make(chan struct{}), make(chan struct{})
+	s, device := testService(t, func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done()
+		close(cancelled)
+	})
+	if err := s.Discover(device.URL, false); err != nil {
+		t.Fatal(err)
+	}
+	waitForJob(t, started)
+	closeService(t, s)
+	waitForJob(t, cancelled)
+	records, err := s.store.Devices()
+	if err != nil || len(records) != 0 || s.Discovery().Running {
+		t.Fatalf("cancelled verification persisted data or kept running: count=%d err=%v", len(records), err)
+	}
+}
+
+func TestCloseCanRaceJobStarts(t *testing.T) {
+	s, _ := testService(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) })
+	s.announcements = func(ctx context.Context) ([]string, error) { return nil, ctx.Err() }
+	s.neighbors = s.announcements
+	var callers sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		callers.Add(1)
+		go func() {
+			defer callers.Done()
+			s.Refresh(true)
+			_ = s.Discover("", true)
+			s.Close()
+		}()
+	}
+	callers.Wait()
+	if s.Refresh(true) != nil || s.Discovery().Running {
+		t.Fatal("shutdown allowed work to restart")
+	}
+}

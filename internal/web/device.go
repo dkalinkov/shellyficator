@@ -16,7 +16,7 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("Device not found", nil)
 	}
-	page := Page{Title: "Device", CSRF: csrf(e), Device: record, Notice: e.Request.URL.Query().Get("notice"), Name: deviceName(record)}
+	page := DevicePage{PageMeta: s.pageMeta(e, "Device"), Device: record, Name: deviceName(record)}
 	page.Rooms, page.Tags, err = s.store.OrganizationOptions()
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func (s *Server) organizationEditor(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("Device not found", nil)
 	}
-	page := Page{Device: record, CSRF: csrf(e), Name: deviceName(record)}
+	page := DevicePage{PageMeta: s.pageMeta(e, "Device"), Device: record, Name: deviceName(record)}
 	page.Rooms, page.Tags, err = s.store.OrganizationOptions()
 	if err != nil {
 		return err

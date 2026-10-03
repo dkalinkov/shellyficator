@@ -11,23 +11,20 @@ import (
 	"shellyficator/internal/shelly"
 )
 
-func (s *Server) list(e *core.RequestEvent) (Page, error) {
+func (s *Server) list(e *core.RequestEvent) (InventoryPage, error) {
 	query := e.Request.URL.Query()
 	return s.listFiltered(e, query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","), query.Get("group"))
 }
 
-func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (Page, error) {
-	// Readers see one completed polling pass, including dashboard/filter loads.
-	s.inventoryMu.RLock()
-	defer s.inventoryMu.RUnlock()
-	records, err := s.store.Devices()
+func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (InventoryPage, error) {
+	records, err := s.devices.Inventory()
 	if err != nil {
-		return Page{}, err
+		return InventoryPage{}, err
 	}
 	if groupBy != "room" {
 		groupBy = ""
 	}
-	page := Page{Title: "Devices", CSRF: csrf(e), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), GroupBy: groupBy, Notice: e.Request.URL.Query().Get("notice")}
+	page := InventoryPage{PageMeta: s.pageMeta(e, "Devices"), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), GroupBy: groupBy}
 	rooms := map[string]bool{}
 	tags := map[string]string{}
 	selectedTags := map[string]bool{}
@@ -35,7 +32,8 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 		selectedTags[strings.ToLower(tag)] = true
 	}
 	page.Total = len(records)
-	for _, record := range records {
+	for _, entry := range records {
+		record := entry.Record
 		name := deviceName(record)
 		device := Device{Record: record, Name: name}
 		if record.GetBool("reachable") {
@@ -44,7 +42,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 		if !record.GetBool("auth_enabled") {
 			page.Unprotected++
 		}
-		baseline := s.store.Baseline(record)
+		baseline := entry.Baseline
 		differences := 0
 		if config := inventory.Object(record, "config"); baseline != nil && config != nil {
 			differences = len(inventory.Differences(baseline, config))
@@ -77,7 +75,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 			continue
 		}
 		device.Table = tableDevice(record, baseline, differences)
-		notes := s.store.ChannelNotes(record.Id)
+		notes := entry.ChannelNotes
 		for i := range device.Table.Inputs {
 			input := &device.Table.Inputs[i]
 			input.Note = previewText(notes[input.Key], 320)
@@ -109,9 +107,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 	if page.GroupBy == "room" {
 		page.RoomGroups = groupDevicesByRoom(page.Devices)
 	}
-	s.mu.Lock()
-	page.Discovery = s.discovery
-	s.mu.Unlock()
+	page.Discovery = s.devices.Discovery()
 	return page, nil
 }
 
@@ -144,7 +140,7 @@ func groupDevicesByRoom(devices []Device) []RoomGroup {
 	return groups
 }
 
-func inventoryURL(page Page) string {
+func inventoryURL(page InventoryPage) string {
 	query := url.Values{}
 	if page.Query != "" {
 		query.Set("q", page.Query)
@@ -172,9 +168,21 @@ func (s *Server) dashboard(e *core.RequestEvent) error {
 	page.Networks, _ = shelly.LocalNetworks()
 	return s.render(e, "dashboard", page)
 }
+
+func (s *Server) progress(e *core.RequestEvent) error {
+	return s.render(e, "discovery", DiscoveryPage{Discovery: s.devices.Discovery()})
+}
+
+func (s *Server) discover(e *core.RequestEvent) error {
+	if err := s.devices.Discover(e.Request.FormValue("target"), e.Request.FormValue("mode") == "auto"); err != nil {
+		return s.redirect(e, "/", err.Error())
+	}
+	return s.redirect(e, "/", "")
+}
+
 func (s *Server) table(e *core.RequestEvent) error {
 	force := e.Request.URL.Query().Get("refresh") == "1"
-	done := s.refresh(force)
+	done := s.devices.Refresh(force)
 	if done != nil {
 		select {
 		case <-done:
