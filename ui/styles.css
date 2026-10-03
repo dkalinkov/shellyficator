@@ -7,6 +7,13 @@
   themes: abyss --default;
 }
 
+/* Keep inventory columns until touch targets need the wider card layout. */
+@custom-variant inventory-card {
+  @media (width < 1101px), (pointer: coarse) and (width < 1281px) {
+    @slot;
+  }
+}
+
 /* Local font files; components and layout use DaisyUI and Tailwind classes. */
 @font-face {
   font-family: "Plex";

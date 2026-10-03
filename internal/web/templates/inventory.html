@@ -1,0 +1,157 @@
+{{ define "inventory" }}
+  <div class="inventory-panel card card-border overflow-hidden bg-base-200/50">
+    <section
+      class="inventory-summary grid grid-cols-2 gap-x-6 gap-y-2 border-b border-base-content/10
+      px-4 py-3 text-xs text-base-content/60 sm:flex sm:flex-wrap sm:items-center
+      *:inline-flex *:items-center *:gap-1.5 [&_strong]:font-medium [&_strong]:tabular-nums"
+      aria-label="Inventory summary"
+    >
+      <span>
+        <strong>{{ .Total }}</strong>
+        devices
+      </span>
+      <span class="summary-online text-success">
+        <span
+          class="status status-success"
+          aria-hidden="true"
+        ></span>
+        <strong>{{ .Reachable }}</strong>
+        reachable
+      </span>
+      <span class="{{ if .Changed }}text-warning{{ end }}">
+        <strong>{{ .Changed }}</strong>
+        changed
+      </span>
+      <span class="{{ if .Unprotected }}text-warning{{ end }}">
+        <strong>{{ .Unprotected }}</strong>
+        unprotected
+      </span>
+      {{ if or .Query .Room .SelectedTags }}
+        <span class="summary-filtered col-span-2 sm:ml-auto">{{ len .Devices }} shown</span>
+      {{ end }}
+    </section>
+    {{ if .Devices }}
+      {{ if .RoomGroups }}
+        {{ range .RoomGroups }}{{ template "inventory-room" . }}{{ end }}
+      {{ else }}
+        {{ template "inventory-table" .Devices }}
+      {{ end }}
+    {{ else }}
+      <p class="px-6 py-10 text-center text-sm text-base-content/55">
+        {{ if .Total }}
+          No matching devices.
+        {{ else }}
+          No devices.
+        {{ end }}
+      </p>
+    {{ end }}
+  </div>
+{{ end }}
+
+{{ define "inventory-room" }}
+  <section
+    class="inventory-room-group t-acc group/room"
+    data-room-group="{{ .Room }}"
+    data-open="true"
+    aria-labelledby="room-heading-{{ .Index }}"
+  >
+    <h2
+      id="room-heading-{{ .Index }}"
+      class="inventory-room-heading group/label border-b border-base-content/10 bg-base-100/40
+      text-sm font-medium data-[colored-label]:text-(--label-color)"
+      data-room-label="{{ .Room }}"
+    >
+      <button
+        type="button"
+        id="room-toggle-{{ .Index }}"
+        class="inventory-room-toggle t-acc-head btn btn-ghost h-auto min-h-11 w-full justify-start
+        gap-3 rounded-none px-4 py-3 text-left text-inherit focus-visible:-outline-offset-2"
+        data-room-toggle
+        aria-expanded="true"
+        aria-controls="room-panel-{{ .Index }}"
+      >
+        <span class="inventory-room-name flex min-w-0 flex-1 items-center gap-2 wrap-anywhere">
+          <span
+            class="status hidden bg-(--label-color) group-data-[colored-label]/label:inline-block"
+            aria-hidden="true"
+          ></span>
+          {{ if .Room }}
+            {{ .Room }}
+          {{ else }}
+            No room
+          {{ end }}
+        </span>
+        <span class="inventory-room-count shrink-0 text-xs font-normal text-base-content/60">
+          {{ len .Devices }} {{ if eq (len .Devices) 1 }}device{{ else }}devices{{ end }}
+        </span>
+        <span
+          class="t-acc-chevron inline-flex transition-transform duration-250
+          group-data-[open=true]/room:-scale-y-100 motion-reduce:transition-none
+          in-[.inventory-restoring]:transition-none"
+          aria-hidden="true"
+        >
+          <svg
+            class="icon size-3.5"
+            viewBox="0 0 16 16"
+          >
+            <path
+              class="[vector-effect:non-scaling-stroke]"
+              d="M4 6.5L8 10.5L12 6.5"
+            />
+          </svg>
+        </span>
+      </button>
+    </h2>
+    <div
+      id="room-panel-{{ .Index }}"
+      class="t-acc-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-250
+      group-data-[open=true]/room:grid-rows-[1fr] motion-reduce:transition-none
+      in-[.inventory-restoring]:transition-none"
+      data-room-panel
+      aria-hidden="false"
+    >
+      <div class="t-acc-panel-inner min-h-0 overflow-hidden">
+        {{ template "inventory-table" .Devices }}
+      </div>
+    </div>
+  </section>
+{{ end }}
+
+{{ define "inventory-table" }}
+  <table class="device-table table table-sm table-fixed inventory-card:block">
+    <caption class="sr-only">Shelly device inventory</caption>
+    <colgroup class="inventory-card:hidden">
+      <col class="w-[24%] min-[1101px]:max-[1200px]:w-[16%] min-[1200px]:max-[1281px]:w-[22%]" />
+      <col />
+      <col />
+      <col />
+      <col class="pointer-coarse:w-36" />
+      <col />
+      <col />
+      <col class="w-[150px] pointer-coarse:w-[190px]" />
+    </colgroup>
+    <thead class="inventory-card:hidden">
+      <tr>
+        <th scope="col">Device</th>
+        <th scope="col">Model</th>
+        <th scope="col">IP</th>
+        <th scope="col">Room</th>
+        <th scope="col">Status</th>
+        <th scope="col">Wi-Fi</th>
+        <th scope="col">Saved config</th>
+        <th scope="col"><span class="sr-only">Security and links</span></th>
+      </tr>
+    </thead>
+    {{ range . }}{{ template "inventory-device" . }}{{ end }}
+  </table>
+{{ end }}
+
+{{ define "inventory-updated" }}
+  {{ template "inventory" . }}
+  <select
+    id="tag-filter-options"
+    hx-swap-oob="innerHTML"
+  >
+    {{ template "tag-filter-options" . }}
+  </select>
+{{ end }}

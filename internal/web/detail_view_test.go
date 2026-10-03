@@ -169,14 +169,7 @@ func TestDeviceDetailRendersSavedSettingsWithoutMutingLiveChannels(t *testing.T)
 				{"switch:0", "Off", "After power loss Off", "Add note"},
 				{"temperature:0", "0 °C", "Enabled No", "Edit note"},
 			} {
-				var card string
-				for _, fragment := range strings.Split(body, "<article ")[1:] {
-					fragment = strings.SplitN(fragment, "</article>", 2)[0]
-					if strings.Contains(fragment, `>`+channel.key+"</p>") {
-						card = fragment
-						break
-					}
-				}
+				card := renderedChannelArticle(body, channel.key)
 				if card == "" || !strings.Contains(renderedText(card), channel.reading) || strings.Contains(card, "Unavailable") || !strings.Contains(renderedText(card), channel.setting) {
 					t.Fatalf("%s lost its current reading or preserved setting: %s", channel.key, card)
 				}
@@ -195,18 +188,36 @@ func TestDeviceDetailRendersSavedSettingsWithoutMutingLiveChannels(t *testing.T)
 	}
 }
 
-func renderedText(markup string) string {
-	tokens := html.NewTokenizer(strings.NewReader(markup))
-	var text strings.Builder
-	for {
-		switch tokens.Next() {
-		case html.ErrorToken:
-			return strings.Join(strings.Fields(text.String()), " ")
-		case html.TextToken:
-			text.Write(tokens.Text())
-			text.WriteByte(' ')
+func renderedChannelArticle(markup, key string) string {
+	document, err := html.Parse(strings.NewReader(markup))
+	if err != nil {
+		return ""
+	}
+	var find func(*html.Node, *html.Node) *html.Node
+	find = func(node, article *html.Node) *html.Node {
+		if node.Type == html.ElementNode && node.Data == "article" {
+			article = node
+		}
+		if node.Type == html.ElementNode && node.Data == "p" {
+			text := node.FirstChild
+			if text != nil && text.Type == html.TextNode && strings.TrimSpace(text.Data) == key {
+				return article
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			if found := find(child, article); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+	if article := find(document, nil); article != nil {
+		var result strings.Builder
+		if html.Render(&result, article) == nil {
+			return result.String()
 		}
 	}
+	return ""
 }
 
 func TestDeviceDetailReportedFaults(t *testing.T) {

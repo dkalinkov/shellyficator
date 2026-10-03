@@ -27,6 +27,7 @@ type DeviceTable struct {
 }
 
 type TableInput struct {
+	DeviceID                                               string
 	RelayID                                                string
 	ID, Key, Name, Type, Mode, ModeTone, Info, Restriction string
 	RelayKey, Note, RelayNote                              string
@@ -153,7 +154,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		input, _ := config[key].(map[string]any)
 		inputReading, _ := status[key].(map[string]any)
 		id := strings.TrimPrefix(key, "input:")
-		line := TableInput{ID: id, Key: key, Type: inputType(input["type"]), Mode: "—", ModeTone: "muted", State: "—", StateTone: "muted", Output: "—", OutputTone: "muted"}
+		line := TableInput{DeviceID: record.Id, ID: id, Key: key, Type: inputType(input["type"]), Mode: "—", ModeTone: "muted", State: "—", StateTone: "muted", Output: "—", OutputTone: "muted"}
 		line.StatusInfo = view.StatusInfo
 		line.Name, _ = input["name"].(string)
 		var settings, reading map[string]any

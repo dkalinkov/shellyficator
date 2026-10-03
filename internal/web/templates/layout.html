@@ -1,0 +1,151 @@
+{{ define "head" }}
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <meta
+      name="color-scheme"
+      content="dark"
+    />
+    <meta
+      name="htmx-config"
+      content='{"historyCacheSize":0}'
+    />
+    <title>{{ .Title }} · Shellyficator</title>
+    <link
+      rel="stylesheet"
+      href="/assets/app.css"
+    />
+    <script
+      src="/assets/htmx.min.js"
+      defer
+    ></script>
+    <script
+      src="/assets/app.js"
+      defer
+    ></script>
+    <script
+      src="/assets/organization.js"
+      defer
+    ></script>
+  </head>
+{{ end }}
+
+{{ define "page-tools" }}
+  <a
+    class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 btn"
+    href="#main"
+  >
+    Skip to content
+  </a>
+  {{ template "icons" . }}
+  <div
+    id="app-tooltip"
+    class="fixed z-100 max-w-[min(320px,calc(100vw-24px))] rounded-lg border
+      border-base-content/20 bg-base-300 px-3 py-2 text-xs leading-relaxed wrap-anywhere
+      whitespace-pre-line text-base-content shadow-xl"
+    role="tooltip"
+    hidden
+  ></div>
+{{ end }}
+
+{{ define "brand" }}
+  <span
+    class="inline-flex items-center gap-2 whitespace-nowrap"
+    role="img"
+    aria-label="Shellyficator 9000"
+  >
+    <span
+      class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border
+        border-primary/35 text-[22px] text-primary"
+      aria-hidden="true"
+    >
+      ↯
+    </span>
+    <span class="text-[17px] font-semibold tracking-tight">Shellyficator</span>
+    <span
+      class="badge badge-soft badge-primary badge-xs -rotate-6 px-1.5 font-semibold italic
+        tracking-wide"
+    >
+      9000
+    </span>
+  </span>
+{{ end }}
+
+{{ define "version" }}
+  <p
+    class="mt-2 text-xs text-base-content/45"
+    aria-label="App version"
+  >
+    v{{ .Version }}
+  </p>
+{{ end }}
+
+{{ define "header" }}
+  <header class="border-b border-base-content/10 bg-base-200/50">
+    <div
+      class="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-4
+        lg:px-10"
+    >
+      <div>
+        <a
+          href="/"
+          aria-label="Shellyficator home"
+        >
+          {{ template "brand" . }}
+        </a>
+        {{ template "version" . }}
+      </div>
+      <nav
+        aria-label="Main navigation"
+        class="flex items-center gap-1 text-sm sm:gap-3"
+      >
+        <a
+          href="/_/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-sm btn-ghost px-2"
+        >
+          Data admin ↗
+        </a>
+        <form
+          action="/logout"
+          method="post"
+        >
+          <input
+            type="hidden"
+            name="csrf"
+            value="{{ .CSRF }}"
+          />
+          <button
+            class="btn btn-sm btn-ghost px-2"
+            type="submit"
+          >
+            Sign out
+          </button>
+        </form>
+      </nav>
+    </div>
+  </header>
+{{ end }}
+
+{{ define "notice" }}
+  {{ if .Notice }}
+    <div
+      class="alert alert-info mb-6"
+      role="status"
+    >
+      {{ .Notice }}
+    </div>
+  {{ end }}
+  <div
+    id="request-error"
+    class="alert alert-error mb-6"
+    role="alert"
+    hidden
+  >
+    Refresh failed.
+  </div>
+{{ end }}

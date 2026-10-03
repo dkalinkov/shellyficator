@@ -1,0 +1,231 @@
+{{ define "detail-channels" }}
+  <section
+    id="channels"
+    class="min-w-0 scroll-mt-18"
+    aria-labelledby="channels-title"
+  >
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <h2
+        id="channels-title"
+        class="text-xl font-semibold tracking-tight"
+      >
+        Channels & inputs
+      </h2>
+      <div
+        class="grid min-w-0 gap-1 text-right text-[11px] text-base-content/60 max-[480px]:text-left"
+      >
+        <p class="wrap-anywhere">Status checked · {{ when (get .Device "last_checked") }}</p>
+        <p class="wrap-anywhere">Settings read · {{ when (get .Device "last_captured") }}</p>
+        {{ if .Detail.Table.SettingsWarning }}
+          <p class="wrap-anywhere text-warning">{{ .Detail.Table.SettingsWarning }}</p>
+        {{ end }}
+      </div>
+    </div>
+    {{ if .Detail.Outputs }}
+      <div
+        class="grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[801px]:grid-cols-1
+          min-[1101px]:grid-cols-2"
+      >
+        {{ range .Detail.Outputs }}
+          <article
+            id="channel-{{ .Key }}"
+            class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50"
+            aria-label="{{ .Kind }} {{ .Name }}"
+          >
+            <div class="card-body">
+              <div class="flex items-center gap-2.5">
+                <span class="badge badge-lg badge-soft size-10 p-0 {{ badgeClass .StateTone }}">
+                  <svg
+                    class="icon"
+                    aria-hidden="true"
+                  >
+                    <use href="#icon-{{ .Icon }}"></use>
+                  </svg>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <h3 class="text-sm font-medium wrap-anywhere">{{ .Name }}</h3>
+                  <p
+                    class="detail-component mt-0.5 font-mono text-[10px] text-base-content/55
+                      wrap-anywhere"
+                  >
+                    {{ .Key }}
+                  </p>
+                </div>
+                <span class="badge badge-sm badge-soft {{ badgeClass .StateTone }}">
+                  {{ .State }}
+                </span>
+              </div>
+              {{ template "detail-channel-body" . }}
+            </div>
+          </article>
+        {{ end }}
+      </div>
+    {{ end }}
+    {{ if .Detail.Inputs }}
+      <section
+        class="card card-sm card-border mt-4 overflow-hidden bg-base-200/50"
+        aria-labelledby="physical-inputs-title"
+      >
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10
+            p-4"
+        >
+          <h3
+            id="physical-inputs-title"
+            class="card-title"
+          >
+            <svg
+              class="icon text-info"
+              aria-hidden="true"
+            >
+              <use href="#icon-input"></use>
+            </svg>
+            Physical inputs
+            <span class="badge badge-xs badge-ghost">{{ len .Detail.Inputs }}</span>
+          </h3>
+        </div>
+        {{ range .Detail.Inputs }}
+          <article
+            class="border-b border-base-content/10 p-4 last:border-b-0"
+            aria-label="{{ .Name }}"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <h4 class="text-[13px] font-medium wrap-anywhere">{{ .Name }}</h4>
+                <p
+                  class="detail-component mt-0.5 font-mono text-[10px] text-base-content/55
+                    wrap-anywhere"
+                >
+                  {{ .Key }}{{ if and .Input (ne .Input.Type "—") }}
+                    &nbsp;·
+                    {{ .Input.Type }}
+                  {{ end }}
+                </p>
+              </div>
+              <span class="badge badge-sm badge-soft {{ badgeClass .StateTone }}">
+                {{ .State }}
+              </span>
+            </div>
+            {{ if .Input }}
+              <div class="mt-3 flex flex-wrap items-center gap-2.5 text-xs">
+                {{ if .Input.RelayKey }}
+                  <span
+                    class="badge badge-sm badge-soft {{ if .Input.Changed }}
+                      badge-warning
+                    {{ else }}
+                      {{ badgeClass .Input.ModeTone }}
+                    {{ end }}"
+                    tabindex="0"
+                    data-tooltip="{{ .Input.Info }}"
+                  >
+                    {{ .Input.Mode }}
+                  </span>
+                  <svg
+                    class="icon text-base-content/45"
+                    aria-hidden="true"
+                  >
+                    <use href="#icon-arrow-right"></use>
+                  </svg>
+                  <a
+                    href="#channel-{{ .Input.RelayKey }}"
+                    class="link link-hover text-base-content/70"
+                  >
+                    Relay
+                    {{ .Input.RelayID }}
+                  </a>
+                {{ else }}
+                  <span class="text-base-content/60">No mapped relay</span>
+                {{ end }}
+              </div>
+              {{ if .Input.Values }}
+                <dl
+                  class="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] {{ if .SavedSettings }}
+                    detail-saved-settings border-l-2 border-warning pl-2.5
+                  {{ end }}"
+                >
+                  {{ range .Input.Values }}
+                    <div class="flex flex-wrap gap-1">
+                      <dt class="text-base-content/55">{{ .Label }}</dt>
+                      <dd class="{{ if .Warning }}text-warning{{ end }}">{{ .Value }}</dd>
+                    </div>
+                  {{ end }}
+                </dl>
+              {{ end }}
+            {{ end }}
+            {{ template "detail-note-link" . }}
+          </article>
+        {{ end }}
+      </section>
+    {{ end }}
+    {{ if .Detail.Other }}
+      <div class="mt-5">
+        <h3 class="mb-3 text-[13px] font-medium">Other components</h3>
+        <div
+          class="grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[801px]:grid-cols-1
+            min-[1101px]:grid-cols-2"
+        >
+          {{ range .Detail.Other }}
+            <article class="card card-sm card-border min-w-0 bg-base-200/50">
+              <div class="card-body">
+                <div class="flex items-center gap-2.5">
+                  <svg
+                    class="icon text-info"
+                    aria-hidden="true"
+                  >
+                    <use href="#icon-{{ .Icon }}"></use>
+                  </svg>
+                  <div class="min-w-0 flex-1">
+                    <h3 class="text-sm font-medium wrap-anywhere">{{ .Name }}</h3>
+                    <p
+                      class="detail-component mt-0.5 font-mono text-[10px] text-base-content/55
+                        wrap-anywhere"
+                    >
+                      {{ .Key }}
+                    </p>
+                  </div>
+                  <span class="badge badge-sm badge-soft {{ badgeClass .StateTone }}">
+                    {{ .State }}
+                  </span>
+                </div>
+                {{ template "detail-channel-body" . }}
+              </div>
+            </article>
+          {{ end }}
+        </div>
+      </div>
+    {{ end }}
+    {{ if not (or .Detail.Outputs .Detail.Inputs .Detail.Other) }}
+      <p class="card card-border bg-base-200/50 p-5 text-[13px] text-base-content/65">
+        No channel data yet.
+      </p>
+    {{ end }}
+  </section>
+{{ end }}
+
+{{ define "detail-channel-body" }}
+  {{ if .Values }}
+    <dl class="mt-3 flex flex-wrap gap-4">
+      {{ range .Values }}
+        <div>
+          <dt class="text-[11px] text-base-content/60">{{ .Label }}</dt>
+          <dd class="mt-0.5 text-lg font-medium tabular-nums wrap-anywhere">{{ .Value }}</dd>
+        </div>
+      {{ end }}
+    </dl>
+  {{ end }}
+  {{ if .Settings }}
+    <dl
+      class="mt-3 grid gap-2 border-t border-base-content/10 pt-3 text-[11px] {{ if .SavedSettings }}
+        detail-saved-settings border-l-2 border-warning pl-2.5
+      {{ end }}"
+    >
+      {{ range .Settings }}
+        <div class="flex flex-wrap justify-between gap-x-3 gap-y-1">
+          <dt class="text-base-content/60">{{ .Label }}</dt>
+          <dd class="wrap-anywhere">{{ .Value }}</dd>
+        </div>
+      {{ end }}
+    </dl>
+  {{ end }}
+  {{ template "detail-note-link" . }}
+{{ end }}

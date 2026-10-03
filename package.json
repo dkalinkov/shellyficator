@@ -2,12 +2,16 @@
   "name": "shellyficator-ui",
   "private": true,
   "scripts": {
+    "format:templates": "prettier --write internal/web/templates/*.html",
+    "check:templates": "prettier --check internal/web/templates/*.html",
     "build:css": "tailwindcss -i ui/styles.css -o internal/web/static/app.css --minify",
     "watch:css": "tailwindcss -i ui/styles.css -o internal/web/static/app.css --watch",
     "vendor": "node scripts/vendor.mjs",
     "build": "npm run vendor && npm run build:css"
   },
   "devDependencies": {
+    "prettier": "3.9.9",
+    "prettier-plugin-go-template": "0.0.15",
     "@tailwindcss/cli": "4.3.3",
     "tailwindcss": "4.3.3",
     "daisyui": "5.7.47",

@@ -26,14 +26,16 @@ type ChannelNoteEditor struct {
 }
 
 type DeviceDetail struct {
-	Table                            DeviceTable
-	Outputs, Inputs, Other           []DetailChannel
-	Summary                          []DetailSummary
-	Network                          []ConnectionField
-	Identity                         []Metric
-	Faults                           []string
-	Notes                            []ChannelNoteEditor
-	StatusAvailable, ConfigAvailable bool
+	Table                                 DeviceTable
+	Outputs, Inputs, Other                []DetailChannel
+	Summary                               []DetailSummary
+	Network                               []ConnectionField
+	Identity                              []Metric
+	Faults                                []string
+	Notes                                 []ChannelNoteEditor
+	StatusAvailable, ConfigAvailable      bool
+	ConfigurationLabel, ConfigurationIcon string
+	ShowDifferences                       bool
 }
 
 func detailDevice(record *core.Record, baseline map[string]any, differences []inventory.Difference, notes map[string]string) DeviceDetail {
@@ -43,6 +45,16 @@ func detailDevice(record *core.Record, baseline map[string]any, differences []in
 		StatusAvailable: inventory.StatusCurrent(record),
 		ConfigAvailable: inventory.ConfigCurrent(record),
 	}
+	view.ConfigurationLabel = view.Table.Configuration
+	view.ConfigurationIcon = "config"
+	if view.Table.ConfigurationTone == "ok" {
+		view.ConfigurationLabel = "Matches baseline"
+		view.ConfigurationIcon = "check"
+	}
+	if baseline != nil && !view.ConfigAvailable {
+		view.ConfigurationLabel = "Comparison unavailable"
+	}
+	view.ShowDifferences = baseline != nil && view.ConfigAvailable && len(differences) > 0
 	wifi, _ := status["wifi"].(map[string]any)
 	sys, _ := status["sys"].(map[string]any)
 	signal := DetailSummary{Label: "Wi-Fi signal", Value: "Not reported", Tone: "muted", Icon: "wifi"}

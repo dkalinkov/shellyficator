@@ -50,8 +50,13 @@ type Device struct {
 }
 
 type RoomGroup struct {
+	Index   int
 	Room    string
 	Devices []Device
 }
 
 type Metric struct{ Label, Value string }
+
+func (m Metric) Warning() bool {
+	return m.Label == "Locked" && m.Value == "Yes" || m.Label == "Enabled" && m.Value == "No"
+}
