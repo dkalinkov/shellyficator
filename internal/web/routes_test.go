@@ -38,7 +38,11 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.store, s.client, "test"); err != nil {
+	s.store.App.OnTerminate().BindFunc(func(event *core.TerminateEvent) error {
+		s.devices.Close()
+		return event.Next()
+	})
+	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.devices, s.accounts, "test"); err != nil {
 		t.Fatal(err)
 	}
 	mux, err := r.BuildMux()
@@ -130,11 +134,11 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 			t.Fatalf("valid POST %s: got %d %s, want 303 %s", action.path, response.Code, response.Header().Get("Location"), location)
 		}
 	}
-	record, err := s.store.Device(id)
+	record, err := s.record(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.GetString("room") != "Dining" || record.GetString("notes") != "Device note" || s.store.ChannelNotes(id)["switch:0"] != "Channel note" || record.GetString("baseline") == "" {
+	if record.GetString("room") != "Dining" || record.GetString("notes") != "Device note" || s.channelNotes(id)["switch:0"] != "Channel note" || record.GetString("baseline") == "" {
 		t.Fatal("device actions did not receive their path/form values")
 	}
 	for _, path := range []string{"/unknown", devicePath + "/unknown"} {
@@ -156,7 +160,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if err := s.store.App.OnTerminate().Trigger(&core.TerminateEvent{App: s.store.App}, func(_ *core.TerminateEvent) error {
 		waitForRefresh(t, cancelled)
 		waitForRefresh(t, finished)
-		record, err := s.store.Device(id)
+		record, err := s.record(id)
 		if err != nil || record.GetInt("consecutive_failures") != 0 || !record.GetBool("reachable") {
 			t.Fatal("termination recorded a device failure or closed storage before draining jobs")
 		}

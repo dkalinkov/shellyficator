@@ -14,8 +14,8 @@
       <div
         class="grid min-w-0 gap-1 text-right text-[11px] text-base-content/60 max-[480px]:text-left"
       >
-        <p class="wrap-anywhere">Status checked · {{ when (get .Device "last_checked") }}</p>
-        <p class="wrap-anywhere">Settings read · {{ when (get .Device "last_captured") }}</p>
+        <p class="wrap-anywhere">Status checked · {{ .Device.LastChecked }}</p>
+        <p class="wrap-anywhere">Settings read · {{ .Device.LastCaptured }}</p>
         {{ if .Detail.Table.SettingsWarning }}
           <p class="wrap-anywhere text-warning">{{ .Detail.Table.SettingsWarning }}</p>
         {{ end }}

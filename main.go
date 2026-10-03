@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"errors"
 	"log"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"shellyficator/internal/accounts"
+	"shellyficator/internal/accountstore"
+	"shellyficator/internal/devices"
 	"shellyficator/internal/inventory"
 	"shellyficator/internal/shelly"
 	"shellyficator/internal/web"
@@ -34,26 +35,21 @@ func main() {
 		if err := app.RunAllMigrations(); err != nil {
 			return err
 		}
-		return app.RunInTransaction(func(tx core.App) error {
-			for _, name := range []string{"operators", core.CollectionNameSuperusers} {
-				if _, err := tx.FindAuthRecordByEmail(name, email); err == nil {
-					return errors.New("account already exists; use the data admin interface to manage it")
-				} else if !errors.Is(err, sql.ErrNoRows) {
-					return err
-				}
-				if err := accounts.CreateVerified(tx, name, email, password); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		return accounts.New(accountstore.New(app)).Bootstrap(email, password)
 	}})
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		store := inventory.New(app)
 		client := shelly.NewClient(os.Getenv("SHELLY_DEVICE_PASSWORD"))
-		if err := web.Register(e, store, client, appVersion()); err != nil {
+		deviceService := devices.New(store, client, devices.Options{Discovery: shelly.NetworkDiscovery{}, Logger: app.Logger()})
+		accountService := accounts.New(accountstore.New(app))
+		if err := web.Register(e, deviceService, accountService, appVersion()); err != nil {
+			deviceService.Close()
 			return err
 		}
+		app.OnTerminate().BindFunc(func(event *core.TerminateEvent) error {
+			deviceService.Close()
+			return event.Next()
+		})
 		return e.Next()
 	})
 	if err := app.Start(); err != nil {

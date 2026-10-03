@@ -5,8 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/pocketbase/core"
-	"shellyficator/internal/inventory"
+	"shellyficator/internal/domain"
 )
 
 type DetailChannel struct {
@@ -38,12 +37,12 @@ type DeviceDetail struct {
 	ShowDifferences                       bool
 }
 
-func detailDevice(record *core.Record, baseline map[string]any, differences []inventory.Difference, notes map[string]string) DeviceDetail {
-	status, config := inventory.Object(record, "status"), inventory.Object(record, "config")
+func detailDevice(device domain.Device, baseline map[string]any, differences []domain.Difference, notes map[string]string) DeviceDetail {
+	status, config := device.Status, device.Config
 	view := DeviceDetail{
-		Table:           tableDevice(record, baseline, len(differences)),
-		StatusAvailable: inventory.StatusCurrent(record),
-		ConfigAvailable: inventory.ConfigCurrent(record),
+		Table:           tableDevice(device, baseline, len(differences)),
+		StatusAvailable: device.StatusCurrent(),
+		ConfigAvailable: device.ConfigCurrent(),
 	}
 	view.ConfigurationLabel = view.Table.Configuration
 	view.ConfigurationIcon = "config"
@@ -71,7 +70,7 @@ func detailDevice(record *core.Record, baseline map[string]any, differences []in
 		uptime.Value = "Unavailable"
 	}
 	security := DetailSummary{Label: "Device password", Value: "Not enabled", Tone: "warning", Icon: "unlock"}
-	if record.GetBool("auth_enabled") {
+	if device.AuthEnabled {
 		security.Value = "Enabled"
 		security.Tone = "ok"
 		security.Icon = "lock"
@@ -104,11 +103,11 @@ func detailDevice(record *core.Record, baseline map[string]any, differences []in
 		}
 		view.Network = append(view.Network, ConnectionField{Label: "Restart", Value: value, Tone: tone, Icon: "refresh", State: true})
 	}
-	if seen := record.GetString("last_seen"); seen != "" && inventory.FormatTime(seen) != inventory.FormatTime(record.GetString("last_checked")) {
-		view.Network = append(view.Network, ConnectionField{Label: "Last seen", Value: inventory.FormatTime(seen), Tone: "muted", Icon: "clock"})
+	if seen := device.LastSeen; !seen.IsZero() && formatTime(seen) != formatTime(device.LastChecked) {
+		view.Network = append(view.Network, ConnectionField{Label: "Last seen", Value: formatTime(seen), Tone: "muted", Icon: "clock"})
 	}
-	for _, field := range []struct{ key, label string }{{"device_id", "Device ID"}, {"mac", "MAC address"}, {"firmware", "Firmware"}, {"address", "Address"}} {
-		value := record.GetString(field.key)
+	for _, field := range []struct{ value, label string }{{device.DeviceID, "Device ID"}, {device.MAC, "MAC address"}, {device.Firmware, "Firmware"}, {device.Address, "Address"}} {
+		value := field.value
 		if value == "" {
 			value = "Not reported"
 		}
@@ -240,7 +239,7 @@ func detailReading(value any, available bool, unit string) string {
 		}
 		return value + unit
 	default:
-		return inventory.Display(value) + unit
+		return display(value) + unit
 	}
 }
 

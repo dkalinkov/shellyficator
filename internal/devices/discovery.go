@@ -8,30 +8,33 @@ import (
 	"sync"
 	"time"
 
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
 func (s *Service) Discover(target string, automatic bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return domain.ErrClosed
+	}
+	if s.discovery.Running {
+		return errors.New("Discovery is already running.")
+	}
+	if s.source == nil {
+		return errDiscoveryUnavailable
+	}
 	target = strings.TrimSpace(target)
 	var addresses []string
 	if !automatic {
 		var err error
-		addresses, err = shelly.Targets(target)
+		addresses, err = s.source.Targets(target)
 		if err != nil {
 			return err
 		}
 	} else {
 		target = "network announcements"
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return errors.New("Device service is closed.")
-	}
-	if s.discovery.Running {
-		return errors.New("Discovery is already running.")
-	}
-	s.discovery = Discovery{Running: true, Total: len(addresses), Target: target, Stage: "Scanning addresses"}
+	s.discovery = domain.Discovery{Running: true, Total: len(addresses), Target: target, Stage: "Scanning addresses"}
 	if automatic {
 		s.discovery.Stage = "Finding devices"
 	}
@@ -60,9 +63,9 @@ func (s *Service) runDiscovery(automatic bool, addresses []string) {
 		neighbors := <-neighborCh
 		cancel()
 		announcementFailed = err != nil
-		addresses = shelly.DiscoveryAddresses(append(announced, neighbors.addresses...))
-		if s.store != nil {
-			s.store.App.Logger().Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
+		addresses = s.source.Addresses(append(announced, neighbors.addresses...))
+		if s.logger != nil {
+			s.logger.Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
 		}
 		s.mu.Lock()
 		s.discovery.Total = len(addresses)
@@ -104,7 +107,7 @@ scan:
 				s.discovery.Found++
 			}
 			if !automatic && len(addresses) == 1 && err != nil {
-				s.discovery.Message = shelly.DiscoveryError(err)
+				s.discovery.Message = s.source.Explain(err)
 			}
 			s.mu.Unlock()
 		}(address)

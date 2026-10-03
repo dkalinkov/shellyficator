@@ -7,8 +7,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"shellyficator/internal/inventory"
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
 func (s *Server) list(e *core.RequestEvent) (InventoryPage, error) {
@@ -17,45 +16,51 @@ func (s *Server) list(e *core.RequestEvent) (InventoryPage, error) {
 }
 
 func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (InventoryPage, error) {
-	records, err := s.devices.Inventory()
+	entries, err := s.devices.Inventory()
 	if err != nil {
 		return InventoryPage{}, err
 	}
+	page := inventoryPage(s.pageMeta(e, "Devices"), entries, query, roomFilter, tagFilter, groupBy)
+	page.Discovery = s.devices.Discovery()
+	return page, nil
+}
+
+func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFilter, tagFilter, groupBy string) InventoryPage {
 	if groupBy != "room" {
 		groupBy = ""
 	}
-	page := InventoryPage{PageMeta: s.pageMeta(e, "Devices"), Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: inventory.SplitTags(tagFilter), GroupBy: groupBy}
+	page := InventoryPage{PageMeta: meta, Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: domain.SplitTags(tagFilter), GroupBy: groupBy}
 	rooms := map[string]bool{}
 	tags := map[string]string{}
 	selectedTags := map[string]bool{}
 	for _, tag := range page.SelectedTags {
 		selectedTags[strings.ToLower(tag)] = true
 	}
-	page.Total = len(records)
-	for _, entry := range records {
-		record := entry.Record
-		name := deviceName(record)
-		device := Device{Record: record, Name: name}
-		if record.GetBool("reachable") {
+	page.Total = len(entries)
+	for _, entry := range entries {
+		model := entry.Device
+		name := deviceName(model)
+		device := Device{Info: deviceView(model), Name: name}
+		if model.Reachable {
 			page.Reachable++
 		}
-		if !record.GetBool("auth_enabled") {
+		if !model.AuthEnabled {
 			page.Unprotected++
 		}
 		baseline := entry.Baseline
 		differences := 0
-		if config := inventory.Object(record, "config"); baseline != nil && config != nil {
-			differences = len(inventory.Differences(baseline, config))
+		if config := model.Config; baseline != nil && config != nil {
+			differences = len(domain.Differences(baseline, config))
 			if differences > 0 {
 				page.Changed++
 			}
 		}
-		room := record.GetString("room")
+		room := model.Room
 		if room != "" {
 			rooms[room] = true
 		}
 		matchesTags := len(selectedTags) == 0
-		for _, tag := range inventory.SplitTags(record.GetString("tags")) {
+		for _, tag := range model.Tags {
 			key := strings.ToLower(tag)
 			if _, known := tags[key]; !known {
 				tags[key] = tag
@@ -64,7 +69,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 				matchesTags = true
 			}
 		}
-		haystack := strings.ToLower(strings.Join([]string{name, record.GetString("device_id"), record.GetString("address"), room, record.GetString("tags"), record.GetString("notes")}, " "))
+		haystack := strings.ToLower(strings.Join([]string{name, model.DeviceID, model.Address, room, strings.Join(model.Tags, ", "), model.Notes}, " "))
 		if page.Query != "" && !strings.Contains(haystack, strings.ToLower(page.Query)) {
 			continue
 		}
@@ -74,7 +79,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 		if !matchesTags {
 			continue
 		}
-		device.Table = tableDevice(record, baseline, differences)
+		device.Table = tableDevice(model, baseline, differences)
 		notes := entry.ChannelNotes
 		for i := range device.Table.Inputs {
 			input := &device.Table.Inputs[i]
@@ -107,15 +112,14 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 	if page.GroupBy == "room" {
 		page.RoomGroups = groupDevicesByRoom(page.Devices)
 	}
-	page.Discovery = s.devices.Discovery()
-	return page, nil
+	return page
 }
 
 func groupDevicesByRoom(devices []Device) []RoomGroup {
 	var groups []RoomGroup
 	indices := map[string]int{}
 	for _, device := range devices {
-		room := device.Record.GetString("room")
+		room := device.Info.Room
 		index, found := indices[room]
 		if !found {
 			index = len(groups)
@@ -168,7 +172,7 @@ func (s *Server) dashboard(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	page.Networks, _ = shelly.LocalNetworks()
+	page.Networks, _ = s.devices.LocalNetworks()
 	return s.render(e, "dashboard", page)
 }
 

@@ -15,20 +15,16 @@ import (
 	"time"
 
 	"github.com/hashicorp/mdns"
+
+	"shellyficator/internal/domain"
 )
 
-// Network is a directly connected LAN offered for an explicit subnet scan.
-type Network struct {
-	Interface net.Interface
-	Prefix    string
-}
-
-func LocalNetworks() ([]Network, error) {
+func LocalNetworks() ([]domain.Network, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
 	}
-	var networks []Network
+	var networks []domain.Network
 	seen := map[string]bool{}
 	for _, iface := range interfaces {
 		if !discoveryInterface(iface) {
@@ -44,7 +40,7 @@ func LocalNetworks() ([]Network, error) {
 				continue
 			}
 			if !seen[rangeName] {
-				networks = append(networks, Network{Interface: iface, Prefix: rangeName})
+				networks = append(networks, domain.Network{Interface: iface.Name, Prefix: rangeName})
 				seen[rangeName] = true
 			}
 		}

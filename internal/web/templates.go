@@ -7,8 +7,6 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/pocketbase/core"
-
-	"shellyficator/internal/inventory"
 )
 
 //go:embed templates/*.html static/*
@@ -16,11 +14,6 @@ var assets embed.FS
 
 func parseTemplates() (*template.Template, error) {
 	functions := template.FuncMap{
-		"get":        func(r *core.Record, key string) string { return r.GetString(key) },
-		"flag":       func(r *core.Record, key string) bool { return r.GetBool(key) },
-		"when":       inventory.FormatTime,
-		"value":      inventory.Display,
-		"tags":       inventory.SplitTags,
 		"toneClass":  toneClass,
 		"badgeClass": badgeClass,
 	}

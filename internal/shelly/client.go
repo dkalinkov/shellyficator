@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/icholy/digest"
+
+	"shellyficator/internal/domain"
 )
 
-var ErrAuthentication = errors.New("authentication required or shared device password rejected")
-var ErrIdentity = errors.New("the device at this address has a different identity")
 var macPattern = regexp.MustCompile(`^[0-9A-F]{12}$`)
 
-type Identity struct {
+type identityResponse struct {
 	ID      string `json:"id"`
 	MAC     string `json:"mac"`
 	Name    string `json:"name"`
@@ -29,15 +29,6 @@ type Identity struct {
 	Gen     int    `json:"gen"`
 	Version string `json:"ver"`
 	Auth    bool   `json:"auth_en"`
-}
-
-type Reading struct {
-	Identity        Identity
-	Address         string
-	Status          map[string]any
-	Config          map[string]any
-	ConfigAttempted bool
-	Problem         string
 }
 
 type Client struct{ public, authenticated *http.Client }
@@ -97,21 +88,22 @@ func NormalizeMAC(value string) string {
 	return strings.ToUpper(strings.NewReplacer(":", "", "-", "").Replace(value))
 }
 
-func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConfig bool) (Reading, error) {
+func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConfig bool) (domain.Reading, error) {
 	address, err := NormalizeAddress(address)
 	if err != nil {
-		return Reading{}, err
+		return domain.Reading{}, err
 	}
-	reading := Reading{Address: address}
-	if err := c.get(ctx, c.public, address+"/shelly", &reading.Identity); err != nil {
+	reading := domain.Reading{Address: address}
+	var identity identityResponse
+	if err := c.get(ctx, c.public, address+"/shelly", &identity); err != nil {
 		return reading, err
 	}
-	reading.Identity.MAC = NormalizeMAC(reading.Identity.MAC)
+	reading.Identity = domain.Identity{ID: identity.ID, MAC: NormalizeMAC(identity.MAC), Name: identity.Name, Model: identity.Model, Gen: identity.Gen, Version: identity.Version, Auth: identity.Auth}
 	if reading.Identity.ID == "" || !macPattern.MatchString(reading.Identity.MAC) || reading.Identity.Gen < 2 {
 		return reading, errors.New("no supported Gen2+ Shelly identity returned")
 	}
 	if expectedMAC != "" && reading.Identity.MAC != NormalizeMAC(expectedMAC) {
-		return reading, ErrIdentity
+		return reading, domain.ErrIdentity
 	}
 	if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetStatus", &reading.Status); err != nil {
 		reading.Status = nil
@@ -121,7 +113,7 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConf
 		reading.ConfigAttempted = true
 		if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetConfig", &reading.Config); err != nil {
 			reading.Config = nil
-			if reading.Problem == "" || errors.Is(err, ErrAuthentication) {
+			if reading.Problem == "" || errors.Is(err, domain.ErrAuthentication) {
 				reading.Problem = describe(err)
 			}
 		}
@@ -133,7 +125,7 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConf
 }
 
 // Discovery and refresh use the same bounded retries and identity validation.
-func (c *Client) Discover(ctx context.Context, address string) (Reading, error) {
+func (c *Client) Discover(ctx context.Context, address string) (domain.Reading, error) {
 	return c.Read(ctx, address, "", true)
 }
 
@@ -145,7 +137,7 @@ func DiscoveryError(err error) string {
 		}
 		return "Device connection failed."
 	}
-	if errors.Is(err, ErrAuthentication) {
+	if errors.Is(err, domain.ErrAuthentication) {
 		return "Device authentication failed."
 	}
 	return "No supported device found at this address."
@@ -190,7 +182,7 @@ func (c *Client) getOnce(ctx context.Context, client *http.Client, address strin
 	}
 	defer response.Body.Close()
 	if response.StatusCode == 401 || response.StatusCode == 403 {
-		return ErrAuthentication
+		return domain.ErrAuthentication
 	}
 	if response.StatusCode != 200 {
 		return &httpError{code: response.StatusCode}
@@ -209,8 +201,8 @@ func (c *Client) getOnce(ctx context.Context, client *http.Client, address strin
 }
 
 func describe(err error) string {
-	if errors.Is(err, ErrAuthentication) {
-		return ErrAuthentication.Error()
+	if errors.Is(err, domain.ErrAuthentication) {
+		return domain.ErrAuthentication.Error()
 	}
 	return "Could not read device status or configuration. Check connectivity and device access."
 }

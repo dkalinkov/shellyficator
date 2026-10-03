@@ -11,6 +11,7 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 
+	"shellyficator/internal/domain"
 	"shellyficator/internal/inventory"
 	"shellyficator/internal/shelly"
 	_ "shellyficator/migrations"
@@ -28,7 +29,7 @@ func testService(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Se
 	}
 	device := httptest.NewServer(handler)
 	t.Cleanup(device.Close)
-	s := New(inventory.New(app), shelly.NewClient(""))
+	s := New(inventory.New(app), shelly.NewClient(""), Options{Discovery: shelly.NetworkDiscovery{}})
 	t.Cleanup(s.Close)
 	return s, device
 }
@@ -36,15 +37,15 @@ func testService(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Se
 func refreshTestService(t *testing.T, handler http.HandlerFunc) (*Service, string) {
 	t.Helper()
 	s, device := testService(t, handler)
-	record, err := s.store.ApproveReading(shelly.Reading{
-		Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Address: device.URL,
+	record, err := s.store.ApproveReading(domain.Reading{
+		Identity: domain.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Address: device.URL,
 		Status: map[string]any{"input:0": map[string]any{"state": nil}, "switch:0": map[string]any{"output": false}},
 		Config: map[string]any{"input:0": map[string]any{"type": "button", "enable": true}, "switch:0": map[string]any{"in_mode": "momentary"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s, record.Id
+	return s, record.ID
 }
 
 func waitForJob(t *testing.T, done <-chan struct{}) {
@@ -84,9 +85,9 @@ func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 1; i < 8; i++ {
-		if _, err := s.store.SaveReading(shelly.Reading{
-			Identity: shelly.Identity{ID: fmt.Sprintf("device-%d", i), MAC: fmt.Sprintf("%012X", i), Gen: 4},
-			Address:  before.GetString("address"), Status: map[string]any{}, Config: map[string]any{},
+		if _, err := s.store.SaveReading(domain.Reading{
+			Identity: domain.Identity{ID: fmt.Sprintf("device-%d", i), MAC: fmt.Sprintf("%012X", i), Gen: 4},
+			Address:  before.Address, Status: map[string]any{}, Config: map[string]any{},
 		}, false); err != nil {
 			t.Fatal(err)
 		}
@@ -109,11 +110,11 @@ func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.GetInt("consecutive_failures") != before.GetInt("consecutive_failures") || !inventory.StatusCurrent(after) || !inventory.ConfigCurrent(after) || after.GetString("last_checked") != before.GetString("last_checked") || after.GetString("baseline") != before.GetString("baseline") {
+	if after.ConsecutiveFailures != before.ConsecutiveFailures || !after.StatusCurrent() || !after.ConfigCurrent() || after.LastChecked != before.LastChecked || after.BaselineID != before.BaselineID {
 		t.Fatal("shutdown recorded an outage or changed the approved baseline")
 	}
 	snapshots, err := s.store.Snapshots(id)
-	if err != nil || len(snapshots) != 1 || snapshots[0].Id != before.GetString("baseline") {
+	if err != nil || len(snapshots) != 1 || snapshots[0].ID != before.BaselineID {
 		t.Fatalf("shutdown changed snapshot history: count=%d err=%v", len(snapshots), err)
 	}
 	if s.Refresh(true) != nil || s.Discover("", true) == nil {
@@ -124,8 +125,8 @@ func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, record := range records {
-		if record.GetInt("consecutive_failures") != 0 || !inventory.StatusCurrent(record) || !inventory.ConfigCurrent(record) {
-			t.Fatalf("shutdown changed device health: %s", record.Id)
+		if record.ConsecutiveFailures != 0 || !record.StatusCurrent() || !record.ConfigCurrent() {
+			t.Fatalf("shutdown changed device health: %s", record.ID)
 		}
 	}
 }
@@ -163,8 +164,8 @@ func TestInventoryKeepsCompletedPassAvailableDuringRefreshAndLoadsRelatedData(t 
 		}
 	}))
 	t.Cleanup(fastDevice.Close)
-	if _, err := s.store.ApproveReading(shelly.Reading{
-		Identity: shelly.Identity{ID: "fast-device", MAC: "AABBCCDDEE01", Gen: 4}, Address: fastDevice.URL,
+	if _, err := s.store.ApproveReading(domain.Reading{
+		Identity: domain.Identity{ID: "fast-device", MAC: "AABBCCDDEE01", Gen: 4}, Address: fastDevice.URL,
 		Status: map[string]any{"switch:0": map[string]any{"output": false}},
 		Config: map[string]any{"switch:0": map[string]any{"in_mode": "momentary"}},
 	}); err != nil {
@@ -174,13 +175,13 @@ func TestInventoryKeepsCompletedPassAvailableDuringRefreshAndLoadsRelatedData(t 
 	waitForJob(t, started)
 	waitForJob(t, fastRead)
 	result := make(chan struct {
-		devices []Device
+		devices []domain.InventoryEntry
 		err     error
 	}, 1)
 	go func() {
 		devices, err := s.Inventory()
 		result <- struct {
-			devices []Device
+			devices []domain.InventoryEntry
 			err     error
 		}{devices, err}
 	}()
@@ -190,7 +191,7 @@ func TestInventoryKeepsCompletedPassAvailableDuringRefreshAndLoadsRelatedData(t 
 			t.Fatalf("saved inventory snapshot: count=%d err=%v", len(snapshot.devices), snapshot.err)
 		}
 		for _, device := range snapshot.devices {
-			if inventory.Object(device.Record, "status")["switch:0"].(map[string]any)["output"] != false {
+			if device.Device.Status["switch:0"].(map[string]any)["output"] != false {
 				t.Fatal("inventory published part of an incomplete polling pass")
 			}
 		}
@@ -204,14 +205,14 @@ func TestInventoryKeepsCompletedPassAvailableDuringRefreshAndLoadsRelatedData(t 
 		t.Fatalf("inventory snapshot: count=%d err=%v", len(snapshot), err)
 	}
 	for _, device := range snapshot {
-		if inventory.Object(device.Record, "status")["switch:0"].(map[string]any)["output"] != true || device.Baseline["switch:0"].(map[string]any)["in_mode"] != "momentary" || device.Record.Id == id && device.ChannelNotes["switch:0"] != "Desk lamp" {
+		if device.Device.Status["switch:0"].(map[string]any)["output"] != true || device.Baseline["switch:0"].(map[string]any)["in_mode"] != "momentary" || device.Device.ID == id && device.ChannelNotes["switch:0"] != "Desk lamp" {
 			t.Fatal("inventory snapshot lost completed readings, baseline, or channel notes")
 		}
 	}
 }
 
 func TestCloseCancelsDiscoverySourcesAndRejectsDuplicateJob(t *testing.T) {
-	s := New(nil, nil)
+	s := New(nil, nil, Options{Discovery: shelly.NetworkDiscovery{}})
 	t.Cleanup(s.Close)
 	started, cancelled := make(chan struct{}, 2), make(chan struct{}, 2)
 	query := func(ctx context.Context) ([]string, error) {
@@ -275,5 +276,19 @@ func TestCloseCanRaceJobStarts(t *testing.T) {
 	callers.Wait()
 	if s.Refresh(true) != nil || s.Discovery().Running {
 		t.Fatal("shutdown allowed work to restart")
+	}
+}
+
+// setDeviceField changes timestamps in adapter integration fixtures only.
+func setDeviceField(t *testing.T, service *Service, id, field string, value any) {
+	t.Helper()
+	store := service.store.(*inventory.Store)
+	record, err := store.App.FindRecordById("devices", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Set(field, value)
+	if err := store.App.Save(record); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -1,11 +1,7 @@
 package web
 
 import (
-	"github.com/pocketbase/pocketbase/core"
-
-	"shellyficator/internal/devices"
-	"shellyficator/internal/inventory"
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
 type PageMeta struct {
@@ -24,29 +20,47 @@ type InventoryPage struct {
 	RoomGroups                             []RoomGroup
 	Rooms, Tags, SelectedTags              []string
 	Total, Reachable, Changed, Unprotected int
-	Discovery                              devices.Discovery
-	Networks                               []shelly.Network
+	Discovery                              domain.Discovery
+	Networks                               []domain.Network
 }
 
 type DevicePage struct {
 	PageMeta
-	Device      *core.Record
+	Device      DeviceView
 	Name        string
 	Rooms, Tags []string
 	Detail      DeviceDetail
-	Differences []inventory.Difference
+	Differences []DifferenceView
 	HasBaseline bool
-	Snapshots   []*core.Record
+	Snapshots   []SnapshotView
 }
 
 type DiscoveryPage struct {
-	Discovery devices.Discovery
+	Discovery domain.Discovery
 }
 
 type Device struct {
-	Record *core.Record
-	Name   string
-	Table  DeviceTable
+	Info  DeviceView
+	Name  string
+	Table DeviceTable
+}
+
+type DeviceView struct {
+	ID, Name, DeviceID, Model, MAC, Firmware, Address string
+	Room, TagsText, Notes, Problem, BaselineID        string
+	Tags                                              []string
+	Generation                                        int
+	AuthEnabled                                       bool
+	LastSeen, LastChecked, LastCaptured               string
+	HasCapture                                        bool
+}
+
+type SnapshotView struct {
+	ID, Reason, Firmware, Captured, CapturedISO string
+}
+
+type DifferenceView struct {
+	Path, Before, After string
 }
 
 type RoomGroup struct {

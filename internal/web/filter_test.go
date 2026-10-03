@@ -11,10 +11,10 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
-func tagFilterTestServer(t *testing.T) (*Server, string) {
+func tagFilterTestServer(t *testing.T) (*testServer, string) {
 	t.Helper()
 	s, first := refreshTestServer(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{}`)) })
 	fixtures := []struct{ name, room, tags, mac string }{
@@ -27,13 +27,13 @@ func tagFilterTestServer(t *testing.T) (*Server, string) {
 	for i, fixture := range fixtures {
 		id := first
 		if i > 0 {
-			record, err := s.store.SaveReading(shelly.Reading{Identity: shelly.Identity{ID: fixture.name, Name: fixture.name, MAC: fixture.mac, Gen: 4}}, false)
+			record, err := s.store.SaveReading(domain.Reading{Identity: domain.Identity{ID: fixture.name, Name: fixture.name, MAC: fixture.mac, Gen: 4}}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			id = record.Id
+			id = record.ID
 		} else {
-			record, _ := s.store.Device(id)
+			record, _ := s.record(id)
 			record.Set("name", fixture.name)
 			if err := s.store.App.Save(record); err != nil {
 				t.Fatal(err)
@@ -43,8 +43,6 @@ func tagFilterTestServer(t *testing.T) (*Server, string) {
 			t.Fatal(err)
 		}
 	}
-	// Listing tests use the saved inventory without starting device jobs.
-	s.devices.Close()
 	return s, first
 }
 
@@ -112,7 +110,7 @@ func TestInventoryResponsePreservesTagFilterAndUpdatesChoices(t *testing.T) {
 
 func TestOrganizationSaveRetainsFilterAfterLastTagAssignmentIsRemoved(t *testing.T) {
 	s, _ := tagFilterTestServer(t)
-	records, _ := s.store.Devices()
+	records, _ := s.records()
 	var id string
 	for _, record := range records {
 		if record.GetString("name") == "Desk LEDs" {

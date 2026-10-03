@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"shellyficator/internal/inventory"
+	"shellyficator/internal/domain"
 )
 
 func TestBaselineApprovalRequiresFreshConfigAndPreservesFailedApproval(t *testing.T) {
@@ -37,13 +37,13 @@ func TestBaselineApprovalRequiresFreshConfigAndPreservesFailedApproval(t *testin
 	if err := s.baseline(event); err != nil {
 		t.Fatal(err)
 	}
-	record, err := s.store.Device(id)
+	record, err := s.record(id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	baselineID := record.GetString("baseline")
 	snapshots, err := s.store.Snapshots(id)
-	if err != nil || len(snapshots) != 2 || len(inventory.Differences(s.store.Baseline(record), map[string]any{"switch:0": map[string]any{"in_mode": "detached"}})) != 0 || !strings.Contains(response.Header().Get("Location"), "Baseline+updated.") {
+	if err != nil || len(snapshots) != 2 || len(domain.Differences(s.baselineConfig(record), map[string]any{"switch:0": map[string]any{"in_mode": "detached"}})) != 0 || !strings.Contains(response.Header().Get("Location"), "Baseline+updated.") {
 		t.Fatalf("approval did not capture its fresh settings: history=%v err=%v", snapshots, err)
 	}
 	failConfig.Store(true)
@@ -51,7 +51,7 @@ func TestBaselineApprovalRequiresFreshConfigAndPreservesFailedApproval(t *testin
 	if err := s.baseline(event); err != nil {
 		t.Fatal(err)
 	}
-	record, err = s.store.Device(id)
+	record, err = s.record(id)
 	if err != nil {
 		t.Fatal(err)
 	}

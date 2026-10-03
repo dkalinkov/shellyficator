@@ -37,4 +37,4 @@ docker run --rm --name shellyficator \
 
 Preserve `pb_data/` or the Docker data volume across upgrades; reuse the existing volume when upgrading an older install. Use `make run` for Docker Desktop development.
 
-[Scope](PRODUCT_BRIEF.md) · [Status and next steps](IMPLEMENTATION.md) · [Network research](research/network-discovery-2026-09-30.md)
+[Scope](PRODUCT_BRIEF.md) · [Status and next steps](IMPLEMENTATION.md) · [Architecture](docs/architecture-plan.md) · [Network research](research/network-discovery-2026-09-30.md)

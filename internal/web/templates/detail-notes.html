@@ -46,7 +46,7 @@
     </div>
     <form
       class="grid gap-4 p-4"
-      action="/devices/{{ .Device.Id }}/metadata"
+      action="/devices/{{ .Device.ID }}/metadata"
       method="post"
       data-metadata-form
     >
@@ -70,7 +70,7 @@
           rows="5"
           maxlength="8000"
         >
-{{ get .Device "notes" }}</textarea>
+{{ .Device.Notes }}</textarea>
       </div>
       <button
         class="btn btn-sm btn-primary w-full pointer-coarse:min-h-10"
