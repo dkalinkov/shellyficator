@@ -1,27 +1,22 @@
-package web
+package devices
 
 import (
 	"context"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
-
-	"github.com/pocketbase/pocketbase"
-	"shellyficator/internal/inventory"
-	"shellyficator/internal/shelly"
-	_ "shellyficator/migrations"
 )
 
 func TestEmptyAutomaticDiscoveryStopsWithoutProbingAddresses(t *testing.T) {
 	for _, queryError := range []error{nil, errors.New("multicast unavailable")} {
-		s := &Server{
-			discovery:     Discovery{Running: true},
-			announcements: func(context.Context) ([]string, error) { return nil, queryError },
-			// No client/store: empty discovery must finish without making device requests.
-		}
+		s := New(nil, nil)
+		t.Cleanup(s.Close)
+		s.discovery = Discovery{Running: true}
+		s.announcements = func(context.Context) ([]string, error) { return nil, queryError }
+		s.neighbors = func(context.Context) ([]string, error) { return nil, nil }
+		// No client/store: empty discovery must finish without making device requests.
 		s.runDiscovery(true, nil)
 		if s.discovery.Running || s.discovery.Total != 0 || s.discovery.Completed != 0 || s.discovery.Found != 0 {
 			t.Fatalf("empty announcements started address probes: %+v", s.discovery)
@@ -33,16 +28,8 @@ func TestEmptyAutomaticDiscoveryStopsWithoutProbingAddresses(t *testing.T) {
 }
 
 func TestAutomaticDiscoveryOnlyVerifiesAnnouncedDevices(t *testing.T) {
-	app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: t.TempDir()})
-	if err := app.Bootstrap(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = app.ResetBootstrapState() })
-	if err := app.RunAllMigrations(); err != nil {
-		t.Fatal(err)
-	}
 	var requests atomic.Int32
-	device := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s, device := testService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		switch r.URL.Path {
 		case "/shelly":
@@ -55,17 +42,9 @@ func TestAutomaticDiscoveryOnlyVerifiesAnnouncedDevices(t *testing.T) {
 			w.WriteHeader(404)
 		}
 	}))
-	defer device.Close()
-	s := &Server{
-		store: inventory.New(app), client: shelly.NewClient(""),
-		discovery: Discovery{Running: true},
-		announcements: func(context.Context) ([]string, error) {
-			return []string{device.URL, device.URL}, nil
-		},
-		neighbors: func(context.Context) ([]string, error) {
-			return []string{device.URL}, nil
-		},
-	}
+	s.discovery = Discovery{Running: true}
+	s.announcements = func(context.Context) ([]string, error) { return []string{device.URL, device.URL}, nil }
+	s.neighbors = func(context.Context) ([]string, error) { return []string{device.URL}, nil }
 	s.runDiscovery(true, nil)
 	if s.discovery.Running || s.discovery.Total != 1 || s.discovery.Completed != 1 || s.discovery.Found != 1 || requests.Load() != 3 {
 		t.Fatalf("discovery checked more than the announced device: job=%+v requests=%d", s.discovery, requests.Load())
@@ -77,15 +56,7 @@ func TestAutomaticDiscoveryOnlyVerifiesAnnouncedDevices(t *testing.T) {
 }
 
 func TestDiscoveryVerifiesCachedNeighborWhenMulticastIsUnavailable(t *testing.T) {
-	app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: t.TempDir()})
-	if err := app.Bootstrap(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = app.ResetBootstrapState() })
-	if err := app.RunAllMigrations(); err != nil {
-		t.Fatal(err)
-	}
-	device := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s, device := testService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/shelly":
 			_, _ = w.Write([]byte(`{"id":"cached-device","mac":"AABBCCDDEEFF","gen":4}`))
@@ -93,15 +64,9 @@ func TestDiscoveryVerifiesCachedNeighborWhenMulticastIsUnavailable(t *testing.T)
 			_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"momentary"}}`))
 		}
 	}))
-	defer device.Close()
-	s := &Server{
-		store: inventory.New(app), client: shelly.NewClient(""),
-		discovery: Discovery{Running: true},
-		announcements: func(context.Context) ([]string, error) {
-			return nil, errors.New("multicast unavailable")
-		},
-		neighbors: func(context.Context) ([]string, error) { return []string{device.URL}, nil },
-	}
+	s.discovery = Discovery{Running: true}
+	s.announcements = func(context.Context) ([]string, error) { return nil, errors.New("multicast unavailable") }
+	s.neighbors = func(context.Context) ([]string, error) { return []string{device.URL}, nil }
 	s.runDiscovery(true, nil)
 	if s.discovery.Found != 1 || s.discovery.Total != 1 || s.discovery.Running {
 		t.Fatalf("cached device not discovered: %+v", s.discovery)

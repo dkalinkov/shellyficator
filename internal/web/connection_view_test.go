@@ -46,12 +46,12 @@ func TestCloudConnectionPresentation(t *testing.T) {
 			if (!test.reachable || !test.statusOK) && !strings.Contains(cloud.Info, "Last reported") {
 				t.Fatal("cached cloud connection lost its freshness label")
 			}
-			page := Page{Device: record, Name: "Desk <lamp>", Detail: detail, Devices: []Device{{Record: record, Name: "Desk <lamp>", Table: detail.Table}}}
+			page := DevicePage{Device: record, Name: "Desk <lamp>", Detail: detail}
 			for _, name := range []string{"detail", "inventory-table"} {
 				var body bytes.Buffer
 				data := any(page)
 				if name == "inventory-table" {
-					data = page.Devices
+					data = []Device{{Record: record, Name: page.Name, Table: detail.Table}}
 				}
 				if err := s.templates.ExecuteTemplate(&body, name, data); err != nil {
 					t.Fatal(err)

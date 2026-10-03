@@ -1,4 +1,4 @@
-package web
+package devices
 
 import (
 	"context"
@@ -11,41 +11,41 @@ import (
 	"shellyficator/internal/shelly"
 )
 
-func (s *Server) refresh(force bool) <-chan struct{} {
+func (s *Service) Refresh(force bool) <-chan struct{} {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
 	if s.refreshing {
 		// A manual request during status polling gets a configuration pass too.
 		if force && !s.refreshForced {
-			s.refreshForcePending = true
+			s.forcePending = true
 		}
-		done := s.refreshDone
-		s.mu.Unlock()
-		return done
+		return s.refreshDone
 	}
 	if !force && time.Since(s.lastRefresh) < 30*time.Second {
-		s.mu.Unlock()
 		return nil
 	}
-	s.refreshing = true
-	s.refreshForced = force
+	s.refreshing, s.refreshForced = true, force
 	s.lastRefresh = time.Now()
 	s.refreshDone = make(chan struct{})
 	done := s.refreshDone
-	s.mu.Unlock()
+	s.jobs.Add(1)
 	go func() {
+		defer s.jobs.Done()
 		for {
 			s.refreshDevices(force)
 			s.mu.Lock()
-			if s.refreshForcePending {
-				s.refreshForcePending = false
+			if !s.closed && s.forcePending {
+				s.forcePending = false
 				s.refreshForced = true
 				force = true
 				s.lastRefresh = time.Now()
 				s.mu.Unlock()
 				continue
 			}
-			s.refreshing = false
-			s.refreshForced = false
+			s.refreshing, s.refreshForced, s.forcePending = false, false, false
 			close(done)
 			s.mu.Unlock()
 			return
@@ -54,9 +54,12 @@ func (s *Server) refresh(force bool) <-chan struct{} {
 	return done
 }
 
-func (s *Server) refreshDevices(force bool) {
+func (s *Service) refreshDevices(force bool) {
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
+	if s.ctx.Err() != nil {
+		return
+	}
 	records, err := s.store.Devices()
 	if err != nil {
 		s.store.App.Logger().Error("Could not load devices for refresh", "error", err)
@@ -65,7 +68,12 @@ func (s *Server) refreshDevices(force bool) {
 	limit := make(chan struct{}, 4)
 	var group sync.WaitGroup
 	for _, record := range records {
-		limit <- struct{}{}
+		select {
+		case limit <- struct{}{}:
+		case <-s.ctx.Done():
+			group.Wait()
+			return
+		}
 		group.Add(1)
 		go func(record *core.Record) {
 			defer func() { <-limit; group.Done() }()
@@ -75,9 +83,12 @@ func (s *Server) refreshDevices(force bool) {
 			if readConfig {
 				timeout = 20 * time.Second
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			ctx, cancel := context.WithTimeout(s.ctx, timeout)
 			defer cancel()
 			reading, err := s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), readConfig)
+			if s.ctx.Err() != nil {
+				return
+			}
 			if err != nil {
 				problem := "Device could not be reached. Last successful readings are preserved."
 				if errors.Is(err, shelly.ErrIdentity) {

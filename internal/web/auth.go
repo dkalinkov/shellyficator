@@ -29,7 +29,7 @@ func (s *Server) loginPage(e *core.RequestEvent) error {
 	if count == 0 {
 		return e.Redirect(http.StatusSeeOther, "/setup")
 	}
-	return s.render(e, "login", Page{Title: "Sign in", CSRF: csrf(e)})
+	return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in")})
 }
 
 func csrf(e *core.RequestEvent) string {
@@ -87,7 +87,7 @@ func (s *Server) requireLogin(e *core.RequestEvent) error {
 
 func (s *Server) login(e *core.RequestEvent) error {
 	ip := e.RemoteIP()
-	s.mu.Lock()
+	s.authMu.Lock()
 	for key, attempt := range s.loginAttempts {
 		if time.Since(attempt.since) > 15*time.Minute {
 			delete(s.loginAttempts, key)
@@ -99,22 +99,22 @@ func (s *Server) login(e *core.RequestEvent) error {
 	}
 	attempt.count++
 	s.loginAttempts[ip] = attempt
-	s.mu.Unlock()
+	s.authMu.Unlock()
 	if attempt.count > 10 {
 		return e.TooManyRequestsError("Too many sign in attempts. Try again in 15 minutes.", nil)
 	}
 	record, err := s.store.App.FindAuthRecordByEmail("operators", strings.TrimSpace(e.Request.FormValue("email")))
 	if err != nil || !record.ValidatePassword(e.Request.FormValue("password")) {
 		e.Response.Header().Set("Cache-Control", "no-store")
-		return s.render(e, "login", Page{Title: "Sign in", CSRF: csrf(e), Error: "Email or password is incorrect."})
+		return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in"), Error: "Email or password is incorrect."})
 	}
 	token, err := record.NewAuthToken()
 	if err != nil {
 		return e.InternalServerError("Could not sign in", nil)
 	}
-	s.mu.Lock()
+	s.authMu.Lock()
 	delete(s.loginAttempts, ip)
-	s.mu.Unlock()
+	s.authMu.Unlock()
 	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: 86400})
 	return e.Redirect(http.StatusSeeOther, "/")
 }
@@ -127,13 +127,13 @@ func (s *Server) setupPage(e *core.RequestEvent) error {
 	if count > 0 {
 		return e.Redirect(http.StatusSeeOther, "/login")
 	}
-	return s.render(e, "setup", Page{Title: "Create your account", CSRF: csrf(e)})
+	return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account")})
 }
 
 func (s *Server) setup(e *core.RequestEvent) error {
 	email, password := strings.TrimSpace(e.Request.FormValue("email")), e.Request.FormValue("password")
 	if len(password) < 12 {
-		return s.render(e, "setup", Page{Title: "Create your account", CSRF: csrf(e), Error: "Choose a password with at least 12 characters."})
+		return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account"), Error: "Choose a password with at least 12 characters."})
 	}
 	err := s.store.App.RunInTransaction(func(app core.App) error {
 		count, err := app.CountRecords("operators")
@@ -162,7 +162,7 @@ func (s *Server) setup(e *core.RequestEvent) error {
 		return nil
 	})
 	if err != nil {
-		return s.render(e, "setup", Page{Title: "Create your account", CSRF: csrf(e), Error: "Could not create the account. Check the email and password, or sign in if setup is already complete."})
+		return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account"), Error: "Could not create the account. Check the email and password, or sign in if setup is already complete."})
 	}
 	return s.redirect(e, "/login", "Account created.")
 }

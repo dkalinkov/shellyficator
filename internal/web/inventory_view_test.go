@@ -86,6 +86,22 @@ func TestInventoryPresentation(t *testing.T) {
 			t.Fatalf("stale values displayed as current: %+v", view)
 		}
 	})
+	t.Run("missed checks retain muted readings and identity mismatches stay explicit", func(t *testing.T) {
+		r := record(status)
+		r.Set("consecutive_failures", 1)
+		r.Set("status_available", false)
+		r.Set("config_available", false)
+		r.Set("status", map[string]any{"cloud": map[string]any{"connected": true}, "switch:0": map[string]any{"output": true}, "input:0": map[string]any{"state": false}})
+		view := tableDevice(r, nil, 0)
+		if view.Connectivity != "Last seen" || view.ConnectivityTone != "muted" || view.Cloud.Value != "Connected" || view.Cloud.Tone != "muted" || view.Inputs[0].Output != "On" || view.Inputs[0].State != "Off" || view.Inputs[0].OutputTone != "muted" {
+			t.Fatalf("missed check lost cached values or displayed them as current: %+v", view)
+		}
+		r.Set("identity_mismatch", true)
+		r.Set("reachable", false)
+		if view := tableDevice(r, nil, 0); view.Connectivity != "Identity mismatch" || view.ConnectivityTone != "error" {
+			t.Fatalf("identity mismatch hidden by ordinary outage: %+v", view)
+		}
+	})
 	t.Run("status and config failures are presented independently", func(t *testing.T) {
 		r := record(status)
 		r.Set("config_available", false)

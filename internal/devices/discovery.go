@@ -1,72 +1,58 @@
-package web
+package devices
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/pocketbase/pocketbase/core"
-
 	"shellyficator/internal/shelly"
 )
 
-type Discovery struct {
-	Running                 bool
-	Total, Completed, Found int
-	Target, Message         string
-	Stage                   string
-}
-
-func (s *Server) progress(e *core.RequestEvent) error {
-	s.mu.Lock()
-	job := s.discovery
-	s.mu.Unlock()
-	return s.render(e, "discovery", Page{Discovery: job})
-}
-
-func (s *Server) discover(e *core.RequestEvent) error {
-	target := strings.TrimSpace(e.Request.FormValue("target"))
-	automatic := e.Request.FormValue("mode") == "auto"
+func (s *Service) Discover(target string, automatic bool) error {
+	target = strings.TrimSpace(target)
 	var addresses []string
 	if !automatic {
 		var err error
 		addresses, err = shelly.Targets(target)
 		if err != nil {
-			return s.redirect(e, "/", err.Error())
+			return err
 		}
 	} else {
 		target = "network announcements"
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return errors.New("Device service is closed.")
+	}
 	if s.discovery.Running {
-		s.mu.Unlock()
-		return s.redirect(e, "/", "Discovery is already running.")
+		return errors.New("Discovery is already running.")
 	}
 	s.discovery = Discovery{Running: true, Total: len(addresses), Target: target, Stage: "Scanning addresses"}
 	if automatic {
 		s.discovery.Stage = "Finding devices"
 	}
-	s.mu.Unlock()
-	go s.runDiscovery(automatic, addresses)
-	return s.redirect(e, "/", "")
+	s.jobs.Add(1)
+	go func() {
+		defer s.jobs.Done()
+		s.runDiscovery(automatic, addresses)
+	}()
+	return nil
 }
 
-func (s *Server) runDiscovery(automatic bool, addresses []string) {
+func (s *Service) runDiscovery(automatic bool, addresses []string) {
 	announcementFailed := false
 	if automatic {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		type neighborResult struct {
 			addresses []string
 			err       error
 		}
 		neighborCh := make(chan neighborResult, 1)
 		go func() {
-			if s.neighbors == nil {
-				neighborCh <- neighborResult{}
-				return
-			}
 			addresses, err := s.neighbors(ctx)
 			neighborCh <- neighborResult{addresses, err}
 		}()
@@ -86,18 +72,30 @@ func (s *Server) runDiscovery(automatic bool, addresses []string) {
 	limit := make(chan struct{}, 4)
 	var group sync.WaitGroup
 	foundMACs := map[string]bool{}
+scan:
 	for _, address := range addresses {
-		limit <- struct{}{}
+		select {
+		case limit <- struct{}{}:
+		case <-s.ctx.Done():
+			break scan
+		}
 		group.Add(1)
 		go func(address string) {
 			defer func() { <-limit; group.Done() }()
-			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			ctx, cancel := context.WithTimeout(s.ctx, 12*time.Second)
 			defer cancel()
 			reading, err := s.client.Discover(ctx, address)
+			if s.ctx.Err() != nil {
+				return
+			}
 			found := false
 			if err == nil {
-				_, err = s.store.SaveReading(reading, true)
-				found = err == nil
+				s.inventoryMu.Lock()
+				if s.ctx.Err() == nil {
+					_, err = s.store.SaveReading(reading, true)
+					found = err == nil
+				}
+				s.inventoryMu.Unlock()
 			}
 			s.mu.Lock()
 			s.discovery.Completed++
@@ -111,12 +109,23 @@ func (s *Server) runDiscovery(automatic bool, addresses []string) {
 			s.mu.Unlock()
 		}(address)
 		if !automatic {
-			time.Sleep(50 * time.Millisecond)
+			timer := time.NewTimer(50 * time.Millisecond)
+			select {
+			case <-timer.C:
+			case <-s.ctx.Done():
+				timer.Stop()
+				break scan
+			}
 		}
 	}
 	group.Wait()
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.discovery.Running = false
+	if s.ctx.Err() != nil {
+		s.discovery.Message = "Discovery cancelled."
+		return
+	}
 	if s.discovery.Message == "" {
 		s.discovery.Message = fmt.Sprintf("Devices found: %d.", s.discovery.Found)
 		if automatic && s.discovery.Found == 0 {
@@ -132,5 +141,4 @@ func (s *Server) runDiscovery(automatic bool, addresses []string) {
 			s.discovery.Message += " Some mDNS queries failed."
 		}
 	}
-	s.mu.Unlock()
 }
