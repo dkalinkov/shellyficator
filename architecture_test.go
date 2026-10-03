@@ -16,6 +16,8 @@ func TestApplicationLayerDependencies(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 	root := filepath.Dir(filename)
 	allowed := map[string]map[string]bool{
+		"main":         {"bootstrap": true},
+		"bootstrap":    {"accounts": true, "accountstore": true, "devices": true, "domain": true, "inventory": true, "shelly": true, "web": true},
 		"domain":       {},
 		"devices":      {"domain": true},
 		"accounts":     {"domain": true},
@@ -27,6 +29,9 @@ func TestApplicationLayerDependencies(t *testing.T) {
 	for layer, dependencies := range allowed {
 		t.Run(layer, func(t *testing.T) {
 			directory := filepath.Join(root, "internal", layer)
+			if layer == "main" {
+				directory = root
+			}
 			entries, err := os.ReadDir(directory)
 			if err != nil {
 				t.Fatal(err)
@@ -50,7 +55,7 @@ func TestApplicationLayerDependencies(t *testing.T) {
 						}
 						continue
 					}
-					if layer == "domain" || layer == "devices" || layer == "accounts" {
+					if layer == "main" || layer == "domain" || layer == "devices" || layer == "accounts" {
 						first, _, _ := strings.Cut(path, "/")
 						if strings.Contains(first, ".") || first == "shellyficator" {
 							t.Errorf("%s imports non-standard dependency %s", entry.Name(), path)

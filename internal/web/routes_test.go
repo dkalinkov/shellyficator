@@ -42,7 +42,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		s.devices.Close()
 		return event.Next()
 	})
-	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.devices, s.accounts, "test"); err != nil {
+	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.devices, s.accounts, Options{Version: "test"}); err != nil {
 		t.Fatal(err)
 	}
 	mux, err := r.BuildMux()

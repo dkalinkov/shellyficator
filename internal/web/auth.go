@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -31,19 +30,19 @@ func (s *Server) loginPage(e *core.RequestEvent) error {
 	return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in")})
 }
 
-func csrf(e *core.RequestEvent) string {
+func (s *Server) csrf(e *core.RequestEvent) string {
 	if cookie, err := e.Request.Cookie("shelly_csrf"); err == nil && len(cookie.Value) == 64 {
 		return cookie.Value
 	}
 	var token [32]byte
 	_, _ = rand.Read(token[:])
 	value := hex.EncodeToString(token[:])
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_csrf", Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secureCookie(e), MaxAge: 86400})
+	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_csrf", Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: s.secureCookie(e), MaxAge: 86400})
 	return value
 }
 
-func secureCookie(e *core.RequestEvent) bool {
-	return e.Request.TLS != nil || os.Getenv("SHELLY_COOKIE_SECURE") == "true"
+func (s *Server) secureCookie(e *core.RequestEvent) bool {
+	return e.Request.TLS != nil || s.cookieSecure
 }
 
 func checkCSRF(e *core.RequestEvent) error {
@@ -112,7 +111,7 @@ func (s *Server) login(e *core.RequestEvent) error {
 	s.authMu.Lock()
 	delete(s.loginAttempts, ip)
 	s.authMu.Unlock()
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: session.Token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: 86400})
+	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: session.Token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: s.secureCookie(e), MaxAge: 86400})
 	return e.Redirect(http.StatusSeeOther, "/")
 }
 
@@ -140,6 +139,6 @@ func (s *Server) setup(e *core.RequestEvent) error {
 }
 
 func (s *Server) logout(e *core.RequestEvent) error {
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: -1})
+	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: s.secureCookie(e), MaxAge: -1})
 	return e.Redirect(http.StatusSeeOther, "/login")
 }

@@ -37,16 +37,23 @@ type Accounts interface {
 	ValidateSession(string) (domain.Operator, error)
 }
 
+// Options contains presentation configuration supplied by the application.
+type Options struct {
+	Version      string
+	CookieSecure bool
+}
+
 type Server struct {
 	devices       Devices
 	accounts      Accounts
 	templates     *template.Template
 	version       string
+	cookieSecure  bool
 	authMu        sync.Mutex
 	loginAttempts map[string]loginAttempt
 }
 
-func Register(e *core.ServeEvent, devices Devices, accounts Accounts, version string) error {
+func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Options) error {
 	// The app's first-run form creates both accounts; the PocketBase installer is redundant.
 	e.InstallerFunc = nil
 	templates, err := parseTemplates()
@@ -57,7 +64,7 @@ func Register(e *core.ServeEvent, devices Devices, accounts Accounts, version st
 	if err != nil {
 		return err
 	}
-	s := &Server{devices: devices, accounts: accounts, templates: templates, version: version, loginAttempts: map[string]loginAttempt{}}
+	s := &Server{devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}}
 	s.registerRoutes(e.Router, static)
 	return nil
 }

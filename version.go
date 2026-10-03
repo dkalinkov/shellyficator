@@ -22,18 +22,3 @@ func appVersion() string {
 	}
 	return version
 }
-
-func versionDescription() string {
-	details := []string{}
-	if commit != "unknown" {
-		details = append(details, "commit "+commit)
-	}
-	if buildDate != "unknown" {
-		details = append(details, "built "+buildDate)
-	}
-	description := "Shellyficator v" + appVersion()
-	if len(details) > 0 {
-		description += " (" + strings.Join(details, ", ") + ")"
-	}
-	return description
-}
