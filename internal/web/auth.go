@@ -13,6 +13,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"shellyficator/internal/accounts"
 )
 
 type loginAttempt struct {
@@ -142,15 +143,7 @@ func (s *Server) setup(e *core.RequestEvent) error {
 		if count > 0 {
 			return errors.New("setup already completed")
 		}
-		collection, err := app.FindCollectionByNameOrId("operators")
-		if err != nil {
-			return err
-		}
-		record := core.NewRecord(collection)
-		record.SetEmail(email)
-		record.SetPassword(password)
-		record.SetVerified(true)
-		if err := app.Save(record); err != nil {
+		if err := accounts.CreateVerified(app, "operators", email, password); err != nil {
 			return err
 		}
 		count, err = app.CountRecords(core.CollectionNameSuperusers, dbx.Not(dbx.HashExp{"email": core.DefaultInstallerEmail}))
@@ -158,15 +151,7 @@ func (s *Server) setup(e *core.RequestEvent) error {
 			return err
 		}
 		if count == 0 {
-			collection, err = app.FindCollectionByNameOrId(core.CollectionNameSuperusers)
-			if err != nil {
-				return err
-			}
-			admin := core.NewRecord(collection)
-			admin.SetEmail(email)
-			admin.SetPassword(password)
-			admin.SetVerified(true)
-			if err := app.Save(admin); err != nil {
+			if err := accounts.CreateVerified(app, core.CollectionNameSuperusers, email, password); err != nil {
 				return err
 			}
 			if installer, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, core.DefaultInstallerEmail); err == nil {

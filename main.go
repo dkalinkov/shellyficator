@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/spf13/cobra"
 
+	"shellyficator/internal/accounts"
 	"shellyficator/internal/inventory"
 	"shellyficator/internal/shelly"
 	"shellyficator/internal/web"
@@ -40,15 +41,7 @@ func main() {
 				} else if !errors.Is(err, sql.ErrNoRows) {
 					return err
 				}
-				collection, err := tx.FindCollectionByNameOrId(name)
-				if err != nil {
-					return err
-				}
-				record := core.NewRecord(collection)
-				record.SetEmail(email)
-				record.SetPassword(password)
-				record.SetVerified(true)
-				if err := tx.Save(record); err != nil {
+				if err := accounts.CreateVerified(tx, name, email, password); err != nil {
 					return err
 				}
 			}

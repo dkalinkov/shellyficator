@@ -254,11 +254,18 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 	return view
 }
 
+func deviceName(record *core.Record) string {
+	if name := record.GetString("name"); name != "" {
+		return name
+	}
+	return record.GetString("device_id")
+}
+
 func componentKeys(config, status map[string]any, prefix string) []string {
 	keys := map[string]bool{}
 	for _, source := range []map[string]any{config, status} {
 		for key := range source {
-			if strings.HasPrefix(key, prefix) {
+			if strings.Contains(key, ":") && strings.HasPrefix(key, prefix) {
 				keys[key] = true
 			}
 		}
@@ -268,9 +275,16 @@ func componentKeys(config, status map[string]any, prefix string) []string {
 		ordered = append(ordered, key)
 	}
 	sort.Slice(ordered, func(i, j int) bool {
-		a, _ := strconv.Atoi(strings.TrimPrefix(ordered[i], prefix))
-		b, _ := strconv.Atoi(strings.TrimPrefix(ordered[j], prefix))
-		return a < b
+		a, b := strings.SplitN(ordered[i], ":", 2), strings.SplitN(ordered[j], ":", 2)
+		if a[0] != b[0] {
+			return a[0] < b[0]
+		}
+		ai, ae := strconv.Atoi(a[1])
+		bi, be := strconv.Atoi(b[1])
+		if ae == nil && be == nil {
+			return ai < bi
+		}
+		return ordered[i] < ordered[j]
 	})
 	return ordered
 }

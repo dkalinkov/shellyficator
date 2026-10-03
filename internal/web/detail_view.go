@@ -2,7 +2,6 @@ package web
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -118,31 +117,7 @@ func detailDevice(record *core.Record, baseline map[string]any, differences []in
 			mappedRelays[input.RelayKey] = true
 		}
 	}
-	keys := map[string]bool{}
-	for _, source := range []map[string]any{status, config} {
-		for key := range source {
-			if strings.Contains(key, ":") {
-				keys[key] = true
-			}
-		}
-	}
-	ordered := make([]string, 0, len(keys))
-	for key := range keys {
-		ordered = append(ordered, key)
-	}
-	sort.Slice(ordered, func(i, j int) bool {
-		a, b := strings.SplitN(ordered[i], ":", 2), strings.SplitN(ordered[j], ":", 2)
-		if a[0] != b[0] {
-			return a[0] < b[0]
-		}
-		ai, ae := strconv.Atoi(a[1])
-		bi, be := strconv.Atoi(b[1])
-		if ae == nil && be == nil {
-			return ai < bi
-		}
-		return ordered[i] < ordered[j]
-	})
-	for _, key := range ordered {
+	for _, key := range componentKeys(config, status, "") {
 		settings, _ := config[key].(map[string]any)
 		reading, _ := status[key].(map[string]any)
 		parts := strings.SplitN(key, ":", 2)
