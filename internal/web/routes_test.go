@@ -90,7 +90,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		t.Fatalf("application middleware affected PocketBase authentication: %d", response.Code)
 	}
 	devicePath := "/devices/" + id
-	for _, path := range []string{"/", "/inventory", "/discovery/progress", devicePath, devicePath + "/organization"} {
+	for _, path := range []string{"/", "/inventory", "/inventory/refresh", "/discovery/progress", devicePath, devicePath + "/organization"} {
 		if response := request(http.MethodGet, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("GET %s bypassed authentication: %d", path, response.Code)
 		}
@@ -149,7 +149,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	stopping.Store(true)
 	finished := make(chan struct{})
 	go func() {
-		request(http.MethodGet, "/inventory?refresh=1", nil, session)
+		request(http.MethodGet, "/inventory/refresh?refresh=1", nil, session)
 		close(finished)
 	}()
 	waitForRefresh(t, started)

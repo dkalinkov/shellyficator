@@ -22,6 +22,7 @@ func (s *Server) registerRoutes(r *router.Router[*core.RequestEvent], static fs.
 	protected := r.Group("").BindFunc(s.requireLogin)
 	protected.GET("/{$}", s.dashboard)
 	protected.GET("/inventory", s.table)
+	protected.GET("/inventory/refresh", s.refreshInventory)
 	protected.GET("/discovery/progress", s.progress)
 
 	writes := protected.Group("").BindFunc(checkCSRF)

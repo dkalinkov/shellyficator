@@ -130,7 +130,7 @@ func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
 	}
 }
 
-func TestInventoryWaitsForCompletedPassAndLoadsRelatedData(t *testing.T) {
+func TestInventoryKeepsCompletedPassAvailableDuringRefreshAndLoadsRelatedData(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -152,36 +152,61 @@ func TestInventoryWaitsForCompletedPassAndLoadsRelatedData(t *testing.T) {
 	if err := s.store.SaveChannelNote(id, "switch:0", "Desk lamp"); err != nil {
 		t.Fatal(err)
 	}
+	fastRead := make(chan struct{})
+	fastDevice := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/shelly":
+			_, _ = w.Write([]byte(`{"id":"fast-device","mac":"AABBCCDDEE01","gen":4}`))
+		case "/rpc/Shelly.GetStatus":
+			_, _ = w.Write([]byte(`{"switch:0":{"output":true}}`))
+			close(fastRead)
+		}
+	}))
+	t.Cleanup(fastDevice.Close)
+	if _, err := s.store.ApproveReading(shelly.Reading{
+		Identity: shelly.Identity{ID: "fast-device", MAC: "AABBCCDDEE01", Gen: 4}, Address: fastDevice.URL,
+		Status: map[string]any{"switch:0": map[string]any{"output": false}},
+		Config: map[string]any{"switch:0": map[string]any{"in_mode": "momentary"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	done := s.Refresh(false)
 	waitForJob(t, started)
-	reading := make(chan struct{})
+	waitForJob(t, fastRead)
 	result := make(chan struct {
 		devices []Device
 		err     error
 	}, 1)
 	go func() {
-		close(reading)
 		devices, err := s.Inventory()
 		result <- struct {
 			devices []Device
 			err     error
 		}{devices, err}
 	}()
-	waitForJob(t, reading)
 	select {
-	case <-result:
-		t.Fatal("inventory returned while the polling pass was incomplete")
-	case <-time.After(20 * time.Millisecond):
+	case snapshot := <-result:
+		if snapshot.err != nil || len(snapshot.devices) != 2 {
+			t.Fatalf("saved inventory snapshot: count=%d err=%v", len(snapshot.devices), snapshot.err)
+		}
+		for _, device := range snapshot.devices {
+			if inventory.Object(device.Record, "status")["switch:0"].(map[string]any)["output"] != false {
+				t.Fatal("inventory published part of an incomplete polling pass")
+			}
+		}
+	case <-time.After(time.Second):
+		t.Fatal("saved inventory waited for network reads")
 	}
 	close(release)
 	waitForJob(t, done)
-	snapshot := <-result
-	if snapshot.err != nil || len(snapshot.devices) != 1 {
-		t.Fatalf("inventory snapshot: count=%d err=%v", len(snapshot.devices), snapshot.err)
+	snapshot, err := s.Inventory()
+	if err != nil || len(snapshot) != 2 {
+		t.Fatalf("inventory snapshot: count=%d err=%v", len(snapshot), err)
 	}
-	device := snapshot.devices[0]
-	if inventory.Object(device.Record, "status")["switch:0"].(map[string]any)["output"] != true || device.Baseline["switch:0"].(map[string]any)["in_mode"] != "momentary" || device.ChannelNotes["switch:0"] != "Desk lamp" {
-		t.Fatal("inventory snapshot lost completed readings, baseline, or channel notes")
+	for _, device := range snapshot {
+		if inventory.Object(device.Record, "status")["switch:0"].(map[string]any)["output"] != true || device.Baseline["switch:0"].(map[string]any)["in_mode"] != "momentary" || device.Record.Id == id && device.ChannelNotes["switch:0"] != "Desk lamp" {
+			t.Fatal("inventory snapshot lost completed readings, baseline, or channel notes")
+		}
 	}
 }
 
