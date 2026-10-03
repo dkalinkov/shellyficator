@@ -16,13 +16,10 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("Device not found", nil)
 	}
-	page := Page{Title: "Device", CSRF: csrf(e), Device: record, Notice: e.Request.URL.Query().Get("notice"), Name: record.GetString("name")}
+	page := Page{Title: "Device", CSRF: csrf(e), Device: record, Notice: e.Request.URL.Query().Get("notice"), Name: deviceName(record)}
 	page.Rooms, page.Tags, err = s.store.OrganizationOptions()
 	if err != nil {
 		return err
-	}
-	if page.Name == "" {
-		page.Name = record.GetString("device_id")
 	}
 	config := inventory.Object(record, "config")
 	baseline := s.store.Baseline(record)
@@ -85,10 +82,7 @@ func (s *Server) organizationEditor(e *core.RequestEvent) error {
 	if err != nil {
 		return e.NotFoundError("Device not found", nil)
 	}
-	page := Page{Device: record, CSRF: csrf(e), Name: record.GetString("name")}
-	if page.Name == "" {
-		page.Name = record.GetString("device_id")
-	}
+	page := Page{Device: record, CSRF: csrf(e), Name: deviceName(record)}
 	page.Rooms, page.Tags, err = s.store.OrganizationOptions()
 	if err != nil {
 		return err

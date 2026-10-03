@@ -36,10 +36,7 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 	}
 	page.Total = len(records)
 	for _, record := range records {
-		name := record.GetString("name")
-		if name == "" {
-			name = record.GetString("device_id")
-		}
+		name := deviceName(record)
 		device := Device{Record: record, Name: name}
 		if record.GetBool("reachable") {
 			page.Reachable++
