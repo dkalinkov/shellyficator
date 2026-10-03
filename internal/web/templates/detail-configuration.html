@@ -1,0 +1,196 @@
+{{ define "detail-configuration" }}
+  <section
+    id="configuration"
+    class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50"
+    aria-labelledby="config-title"
+  >
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"
+    >
+      <h2
+        id="config-title"
+        class="card-title"
+      >
+        Configuration
+      </h2>
+      <form
+        action="/devices/{{ .Device.Id }}/capture"
+        method="post"
+        hx-post="/devices/{{ .Device.Id }}/capture"
+        {{ template "detail-action-attributes" }}
+      >
+        {{ template "detail-action-csrf" .CSRF }}
+        <button
+          class="btn btn-sm btn-outline pointer-coarse:min-h-10"
+          type="submit"
+        >
+          <svg
+            class="icon"
+            aria-hidden="true"
+          >
+            <use href="#icon-camera"></use>
+          </svg>
+          Capture config
+        </button>
+      </form>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-2.5 p-4">
+      <span
+        class="badge badge-sm badge-soft h-auto min-h-5 py-1 whitespace-normal
+          {{ badgeClass .Detail.Table.ConfigurationTone }}"
+      >
+        <svg
+          class="icon"
+          aria-hidden="true"
+        >
+          <use href="#icon-{{ .Detail.ConfigurationIcon }}"></use>
+        </svg>
+        {{ .Detail.ConfigurationLabel }}
+      </span>
+    </div>
+    {{ if .Detail.ShowDifferences }}
+      <p class="hidden px-4 pb-2.5 text-right text-[11px] text-info max-[480px]:block">
+        Scroll to compare →
+      </p>
+      <div
+        class="overflow-x-auto focus-visible:-outline-offset-2"
+        tabindex="0"
+        role="region"
+        aria-label="Configuration changes"
+      >
+        <table class="table table-sm min-w-[480px] table-fixed">
+          <caption class="sr-only">
+            Changes from the approved baseline to the latest settings read
+          </caption>
+          <thead class="bg-base-content/3 text-[11px] text-base-content/65">
+            <tr>
+              <th scope="col">Setting</th>
+              <th scope="col">Baseline</th>
+              <th scope="col">Latest</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Differences }}
+              <tr>
+                <th
+                  scope="row"
+                  class="font-mono text-[11px] font-normal text-base-content/80 wrap-anywhere"
+                >
+                  {{ .Path }}
+                </th>
+                <td class="text-base-content/65 wrap-anywhere">{{ .Before }}</td>
+                <td class="text-warning wrap-anywhere">{{ .After }}</td>
+              </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    {{ end }}
+    <div
+      class="flex flex-wrap items-center justify-between gap-3.5 border-t border-base-content/10
+        p-4"
+    >
+      <p class="text-xs leading-relaxed text-base-content/75">
+        Saves a comparison baseline. Device settings stay unchanged.
+      </p>
+      <form
+        action="/devices/{{ .Device.Id }}/baseline"
+        method="post"
+        hx-post="/devices/{{ .Device.Id }}/baseline"
+        {{ template "detail-action-attributes" }}
+      >
+        {{ template "detail-action-csrf" .CSRF }}
+        <button
+          type="submit"
+          class="btn btn-sm btn-primary h-auto min-h-9 whitespace-normal pointer-coarse:min-h-10"
+        >
+          {{ if .HasBaseline }}
+            Approve current config
+          {{ else }}
+            Set approved baseline
+          {{ end }}
+        </button>
+      </form>
+    </div>
+  </section>
+{{ end }}
+
+{{ define "detail-history" }}
+  <section
+    id="detail-history"
+    class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50"
+    aria-labelledby="history-title"
+  >
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"
+    >
+      <h2
+        id="history-title"
+        class="card-title"
+      >
+        Capture history
+      </h2>
+      <span class="badge badge-xs badge-ghost">
+        {{ len .Snapshots }}{{ if eq (len .Snapshots) 50 }}{{ " latest" }}{{ end }}
+      </span>
+    </div>
+    <ol class="timeline timeline-vertical timeline-compact px-4 py-2">
+      {{ range .Snapshots }}
+        <li>
+          <hr />
+          <div class="timeline-middle">
+            <span
+              class="status status-sm {{ if eq .Id (get $.Device "baseline") }}
+                status-secondary
+              {{ else }}
+                bg-base-content/35
+              {{ end }}"
+              aria-hidden="true"
+            ></span>
+          </div>
+          <div
+            class="timeline-end my-0 w-full min-w-0 border-b border-base-content/8 px-3 py-4
+              text-xs"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <p class="flex flex-wrap items-center gap-2">
+                {{ get . "reason" }}{{ if eq .Id (get $.Device "baseline") }}
+                  <span class="badge badge-xs badge-soft badge-secondary">Approved baseline</span>
+                {{ end }}
+              </p>
+              <time
+                class="text-[11px] text-base-content/60"
+                datetime="{{ get . "captured" }}"
+              >
+                {{ when (get . "captured") }}
+              </time>
+            </div>
+            {{ if get . "firmware" }}
+              <span class="mt-1 block text-[11px] text-base-content/60">
+                Firmware
+                {{ get . "firmware" }}
+              </span>
+            {{ end }}
+          </div>
+          <hr />
+        </li>
+      {{ else }}
+        <li class="block py-4 text-xs text-base-content/60">No captures yet.</li>
+      {{ end }}
+    </ol>
+  </section>
+{{ end }}
+
+{{ define "detail-action-attributes" }}
+  data-device-action hx-target="#overview" hx-select="#overview" hx-swap="outerHTML"
+  hx-select-oob="#device-heading,#channels,#configuration,#detail-history,#detail-connection,#device-feedback"
+  hx-disabled-elt="find button"
+{{ end }}
+
+{{ define "detail-action-csrf" }}
+  <input
+    type="hidden"
+    name="csrf"
+    value="{{ . }}"
+  />
+{{ end }}

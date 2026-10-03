@@ -1,4 +1,4 @@
-.PHONY: build run test css dev dev-build docker
+.PHONY: build run test css dev dev-build docker format format-check
 
 CSS_INPUTS := ui/styles.css internal/web/templates internal/web/templates.go \
 	$(wildcard internal/web/templates/*.html) \
@@ -42,3 +42,9 @@ dev-build: css
 test:
 	go test ./...
 	go vet ./...
+
+format: node_modules/.package-lock.json
+	npm run format:templates
+
+format-check: node_modules/.package-lock.json
+	npm run check:templates

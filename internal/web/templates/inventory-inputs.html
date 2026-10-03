@@ -1,0 +1,202 @@
+{{ define "input-list" }}
+  <div class="input-panel-body border-b border-base-content/10 bg-info/3 px-4 py-3">
+    <div class="input-panel-meta mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <span class="input-scroll-hint hidden text-base-content/60 inventory-card:inline">
+        Scroll for all settings →
+      </span>
+      {{ if .Table.SettingsWarning }}
+        <span class="input-settings-warning text-warning">{{ .Table.SettingsWarning }}</span>
+      {{ end }}
+      {{ if get .Record "last_captured" }}
+        <span class="input-capture ml-auto text-base-content/60">
+          Settings last read ·
+          {{ when (get .Record "last_captured") }}
+        </span>
+      {{ end }}
+    </div>
+    <div
+      class="input-list-scroll min-w-0 overflow-x-auto overscroll-x-contain rounded-md
+      border border-base-content/10 bg-base-100/40"
+      role="group"
+      aria-label="Input list for {{ .Name }}"
+      tabindex="0"
+    >
+      <table
+        class="input-list table table-xs table-fixed min-w-[1060px] pointer-coarse:min-w-[1080px]"
+      >
+        <caption class="sr-only">Inputs for {{ .Name }}</caption>
+        <colgroup>
+          <col class="w-1/5" />
+          <col class="w-[12%]" />
+          <col class="w-[10%]" />
+          <col class="w-[8%]" />
+          <col />
+          <col class="w-20 pointer-coarse:w-25" />
+        </colgroup>
+        <thead class="input-list-heading">
+          <tr>
+            <th scope="col">Input / type</th>
+            <th scope="col">Mode</th>
+            <th scope="col">Physical state</th>
+            <th scope="col">Relay</th>
+            <th scope="col">Settings</th>
+            <th scope="col">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Table.Inputs }}{{ template "input-row" . }}{{ end }}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{{ end }}
+
+{{ define "input-row" }}
+  <tr
+    class="input-row hover:bg-info/4 focus-within:bg-info/4 *:h-10 *:whitespace-nowrap
+    {{ if .Changed }}input-row-changed bg-warning/4{{ end }}"
+    aria-label="Input {{ .ID }}"
+  >
+    <th
+      scope="row"
+      class="font-normal"
+    >
+      <a
+        class="input-identity group/input flex min-h-7 max-w-60 items-center gap-2
+          pointer-coarse:min-h-10"
+        href="/devices/{{ .DeviceID }}#note-{{ .Key }}"
+        data-tooltip="Input {{ .ID }} · {{ .Type }}{{ if .Name }}&#10;{{ .Name }}{{ end }}"
+      >
+        <span class="input-title shrink-0 font-medium text-info group-hover/input:underline">
+          Input
+          {{ .ID }}
+        </span>
+        <span class="input-type shrink-0 text-base-content/60">{{ .Type }}</span>
+        {{ if .Name }}
+          <span class="input-name truncate text-base-content/65">· {{ .Name }}</span>
+        {{ end }}
+      </a>
+    </th>
+    <td class="input-mode">
+      <div class="flex items-center gap-1.5">
+        <span
+          class="mode-chip badge badge-soft badge-sm
+          {{ if .Changed }}
+            badge-warning
+          {{ else }}
+            {{ badgeClass .ModeTone }}
+          {{ end }}"
+          data-tooltip="{{ .Info }}"
+          tabindex="0"
+        >
+          {{ .Mode }}
+        </span>
+        {{ if .Restriction }}
+          <span
+            class="input-restriction inline-flex text-warning"
+            data-tooltip="{{ .Restriction }}"
+            tabindex="0"
+            role="img"
+            aria-label="{{ .Restriction }}"
+          >
+            <svg
+              class="icon size-3.5"
+              aria-hidden="true"
+            >
+              <use href="#icon-warning"></use>
+            </svg>
+          </span>
+        {{ end }}
+      </div>
+    </td>
+    <td
+      class="input-state font-medium tabular-nums {{ toneClass .StateTone }}"
+      {{ if .StatusInfo }}data-tooltip="{{ .StatusInfo }}" tabindex="0"{{ end }}
+    >
+      {{ .State }}{{ if .StatusInfo }}<span class="sr-only">· {{ .StatusInfo }}</span>{{ end }}
+    </td>
+    <td>
+      <div class="input-relay flex items-center gap-2">
+        {{ if .RelayKey }}
+          <span class="input-relay-id tabular-nums text-base-content/60">{{ .RelayID }}</span>
+          <span
+            class="input-state font-medium tabular-nums {{ toneClass .OutputTone }}"
+            {{ if .StatusInfo }}data-tooltip="{{ .StatusInfo }}" tabindex="0"{{ end }}
+          >
+            {{ .Output }}{{ if .StatusInfo }}
+              <span class="sr-only">· {{ .StatusInfo }}</span>
+            {{ end }}
+          </span>
+        {{ else }}
+          <span class="text-base-content/60">—</span>
+        {{ end }}
+      </div>
+    </td>
+    <td>
+      {{ if .Values }}
+        <dl
+          class="input-settings flex items-center gap-3.5 text-[11px]
+          *:flex *:items-baseline *:gap-1 [&_dt]:text-base-content/60 [&_dd]:font-medium"
+        >
+          {{ range .Values }}
+            <div>
+              <dt>{{ .Label }}</dt>
+              <dd class="{{ if .Warning }}text-warning{{ end }}">{{ .Value }}</dd>
+            </div>
+          {{ end }}
+        </dl>
+      {{ else }}
+        <span class="text-base-content/60">—</span>
+      {{ end }}
+    </td>
+    <td>
+      <div class="input-notes flex items-center gap-1">
+        {{ if .Note }}
+          <a
+            class="input-note-link btn btn-ghost btn-square btn-xs relative text-secondary
+              pointer-coarse:size-10"
+            href="/devices/{{ .DeviceID }}#note-{{ .Key }}"
+            aria-label="Input {{ .ID }} note"
+            data-tooltip="Input {{ .ID }} note&#10;{{ .Note }}"
+          >
+            <svg
+              class="icon size-4"
+              aria-hidden="true"
+            >
+              <use href="#icon-note"></use>
+            </svg>
+            <span
+              class="input-note-label absolute right-0 bottom-0 bg-base-100 text-[10px]"
+              aria-hidden="true"
+            >
+              I
+            </span>
+          </a>
+        {{ end }}
+        {{ if .RelayNote }}
+          <a
+            class="input-note-link btn btn-ghost btn-square btn-xs relative text-secondary
+              pointer-coarse:size-10"
+            href="/devices/{{ .DeviceID }}#note-{{ .RelayKey }}"
+            aria-label="Relay {{ .RelayID }} note"
+            data-tooltip="Relay {{ .RelayID }} note&#10;{{ .RelayNote }}"
+          >
+            <svg
+              class="icon size-4"
+              aria-hidden="true"
+            >
+              <use href="#icon-note"></use>
+            </svg>
+            <span
+              class="input-note-label absolute right-0 bottom-0 bg-base-100 text-[10px]"
+              aria-hidden="true"
+            >
+              R
+            </span>
+          </a>
+        {{ end }}
+        {{ if not (or .Note .RelayNote) }}<span class="text-base-content/60">—</span>{{ end }}
+      </div>
+    </td>
+  </tr>
+{{ end }}

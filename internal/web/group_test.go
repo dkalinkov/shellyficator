@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -103,7 +104,8 @@ func TestInventoryGroupedResponsePreservesFilters(t *testing.T) {
 		t.Fatalf("grouping or filters lost: %s", location)
 	}
 	body := response.Body.String()
-	if strings.Count(body, `data-room-group="`) != 2 || strings.Count(body, `>1 device</span>`) != 2 || !strings.Contains(body, "2 shown") {
+	singularCounts := regexp.MustCompile(`\b1 device\b`).FindAllString(renderedText(body), -1)
+	if strings.Count(body, `data-room-group="`) != 2 || len(singularCounts) != 2 || !strings.Contains(renderedText(body), "2 shown") {
 		t.Fatalf("missing room sections or filtered counts: %s", body)
 	}
 	if strings.Index(body, `data-room-group="Hallway"`) > strings.Index(body, `data-room-group="Kitchen"`) || strings.Contains(body, `data-room-group="Office"`) {

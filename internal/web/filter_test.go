@@ -105,7 +105,7 @@ func TestInventoryResponsePreservesTagFilterAndUpdatesChoices(t *testing.T) {
 		t.Fatalf("filter URL not preserved: %q", response.Header().Get("HX-Replace-Url"))
 	}
 	body := response.Body.String()
-	if !strings.Contains(body, "2 shown") || !strings.Contains(body, `<select id="tag-filter-options" hx-swap-oob="innerHTML">`) || !strings.Contains(body, `<option>ventilator</option>`) {
+	if !strings.Contains(renderedText(body), "2 shown") || renderedAttribute(body, "select", "tag-filter-options", "hx-swap-oob") != "innerHTML" || !strings.Contains(body, `<option>ventilator</option>`) {
 		t.Fatalf("missing filtered count or global tag choices: %s", body)
 	}
 }

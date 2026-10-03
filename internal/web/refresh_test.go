@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -106,7 +107,7 @@ func TestManualRefreshWaitsForSettingsAndReturnsUpdatedTable(t *testing.T) {
 		t.Fatal("manual table response did not finish")
 	}
 	body := response.Body.String()
-	if response.Code != 200 || !strings.Contains(body, ">Detached</span>") || !strings.Contains(body, "Settings last read ·") || strings.Contains(body, "Settings unavailable") || strings.Contains(body, "Cached ·") {
+	if response.Code != 200 || !strings.Contains(renderedText(body), "Detached") || !strings.Contains(body, "Settings last read ·") || strings.Contains(body, "Settings unavailable") || strings.Contains(body, "Cached ·") {
 		t.Fatalf("manual refresh returned stale or misleading table: %s", body)
 	}
 }
@@ -162,7 +163,8 @@ func TestAutomaticRefreshWaitsForCompletedResultsAndSharesThePass(t *testing.T) 
 	if err := <-result; err != nil {
 		t.Fatal(err)
 	}
-	if requests.Load() != 1 || !strings.Contains(response.Body.String(), `text-success">On`) || response.Header().Get("HX-Replace-Url") != "/?group=room" {
+	currentOn := regexp.MustCompile(`class="[^"]*\btext-success\b[^"]*"[^>]*>\s*On(?:\s|<)`).MatchString(response.Body.String())
+	if requests.Load() != 1 || !currentOn || response.Header().Get("HX-Replace-Url") != "/?group=room" {
 		t.Fatal("automatic refresh duplicated the scan, lost filters, or returned old values")
 	}
 }

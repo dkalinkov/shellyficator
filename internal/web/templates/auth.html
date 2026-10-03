@@ -1,0 +1,148 @@
+{{ define "login" }}
+  <!doctype html>
+  <html
+    lang="en"
+    data-theme="abyss"
+  >
+    {{ template "head" . }}
+    <body class="min-h-screen bg-base-100 font-sans text-base-content">
+      {{ template "page-tools" . }}
+      <main
+        id="main"
+        class="mx-auto flex min-h-screen max-w-md items-center px-6 py-12"
+      >
+        <section class="card card-border w-full bg-base-200/50 p-8">
+          {{ template "brand" . }}
+          <p class="mt-3 text-xs text-base-content/60 italic">
+            Keeping your Shellys in line. Allegedly.
+          </p>
+          {{ template "version" . }}
+          <h1 class="mt-6 text-2xl font-semibold">Sign in</h1>
+          {{ if .Error }}
+            <div
+              class="alert alert-error mt-5"
+              role="alert"
+            >
+              {{ .Error }}
+            </div>
+          {{ end }}
+          <form
+            action="/login"
+            method="post"
+            class="mt-7 flex flex-col gap-5"
+          >
+            <input
+              type="hidden"
+              name="csrf"
+              value="{{ .CSRF }}"
+            />
+            <div class="flex flex-col gap-2">
+              <label for="email">Email</label>
+              <input
+                class="input w-full"
+                id="email"
+                type="email"
+                name="email"
+                autocomplete="username"
+                required
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="password">Password</label>
+              <input
+                class="input w-full"
+                id="password"
+                type="password"
+                name="password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn btn-primary w-full"
+            >
+              Sign in
+            </button>
+          </form>
+        </section>
+      </main>
+    </body>
+  </html>
+{{ end }}
+
+{{ define "setup" }}
+  <!doctype html>
+  <html
+    lang="en"
+    data-theme="abyss"
+  >
+    {{ template "head" . }}
+    <body class="min-h-screen bg-base-100 font-sans text-base-content">
+      {{ template "page-tools" . }}
+      <main
+        id="main"
+        class="mx-auto flex min-h-screen max-w-lg items-center px-6 py-12"
+      >
+        <section class="card card-border w-full bg-base-200/50 p-8">
+          {{ template "brand" . }}
+          <p class="mt-3 text-xs text-base-content/60 italic">
+            Keeping your Shellys in line. Allegedly.
+          </p>
+          {{ template "version" . }}
+          <h1 class="mt-6 text-2xl font-semibold">Create account</h1>
+          <p class="mt-3 text-sm text-base-content/60">Also used for PocketBase admin.</p>
+          {{ if .Error }}
+            <div
+              class="alert alert-error mt-5"
+              role="alert"
+            >
+              {{ .Error }}
+            </div>
+          {{ end }}
+          <form
+            action="/setup"
+            method="post"
+            class="mt-7 flex flex-col gap-5"
+          >
+            <input
+              type="hidden"
+              name="csrf"
+              value="{{ .CSRF }}"
+            />
+            <div class="flex flex-col gap-2">
+              <label for="email">Email</label>
+              <input
+                class="input w-full"
+                id="email"
+                type="email"
+                name="email"
+                autocomplete="username"
+                required
+              />
+            </div>
+            <div class="flex flex-col gap-2">
+              <label for="password">Password</label>
+              <input
+                class="input w-full"
+                id="password"
+                type="password"
+                name="password"
+                autocomplete="new-password"
+                minlength="12"
+                required
+              />
+              <p class="text-xs text-base-content/45">At least 12 characters.</p>
+            </div>
+            <button
+              type="submit"
+              class="btn btn-primary w-full"
+            >
+              Create account
+            </button>
+          </form>
+        </section>
+      </main>
+    </body>
+  </html>
+{{ end }}

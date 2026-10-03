@@ -1,0 +1,375 @@
+{{ define "inventory-device" }}
+  <tbody
+    class="device-group t-acc group/device inventory-card:block"
+    data-open="false"
+  >
+    <tr
+      class="device-row cursor-pointer hover:bg-info/5 focus-within:bg-info/5
+      group-data-[open=true]/device:bg-info/5 *:h-13 *:border-b *:border-base-content/10
+      *:whitespace-nowrap inventory-card:grid inventory-card:grid-cols-2 inventory-card:gap-x-4 inventory-card:gap-y-3
+      inventory-card:border-b inventory-card:border-base-content/10 inventory-card:p-4 inventory-card:*:block
+      inventory-card:*:h-auto inventory-card:*:min-w-0 inventory-card:*:border-0 inventory-card:*:p-0
+      {{ if .Table.Note }}has-note{{ end }}
+      {{ if .Table.InputsChanged }}device-row-changed{{ end }}
+      {{ if eq .Table.ConnectivityTone "error" }}device-row-error{{ end }}"
+      data-row-href="/devices/{{ .Record.Id }}"
+    >
+      <th
+        scope="row"
+        class="device-identity border-l-3 font-normal inventory-card:col-span-2
+        {{ if eq .Table.ConnectivityTone "error" }}
+          border-l-error
+        {{ else if .Table.InputsChanged }}
+          border-l-warning
+        {{ else }}
+          border-l-transparent
+        {{ end }}"
+      >
+        <div class="device-identity-line flex min-w-0 items-center gap-2">
+          <a
+            class="device-name min-w-0 truncate font-medium hover:text-info
+            inventory-card:wrap-anywhere inventory-card:whitespace-normal"
+            href="/devices/{{ .Record.Id }}"
+            data-tooltip="{{ .Name }}&#10;{{ .Table.Identity }}"
+          >
+            {{ .Name }}
+          </a>
+          {{ if .Table.Inputs }}
+            <button
+              id="inputs-toggle-{{ .Record.Id }}"
+              type="button"
+              class="input-toggle btn btn-xs pointer-coarse:h-10 pointer-coarse:min-w-10
+              {{ if .Table.InputsChanged }}
+                inputs-changed btn-soft btn-warning
+              {{ else }}
+                btn-ghost text-base-content/60 hover:text-info
+              {{ end }}"
+              data-input-toggle
+              aria-controls="inputs-{{ .Record.Id }}"
+              aria-expanded="false"
+              aria-label="{{ len .Table.Inputs }} {{ if eq (len .Table.Inputs) 1 -}}
+                input
+              {{- else -}}
+                inputs
+              {{- end }} for {{ .Name }}"
+              data-tooltip="{{ len .Table.Inputs }} {{ if eq (len .Table.Inputs) 1 -}}
+                input
+              {{- else -}}
+                inputs
+              {{- end }} · expand settings"
+            >
+              <span>{{ len .Table.Inputs }}</span>
+              <span
+                class="t-acc-chevron inline-flex transition-transform duration-250
+                group-data-[open=true]/device:-scale-y-100 motion-reduce:transition-none
+                in-[.inventory-restoring]:transition-none"
+                aria-hidden="true"
+              >
+                <svg
+                  class="icon size-3.5"
+                  viewBox="0 0 16 16"
+                >
+                  <path
+                    class="[vector-effect:non-scaling-stroke]"
+                    d="M4 6.5L8 10.5L12 6.5"
+                  />
+                </svg>
+              </span>
+            </button>
+          {{ end }}
+        </div>
+      </th>
+      <td class="device-model inventory-card:col-start-1 inventory-card:row-start-2">
+        <span
+          class="model-chip badge badge-soft badge-info badge-sm max-w-full pointer-coarse:min-h-10"
+          data-tooltip="{{ .Table.Identity }}"
+        >
+          <span class="truncate">{{ .Table.Model }}</span>
+          <span class="model-generation text-secondary">G{{ get .Record "generation" }}</span>
+        </span>
+      </td>
+      <td class="device-address inventory-card:col-start-1 inventory-card:row-start-3">
+        <span
+          class="device-ip block truncate font-mono text-xs text-base-content/80"
+          data-tooltip="{{ get .Record "address" }}"
+          tabindex="0"
+        >
+          {{ .Table.Address }}
+        </span>
+      </td>
+      <td class="device-room inventory-card:col-start-2 inventory-card:row-start-3">
+        <button
+          id="room-edit-{{ .Record.Id }}"
+          type="button"
+          class="room-chip room-edit btn btn-xs max-w-full min-w-0 truncate pointer-coarse:h-10 pointer-coarse:min-w-10
+          {{ if get .Record "room" }}
+            btn-soft text-info [--btn-color:var(--label-color,var(--color-info))]
+            data-[colored-label]:text-(--label-color)
+          {{ else }}
+            room-empty btn-ghost border-dashed border-base-content/25 text-base-content/55
+          {{ end }}"
+          hx-get="/devices/{{ .Record.Id }}/organization"
+          hx-target="#organization-content"
+          data-organization-open
+          data-room-label="{{ get .Record "room" }}"
+          aria-haspopup="dialog"
+          aria-controls="organization-dialog"
+          aria-label="Edit room & tags for {{ .Name }}"
+          data-tooltip="{{ if get .Record "room" -}}
+            Room:&#32;{{- get .Record "room" }}
+          {{- else -}}
+            Add room
+          {{- end }}"
+        >
+          {{ if get .Record "room" }}
+            {{ get .Record "room" }}
+          {{ else }}
+            + Room
+          {{ end }}
+        </button>
+      </td>
+      <td class="device-connectivity inventory-card:col-start-1 inventory-card:row-start-4">
+        <div class="device-status inline-flex max-w-full flex-wrap items-center">
+          <a
+            href="/devices/{{ .Record.Id }}"
+            class="status-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
+            {{ toneClass .Table.ConnectivityTone }}"
+            aria-label="{{ .Table.Connectivity }}: {{ .Name }}"
+            data-tooltip="{{ .Table.Connectivity }}&#10;{{ .Table.ConnectionInfo }}"
+          >
+            <svg
+              class="icon"
+              aria-hidden="true"
+            >
+              <use href="#icon-{{ .Table.ConnectivityIcon }}"></use>
+            </svg>
+          </a>
+          {{ if eq .Table.Cloud.Value "Connected" }}
+            <a
+              href="/devices/{{ .Record.Id }}#detail-connection"
+              class="cloud-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
+              {{ toneClass .Table.Cloud.Tone }}
+              {{ if eq .Table.Cloud.Tone "muted" }}
+                opacity-30 hover:opacity-100 focus-visible:opacity-100
+              {{ end }}"
+              aria-label="Shelly Cloud: {{ .Table.Cloud.Value }} for {{ .Name }}{{ if .Table.StatusInfo -}}
+                &#32;· last reported
+              {{- end }}"
+              data-tooltip="Shelly Cloud: {{ .Table.Cloud.Value }}{{ if .Table.StatusInfo -}}
+                &#32;· last reported
+              {{- end }}&#10;{{ .Table.Cloud.Info }}"
+            >
+              <svg
+                class="icon {{ if eq .Table.Cloud.Tone "ok" }}
+                  stroke-[2.2] drop-shadow-[0_0_2px_currentColor]
+                {{ end }}"
+                aria-hidden="true"
+              >
+                <use href="#icon-cloud"></use>
+                <use
+                  class="cloud-glint opacity-0
+                  {{ if eq .Table.Cloud.Tone "ok" }}
+                    stroke-[color-mix(in_oklab,currentColor_25%,white)] stroke-[2.2]
+                    [stroke-dasharray:12_88] animate-[cloud-shine_2.4s_linear_infinite]
+                    motion-reduce:animate-none
+                  {{ end }}"
+                  href="#icon-cloud"
+                ></use>
+              </svg>
+            </a>
+          {{ end }}
+          {{ if .Table.RestartRequired }}
+            <a
+              href="/devices/{{ .Record.Id }}#detail-connection"
+              class="restart-indicator btn btn-ghost btn-square btn-xs text-warning
+                pointer-coarse:size-10"
+              aria-label="Restart required for {{ .Name }}"
+              data-tooltip="Restart required&#10;Status checked · {{ when (get .Record "last_checked") }}"
+            >
+              <svg
+                class="icon"
+                aria-hidden="true"
+              >
+                <use href="#icon-refresh"></use>
+              </svg>
+            </a>
+          {{ end }}
+        </div>
+      </td>
+      <td class="device-wifi inventory-card:col-start-2 inventory-card:row-start-2">
+        {{ if .Table.Signal }}
+          <button
+            type="button"
+            class="wifi-value tooltip-trigger btn btn-ghost btn-xs px-0 tabular-nums
+            pointer-coarse:h-10 {{ toneClass .Table.SignalTone }}"
+            aria-label="{{ .Table.Signal }}"
+            data-tooltip="{{ .Table.Signal }}"
+          >
+            <svg
+              class="icon size-6"
+              aria-hidden="true"
+            >
+              <use href="#icon-wifi"></use>
+            </svg>
+            <span>{{ .Table.SignalValue }}</span>
+            <span class="wifi-unit text-xs font-normal">dBm</span>
+          </button>
+        {{ else }}
+          <span class="text-base-content/60">—</span>
+        {{ end }}
+      </td>
+      <td class="device-config inventory-card:col-start-2 inventory-card:row-start-4">
+        <a
+          href="/devices/{{ .Record.Id }}"
+          class="config-value badge badge-soft badge-sm max-w-full gap-1 text-[11px]
+          pointer-coarse:min-h-10 {{ badgeClass .Table.ConfigurationTone }}"
+          aria-label="Saved config: {{ .Table.Configuration }}{{ if .Table.ConfigurationStale -}}
+            &#32;· last known
+          {{- end }}"
+          data-tooltip="{{ .Table.ConfigurationInfo }}"
+        >
+          {{ if eq .Table.ConfigurationTone "warning" }}
+            <svg
+              class="icon size-3.5"
+              aria-hidden="true"
+            >
+              <use href="#icon-warning"></use>
+            </svg>
+          {{ else if eq .Table.ConfigurationTone "ok" }}
+            <svg
+              class="icon size-3.5"
+              aria-hidden="true"
+            >
+              <use href="#icon-check"></use>
+            </svg>
+          {{ end }}
+          <span class="truncate">{{ .Table.Configuration }}</span>
+        </a>
+      </td>
+      <td class="device-actions inventory-card:col-span-2 inventory-card:row-start-5">
+        <div class="row-actions flex items-center justify-center inventory-card:justify-end">
+          <button
+            id="tags-edit-{{ .Record.Id }}"
+            type="button"
+            class="tag-editor btn btn-ghost btn-xs w-10 gap-0.5 px-0.5 text-secondary
+              pointer-coarse:h-10"
+            hx-get="/devices/{{ .Record.Id }}/organization"
+            hx-target="#organization-content"
+            data-organization-open
+            aria-haspopup="dialog"
+            aria-controls="organization-dialog"
+            aria-label="Edit tags for {{ .Name }}"
+            data-tooltip="{{ if get .Record "tags" -}}
+              Tags:&#32;{{- get .Record "tags" }}
+            {{- else -}}
+              Add tags
+            {{- end }}"
+          >
+            <svg
+              class="icon"
+              aria-hidden="true"
+            >
+              <use href="#icon-tag"></use>
+            </svg>
+            {{ if get .Record "tags" }}
+              <span
+                class="tag-count text-[9px] font-medium"
+                aria-hidden="true"
+              >
+                {{ len (tags (get .Record "tags")) }}
+              </span>
+            {{ end }}
+          </button>
+          <button
+            type="button"
+            class="tooltip-trigger btn btn-ghost btn-square btn-xs pointer-coarse:size-10
+            {{ if flag .Record "auth_enabled" }}
+              security-protected text-success
+            {{ else }}
+              security-open text-warning
+            {{ end }}"
+            aria-label="{{ if flag .Record "auth_enabled" -}}
+              Device password enabled
+            {{- else -}}
+              No device password
+            {{- end }}"
+            data-tooltip="{{ if flag .Record "auth_enabled" -}}
+              Device password enabled
+            {{- else -}}
+              No device password
+            {{- end }}"
+          >
+            <svg
+              class="icon"
+              aria-hidden="true"
+            >
+              <use
+                href="{{ if flag .Record "auth_enabled" -}}
+                  #icon-lock
+                {{- else -}}
+                  #icon-unlock
+                {{- end }}"
+              ></use>
+            </svg>
+          </button>
+          {{ if .Table.Note }}
+            <a
+              href="/devices/{{ .Record.Id }}#device-notes"
+              class="note-indicator btn btn-ghost btn-square btn-xs text-secondary
+                pointer-coarse:size-10"
+              aria-label="Note for {{ .Name }}"
+              data-tooltip="{{ .Table.Note }}"
+            >
+              <svg
+                class="icon"
+                aria-hidden="true"
+              >
+                <use href="#icon-note"></use>
+              </svg>
+            </a>
+          {{ end }}
+          <a
+            href="{{ get .Record "address" }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="device-ui-link btn btn-ghost btn-square btn-xs text-info pointer-coarse:size-10"
+            aria-label="Open device UI for {{ .Name }}"
+            data-tooltip="Open device UI"
+          >
+            <svg
+              class="icon"
+              aria-hidden="true"
+            >
+              <use href="#icon-external"></use>
+            </svg>
+          </a>
+        </div>
+      </td>
+    </tr>
+    {{ if .Table.Inputs }}
+      <tr
+        class="input-detail-row inventory-card:block"
+        aria-hidden="true"
+        inert
+      >
+        <td
+          colspan="8"
+          class="p-0 inventory-card:block"
+        >
+          <div
+            id="inputs-{{ .Record.Id }}"
+            class="t-acc-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-250
+            group-data-[open=true]/device:grid-rows-[1fr] motion-reduce:transition-none
+            in-[.inventory-restoring]:transition-none"
+            role="region"
+            aria-label="Inputs for {{ .Name }}"
+          >
+            <div class="t-acc-panel-inner min-h-0 overflow-hidden">
+              {{ template "input-list" . }}
+            </div>
+          </div>
+        </td>
+      </tr>
+    {{ end }}
+  </tbody>
+{{ end }}

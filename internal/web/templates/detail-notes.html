@@ -1,0 +1,171 @@
+{{ define "detail-channel-notes" }}
+  {{ if .Detail.Notes }}
+    <section
+      class="card card-sm card-border bg-base-200/50"
+      aria-labelledby="channel-notes-title"
+    >
+      <div class="border-b border-base-content/10 p-4">
+        <h2
+          id="channel-notes-title"
+          class="card-title"
+        >
+          <svg
+            class="icon text-secondary"
+            aria-hidden="true"
+          >
+            <use href="#icon-note"></use>
+          </svg>
+          Channel notes
+        </h2>
+      </div>
+      {{ range .Detail.Notes }}{{ template "detail-note" . }}{{ end }}
+    </section>
+  {{ end }}
+{{ end }}
+
+{{ define "detail-metadata" }}
+  <section
+    id="notes"
+    class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50 min-[481px]:col-span-2
+      min-[801px]:col-span-1"
+    aria-labelledby="notes-title"
+  >
+    <div class="border-b border-base-content/10 p-4">
+      <h2
+        id="notes-title"
+        class="card-title"
+      >
+        <svg
+          class="icon text-secondary"
+          aria-hidden="true"
+        >
+          <use href="#icon-note"></use>
+        </svg>
+        Organization & notes
+      </h2>
+    </div>
+    <form
+      class="grid gap-4 p-4"
+      action="/devices/{{ .Device.Id }}/metadata"
+      method="post"
+      data-metadata-form
+    >
+      <input
+        type="hidden"
+        name="csrf"
+        value="{{ .CSRF }}"
+      />
+      {{ template "organization-fields" . }}
+      <div class="flex flex-col gap-2">
+        <label
+          class="text-xs"
+          for="device-notes"
+        >
+          Note
+        </label>
+        <textarea
+          id="device-notes"
+          class="textarea w-full scroll-mt-18 pointer-coarse:text-base"
+          name="notes"
+          rows="5"
+          maxlength="8000"
+        >
+{{ get .Device "notes" }}</textarea>
+      </div>
+      <button
+        class="btn btn-sm btn-primary w-full pointer-coarse:min-h-10"
+        type="submit"
+      >
+        Save changes
+      </button>
+    </form>
+  </section>
+{{ end }}
+
+{{ define "detail-note-link" }}
+  <a
+    class="detail-note-link link link-hover mt-2 inline-flex min-h-8 items-center gap-1.5
+      text-[11px] text-secondary pointer-coarse:min-h-10"
+    href="#note-{{ .Key }}"
+  >
+    <svg
+      class="icon"
+      aria-hidden="true"
+    >
+      <use href="#icon-note"></use>
+    </svg>
+    {{ if .Notes }}
+      Edit note
+    {{ else }}
+      Add note
+    {{ end }}
+
+  </a>
+{{ end }}
+
+{{ define "detail-note" }}
+  <details
+    class="detail-note-editor collapse collapse-plus rounded-none border-b border-base-content/10
+      last:border-b-0 has-[:target]:border-l-2 has-[:target]:border-l-secondary"
+    id="editor-{{ .Channel.Key }}"
+  >
+    <summary class="collapse-title flex min-h-11 items-center gap-2 py-3 text-xs">
+      <svg
+        class="icon text-secondary"
+        aria-hidden="true"
+      >
+        <use href="#icon-note"></use>
+      </svg>
+      <span class="wrap-anywhere">{{ .Channel.Name }}</span>
+      <span class="detail-component font-mono text-[10px] text-base-content/55 wrap-anywhere">
+        {{ .Channel.Key }}
+      </span>
+      <span
+        class="ml-auto max-w-[40%] truncate text-[11px] text-base-content/55 max-[480px]:hidden"
+      >
+        {{ if .Channel.Notes }}
+          {{ .Channel.Notes }}
+        {{ else }}
+          Add note
+        {{ end }}
+      </span>
+    </summary>
+    <form
+      class="collapse-content grid gap-2.5"
+      method="post"
+      action="/devices/{{ .DeviceID }}/channel-notes"
+    >
+      <input
+        type="hidden"
+        name="csrf"
+        value="{{ .CSRF }}"
+      />
+      <input
+        type="hidden"
+        name="component"
+        value="{{ .Channel.Key }}"
+      />
+      <label
+        class="sr-only"
+        for="note-{{ .Channel.Key }}"
+      >
+        Note for
+        {{ .Channel.Name }}
+      </label>
+      <textarea
+        id="note-{{ .Channel.Key }}"
+        class="textarea w-full scroll-mt-18 pointer-coarse:text-base"
+        name="notes"
+        rows="3"
+        maxlength="8000"
+      >
+{{ .Channel.Notes }}</textarea>
+      <button
+        class="btn btn-sm btn-outline justify-self-start pointer-coarse:min-h-10"
+        type="submit"
+      >
+        Save note
+      </button>
+    </form>
+  </details>
+{{ end }}

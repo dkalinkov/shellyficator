@@ -137,6 +137,9 @@ func groupDevicesByRoom(devices []Device) []RoomGroup {
 		}
 		return strings.ToLower(a) < strings.ToLower(b)
 	})
+	for i := range groups {
+		groups[i].Index = i
+	}
 	return groups
 }
 
