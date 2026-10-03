@@ -63,9 +63,9 @@
   .col-model, .col-address, .col-room, .col-status, .col-wifi, .col-config { width: auto; }
   .col-actions { width: 150px; }
   .device-table thead th { @apply border-b border-base-content/10 px-3 py-3 text-xs font-medium text-base-content/60; }
-  .device-table thead th:not(:first-child) { text-align: center; }
+  .device-table thead th:not(:first-child) { text-align: left; }
   .device-table .device-row > th, .device-table .device-row > td { @apply border-b border-base-content/10 px-3 align-middle; padding-top: 8px; padding-bottom: 8px; height: 52px; font-size: 13px; font-weight: 400; white-space: nowrap; }
-  .device-table .device-row > td { text-align: center; }
+  .device-table .device-row > td { text-align: left; }
   .device-table .device-row :is(.model-chip, .room-chip, .input-toggle, .config-value.tone-ok, .config-value.tone-warning) { height: var(--inventory-badge-height); min-height: var(--inventory-badge-height); }
   .device-row { cursor: pointer; }
   .device-row:hover, .device-row:focus-within, .device-group[data-open="true"] .device-row { background: color-mix(in oklab, var(--table-blue) 5%, transparent); }
@@ -116,6 +116,7 @@
   .icon-button { @apply inline-flex shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-base-content/60; width: 30px; height: 32px; cursor: pointer; touch-action: manipulation; }
   .icon-button:hover { background: color-mix(in oklab, currentColor 10%, transparent); }
   .cloud-indicator.tone-ok { color: var(--cloud-connected-color); background: color-mix(in oklab, currentColor 7%, transparent); }
+  .icon-button.cloud-indicator { background: transparent; }
   .cloud-indicator.tone-warning { color: var(--table-amber); }
   .cloud-indicator.tone-muted { opacity: .3; }
   .cloud-indicator.tone-muted:hover, .cloud-indicator.tone-muted:focus-visible { opacity: 1; }
