@@ -1,65 +1,160 @@
 {{define "detail"}}{{template "head" .}}{{template "header" .}}
-<main id="main" class="device-detail mx-auto max-w-[1440px] px-5 py-7 lg:px-10">
+<main id="main" class="mx-auto max-w-[1440px] px-5 py-7 text-sm lg:px-10">
   <div id="device-feedback" role="status">{{template "notice" .}}</div>
-  <a href="/" class="detail-back"><svg class="icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>All devices</a>
-  <header id="device-heading" class="detail-heading">
-    <div class="detail-heading-identity">
-      <div class="detail-title-line"><h1>{{.Name}}</h1><a href="#notes" class="detail-room" data-room-label="{{get .Device "room"}}"><svg class="icon" aria-hidden="true"><use href="#icon-pin"></use></svg>{{if get .Device "room"}}{{get .Device "room"}}{{else}}Add room{{end}}</a></div>
-      <div class="detail-labels">
-        <div class="detail-device-meta"><span class="state-chip tone-{{.Detail.Table.ConnectivityTone}}" data-tooltip="{{.Detail.Table.ConnectionInfo}}" tabindex="0"><span class="dot" aria-hidden="true"></span>{{.Detail.Table.Connectivity}}</span><span class="model-chip"{{if get .Device "model"}} data-tooltip="Model {{get .Device "model"}}" tabindex="0"{{end}}>{{if .Detail.Table.Model}}<span>{{.Detail.Table.Model}}</span>{{end}}<span class="model-generation">Gen {{get .Device "generation"}}</span></span></div>
-        {{with tags (get .Device "tags")}}<div class="detail-organization">{{range .}}<a href="#notes" class="detail-tag" data-tag-label="{{.}}">{{.}}</a>{{end}}</div>{{end}}
+  <a href="/" class="btn btn-sm btn-ghost -ml-3 font-normal text-base-content/65 pointer-coarse:min-h-10"><svg class="icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>All devices</a>
+  <header id="device-heading" class="mt-5 mb-6 grid items-start gap-4 min-[801px]:grid-cols-[minmax(0,1fr)_280px] min-[1101px]:grid-cols-[minmax(0,1fr)_320px] min-[1101px]:gap-6">
+    <div class="grid min-w-0 gap-3">
+      <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+        <h1 class="min-w-0 max-w-full text-2xl leading-tight font-semibold tracking-tight wrap-anywhere xl:text-3xl">{{.Name}}</h1>
+        <a href="#notes" class="link link-hover inline-flex min-h-7 max-w-full items-baseline gap-1.5 text-lg leading-tight font-medium wrap-anywhere text-[var(--label-color,var(--color-info))] pointer-coarse:min-h-10" data-room-label="{{get .Device "room"}}"><svg class="icon self-center" aria-hidden="true"><use href="#icon-pin"></use></svg>{{if get .Device "room"}}{{get .Device "room"}}{{else}}Add room{{end}}</a>
+      </div>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 max-[480px]:grid">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <span class="badge badge-sm badge-soft min-h-7 {{badgeClass .Detail.Table.ConnectivityTone}}" data-tooltip="{{.Detail.Table.ConnectionInfo}}" tabindex="0"><span class="status bg-current text-inherit" aria-hidden="true"></span>{{.Detail.Table.Connectivity}}</span>
+          <span class="badge badge-sm badge-ghost min-h-7"{{if get .Device "model"}} data-tooltip="Model {{get .Device "model"}}" tabindex="0"{{end}}>{{if .Detail.Table.Model}}<span>{{.Detail.Table.Model}}</span>{{end}}<span class="text-base-content/50">Gen {{get .Device "generation"}}</span></span>
+        </div>
+        {{with tags (get .Device "tags")}}<div class="flex min-w-0 flex-wrap items-center gap-2 min-[801px]:border-l min-[801px]:border-base-content/15 min-[801px]:pl-3">
+          {{range .}}<a href="#notes" class="badge badge-sm badge-soft h-auto min-h-7 py-1 wrap-anywhere [--badge-color:var(--label-color,var(--color-secondary))] pointer-coarse:min-h-10" data-tag-label="{{.}}">{{.}}</a>{{end}}
+        </div>{{end}}
       </div>
     </div>
-    <div class="detail-actions"><form action="/devices/{{.Device.Id}}/refresh" method="post" hx-post="/devices/{{.Device.Id}}/refresh" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button type="submit" class="btn btn-sm btn-outline w-full"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>Refresh status</button></form><a class="btn btn-sm detail-open-ui w-full" href="{{get .Device "address"}}" target="_blank" rel="noopener noreferrer">Open device UI<svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg></a></div>
+    <div class="grid w-full max-w-80 grid-cols-2 items-start gap-2">
+      <form class="min-w-0" action="/devices/{{.Device.Id}}/refresh" method="post" hx-post="/devices/{{.Device.Id}}/refresh" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button type="submit" class="btn btn-sm btn-outline min-h-9 w-full px-2 font-medium pointer-coarse:min-h-10"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>Refresh status</button></form>
+      <a class="btn btn-sm btn-info btn-soft min-h-9 w-full px-2 font-medium pointer-coarse:min-h-10" href="{{get .Device "address"}}" target="_blank" rel="noopener noreferrer">Open device UI<svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg></a>
+    </div>
   </header>
-  <nav class="detail-nav" aria-label="Device sections"><a href="#overview" aria-current="location">Overview</a><a href="#channels">Channels & inputs</a><a href="#configuration">Configuration</a><a href="#notes">Notes</a></nav>
-  <section id="overview" class="detail-overview" aria-label="Device overview">
-    <dl class="detail-summary">{{range .Detail.Summary}}<div class="panel detail-summary-item"><dt><svg class="icon" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg>{{.Label}}</dt><dd class="tone-{{.Tone}}">{{.Value}}{{if .Unit}}<span class="detail-unit">{{.Unit}}</span>{{end}}</dd></div>{{end}}</dl>
-    {{if get .Device "problem"}}<p class="detail-banner tone-warning">{{get .Device "problem"}}</p>{{end}}
-    {{range .Detail.Faults}}<p class="detail-banner tone-error"><svg class="icon" aria-hidden="true"><use href="#icon-warning"></use></svg>{{.}}</p>{{end}}
+  <nav class="detail-nav tabs tabs-border sticky top-0 z-15 flex-nowrap overflow-x-auto border-b border-base-content/10 bg-base-100" aria-label="Device sections">
+    <a href="#overview" class="tab tab-active shrink-0 text-xs font-medium max-[480px]:px-2 max-[480px]:text-[11px]" aria-current="location">Overview</a>
+    <a href="#channels" class="tab shrink-0 text-xs font-medium max-[480px]:px-2 max-[480px]:text-[11px]">Channels & inputs</a>
+    <a href="#configuration" class="tab shrink-0 text-xs font-medium max-[480px]:px-2 max-[480px]:text-[11px]">Configuration</a>
+    <a href="#notes" class="tab shrink-0 text-xs font-medium max-[480px]:px-2 max-[480px]:text-[11px]">Notes</a>
+  </nav>
+  <section id="overview" class="scroll-mt-18" aria-label="Device overview">
+    <dl class="my-6 grid grid-cols-2 gap-2 min-[481px]:grid-cols-3 min-[481px]:gap-3">
+      {{range .Detail.Summary}}<div class="stat min-w-0 rounded-box border border-base-content/10 bg-base-200/50 px-3 py-4 last:col-span-2 min-[481px]:px-4 min-[481px]:last:col-span-1">
+        <dt class="stat-title flex items-center gap-2 text-[11px]"><svg class="icon" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg>{{.Label}}</dt>
+        <dd class="stat-value mt-3 text-xl leading-tight font-medium tracking-tight whitespace-normal tabular-nums wrap-anywhere {{toneClass .Tone}}">{{.Value}}{{if .Unit}}<span class="ml-1 text-xs font-normal tracking-normal">{{.Unit}}</span>{{end}}</dd>
+      </div>{{end}}
+    </dl>
+    {{if get .Device "problem"}}<p class="alert alert-warning alert-soft mb-4 text-xs wrap-anywhere">{{get .Device "problem"}}</p>{{end}}
+    {{range .Detail.Faults}}<p class="alert alert-error alert-soft mb-4 text-xs wrap-anywhere"><svg class="icon" aria-hidden="true"><use href="#icon-warning"></use></svg><span>{{.}}</span></p>{{end}}
   </section>
-  <div class="detail-layout">
-    <div class="detail-main">
-      <section id="channels" aria-labelledby="channels-title">
-        <div class="detail-section-heading"><h2 id="channels-title">Channels & inputs</h2><div class="detail-read-times"><p class="detail-read-time">Status checked · {{when (get .Device "last_checked")}}</p><p class="detail-read-time">Settings read · {{when (get .Device "last_captured")}}</p>{{if .Detail.Table.SettingsWarning}}<p class="detail-read-time tone-warning">{{.Detail.Table.SettingsWarning}}</p>{{end}}</div></div>
-        {{if .Detail.Outputs}}<div class="detail-output-grid">{{range .Detail.Outputs}}
-          <article id="channel-{{.Key}}" class="panel detail-channel" aria-label="{{.Kind}} {{.Name}}">
-            <div class="detail-channel-heading"><span class="detail-channel-icon tone-{{.StateTone}}"><svg class="icon" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg></span><div><h3>{{.Name}}</h3><p class="detail-component">{{.Key}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div>
-            {{template "detail-channel-body" .}}
-          </article>
-        {{end}}</div>{{end}}
-        {{if .Detail.Inputs}}
-        <section class="panel detail-input-panel" aria-labelledby="physical-inputs-title"><div class="detail-panel-heading"><h3 id="physical-inputs-title"><svg class="icon tone-blue" aria-hidden="true"><use href="#icon-input"></use></svg>Physical inputs<span class="detail-count">{{len .Detail.Inputs}}</span></h3></div>
-          {{range .Detail.Inputs}}<article class="detail-input" aria-label="{{.Name}}">
-            <div class="detail-input-heading"><div><h4>{{.Name}}</h4><p class="detail-component">{{.Key}}{{if and .Input (ne .Input.Type "—")}} · {{.Input.Type}}{{end}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div>
-            {{if .Input}}<div class="detail-input-mapping">{{if .Input.RelayKey}}<span class="mode-chip tone-{{if .Input.Changed}}warning{{else}}{{.Input.ModeTone}}{{end}}" tabindex="0" data-tooltip="{{.Input.Info}}">{{.Input.Mode}}</span><svg class="icon detail-mapping-arrow" aria-hidden="true"><use href="#icon-arrow-right"></use></svg><a href="#channel-{{.Input.RelayKey}}" class="detail-relay-label">Relay {{.Input.RelayID}}</a>{{else}}<span class="tone-muted">No mapped relay</span>{{end}}</div>
-            {{if .Input.Values}}<dl class="detail-input-settings {{if not $.Detail.ConfigAvailable}}detail-saved-settings{{end}}">{{range .Input.Values}}<div><dt>{{.Label}}</dt><dd class="{{if or (and (eq .Label "Locked") (eq .Value "Yes")) (and (eq .Label "Enabled") (eq .Value "No"))}}tone-warning{{end}}">{{.Value}}</dd></div>{{end}}</dl>{{end}}{{end}}
+  <div class="grid items-start gap-6 min-[801px]:grid-cols-[minmax(0,1fr)_280px] min-[1101px]:grid-cols-[minmax(0,1fr)_320px]">
+    <div class="grid min-w-0 gap-6">
+      <section id="channels" class="min-w-0 scroll-mt-18" aria-labelledby="channels-title">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="channels-title" class="text-xl font-semibold tracking-tight">Channels & inputs</h2>
+          <div class="grid min-w-0 gap-1 text-right text-[11px] text-base-content/60 max-[480px]:text-left">
+            <p class="wrap-anywhere">Status checked · {{when (get .Device "last_checked")}}</p>
+            <p class="wrap-anywhere">Settings read · {{when (get .Device "last_captured")}}</p>
+            {{if .Detail.Table.SettingsWarning}}<p class="wrap-anywhere text-warning">{{.Detail.Table.SettingsWarning}}</p>{{end}}
+          </div>
+        </div>
+        {{if .Detail.Outputs}}<div class="grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[801px]:grid-cols-1 min-[1101px]:grid-cols-2">
+          {{range .Detail.Outputs}}<article id="channel-{{.Key}}" class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50" aria-label="{{.Kind}} {{.Name}}">
+            <div class="card-body">
+              <div class="flex items-center gap-2.5">
+                <span class="badge badge-lg badge-soft size-10 p-0 {{badgeClass .StateTone}}"><svg class="icon" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg></span>
+                <div class="min-w-0 flex-1"><h3 class="text-sm font-medium wrap-anywhere">{{.Name}}</h3><p class="detail-component mt-0.5 font-mono text-[10px] font-normal text-base-content/55 wrap-anywhere">{{.Key}}</p></div>
+                <span class="badge badge-sm badge-soft {{badgeClass .StateTone}}">{{.State}}</span>
+              </div>
+              {{template "detail-channel-body" .}}
+            </div>
+          </article>{{end}}
+        </div>{{end}}
+        {{if .Detail.Inputs}}<section class="card card-sm card-border mt-4 overflow-hidden bg-base-200/50" aria-labelledby="physical-inputs-title">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"><h3 id="physical-inputs-title" class="card-title text-sm font-medium"><svg class="icon text-info" aria-hidden="true"><use href="#icon-input"></use></svg>Physical inputs<span class="badge badge-xs badge-ghost">{{len .Detail.Inputs}}</span></h3></div>
+          {{range .Detail.Inputs}}<article class="border-b border-base-content/10 p-4 last:border-b-0" aria-label="{{.Name}}">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0"><h4 class="text-[13px] font-medium wrap-anywhere">{{.Name}}</h4><p class="detail-component mt-0.5 font-mono text-[10px] text-base-content/55 wrap-anywhere">{{.Key}}{{if and .Input (ne .Input.Type "—")}} · {{.Input.Type}}{{end}}</p></div>
+              <span class="badge badge-sm badge-soft {{badgeClass .StateTone}}">{{.State}}</span>
+            </div>
+            {{if .Input}}<div class="mt-3 flex flex-wrap items-center gap-2.5 text-xs">
+              {{if .Input.RelayKey}}<span class="badge badge-sm badge-soft {{if .Input.Changed}}badge-warning{{else}}{{badgeClass .Input.ModeTone}}{{end}}" tabindex="0" data-tooltip="{{.Input.Info}}">{{.Input.Mode}}</span><svg class="icon text-base-content/45" aria-hidden="true"><use href="#icon-arrow-right"></use></svg><a href="#channel-{{.Input.RelayKey}}" class="link link-hover text-base-content/70">Relay {{.Input.RelayID}}</a>{{else}}<span class="text-base-content/60">No mapped relay</span>{{end}}
+            </div>
+            {{if .Input.Values}}<dl class="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] {{if not $.Detail.ConfigAvailable}}detail-saved-settings border-l-2 border-warning pl-2.5{{end}}">
+              {{range .Input.Values}}<div class="flex flex-wrap gap-1"><dt class="text-base-content/55">{{.Label}}</dt><dd class="{{if or (and (eq .Label "Locked") (eq .Value "Yes")) (and (eq .Label "Enabled") (eq .Value "No"))}}text-warning{{end}}">{{.Value}}</dd></div>{{end}}
+            </dl>{{end}}{{end}}
             {{template "detail-note-link" .}}
           </article>{{end}}
         </section>{{end}}
-        {{if .Detail.Other}}<div class="detail-other-components"><h3 class="detail-subheading">Other components</h3><div class="detail-output-grid">{{range .Detail.Other}}
-          <article class="panel detail-channel">
-            <div class="detail-channel-heading"><svg class="icon tone-blue" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg><div><h3>{{.Name}}</h3><p class="detail-component">{{.Key}}</p></div><span class="state-chip tone-{{.StateTone}}">{{.State}}</span></div>
-            {{template "detail-channel-body" .}}
-          </article>
-        {{end}}</div></div>{{end}}
-        {{if not (or .Detail.Outputs .Detail.Inputs .Detail.Other)}}<p class="panel detail-empty">No channel data yet.</p>{{end}}
+        {{if .Detail.Other}}<div class="mt-5">
+          <h3 class="mb-3 text-[13px] font-medium">Other components</h3>
+          <div class="grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[801px]:grid-cols-1 min-[1101px]:grid-cols-2">
+            {{range .Detail.Other}}<article class="card card-sm card-border min-w-0 bg-base-200/50">
+              <div class="card-body">
+                <div class="flex items-center gap-2.5">
+                  <svg class="icon text-info" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg>
+                  <div class="min-w-0 flex-1"><h3 class="text-sm font-medium wrap-anywhere">{{.Name}}</h3><p class="detail-component mt-0.5 font-mono text-[10px] text-base-content/55 wrap-anywhere">{{.Key}}</p></div>
+                  <span class="badge badge-sm badge-soft {{badgeClass .StateTone}}">{{.State}}</span>
+                </div>
+                {{template "detail-channel-body" .}}
+              </div>
+            </article>{{end}}
+          </div>
+        </div>{{end}}
+        {{if not (or .Detail.Outputs .Detail.Inputs .Detail.Other)}}<p class="card card-border bg-base-200/50 p-5 text-[13px] text-base-content/65">No channel data yet.</p>{{end}}
       </section>
-      <section id="configuration" class="panel detail-config" aria-labelledby="config-title">
-        <div class="detail-panel-heading"><h2 id="config-title">Configuration</h2><form action="/devices/{{.Device.Id}}/capture" method="post" hx-post="/devices/{{.Device.Id}}/capture" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button class="btn btn-sm btn-outline" type="submit"><svg class="icon" aria-hidden="true"><use href="#icon-camera"></use></svg>Capture config</button></form></div>
-        <div class="detail-config-status"><span class="state-chip tone-{{.Detail.Table.ConfigurationTone}}"><svg class="icon" aria-hidden="true"><use href="{{if eq .Detail.Table.ConfigurationTone "ok"}}#icon-check{{else}}#icon-config{{end}}"></use></svg>{{if and .HasBaseline (not .Detail.ConfigAvailable)}}Comparison unavailable{{else if eq .Detail.Table.ConfigurationTone "ok"}}Matches baseline{{else}}{{.Detail.Table.Configuration}}{{end}}</span></div>
-        {{if and .HasBaseline .Detail.ConfigAvailable .Differences}}<p class="detail-diff-hint">Scroll to compare →</p><div class="detail-diff-scroll" tabindex="0" role="region" aria-label="Configuration changes"><table class="detail-diff"><caption class="sr-only">Changes from the approved baseline to the latest settings read</caption><thead><tr><th scope="col">Setting</th><th scope="col">Baseline</th><th scope="col">Latest</th></tr></thead><tbody>{{range .Differences}}<tr><th scope="row">{{.Path}}</th><td>{{.Before}}</td><td class="tone-warning">{{.After}}</td></tr>{{end}}</tbody></table></div>{{end}}
-        <div class="detail-approval"><p>Saves a comparison baseline. Device settings stay unchanged.</p><form action="/devices/{{.Device.Id}}/baseline" method="post" hx-post="/devices/{{.Device.Id}}/baseline" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button type="submit" class="btn btn-sm btn-primary">{{if .HasBaseline}}Approve current config{{else}}Set approved baseline{{end}}</button></form></div>
+      <section id="configuration" class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50" aria-labelledby="config-title">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4">
+          <h2 id="config-title" class="card-title text-sm font-medium">Configuration</h2>
+          <form action="/devices/{{.Device.Id}}/capture" method="post" hx-post="/devices/{{.Device.Id}}/capture" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button class="btn btn-sm btn-outline font-medium pointer-coarse:min-h-10" type="submit"><svg class="icon" aria-hidden="true"><use href="#icon-camera"></use></svg>Capture config</button></form>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-2.5 p-4"><span class="badge badge-sm badge-soft h-auto min-h-5 py-1 whitespace-normal {{badgeClass .Detail.Table.ConfigurationTone}}"><svg class="icon" aria-hidden="true"><use href="{{if eq .Detail.Table.ConfigurationTone "ok"}}#icon-check{{else}}#icon-config{{end}}"></use></svg>{{if and .HasBaseline (not .Detail.ConfigAvailable)}}Comparison unavailable{{else if eq .Detail.Table.ConfigurationTone "ok"}}Matches baseline{{else}}{{.Detail.Table.Configuration}}{{end}}</span></div>
+        {{if and .HasBaseline .Detail.ConfigAvailable .Differences}}
+        <p class="hidden px-4 pb-2.5 text-right text-[11px] text-info max-[480px]:block">Scroll to compare →</p>
+        <div class="overflow-x-auto focus-visible:-outline-offset-2" tabindex="0" role="region" aria-label="Configuration changes">
+          <table class="table table-sm min-w-[480px] table-fixed"><caption class="sr-only">Changes from the approved baseline to the latest settings read</caption>
+            <thead class="bg-base-content/3 text-[11px] text-base-content/65"><tr><th scope="col">Setting</th><th scope="col">Baseline</th><th scope="col">Latest</th></tr></thead>
+            <tbody>{{range .Differences}}<tr><th scope="row" class="font-mono text-[11px] font-normal text-base-content/80 wrap-anywhere">{{.Path}}</th><td class="text-base-content/65 wrap-anywhere">{{.Before}}</td><td class="text-warning wrap-anywhere">{{.After}}</td></tr>{{end}}</tbody>
+          </table>
+        </div>{{end}}
+        <div class="flex flex-wrap items-center justify-between gap-3.5 border-t border-base-content/10 p-4">
+          <p class="text-xs leading-relaxed text-base-content/75">Saves a comparison baseline. Device settings stay unchanged.</p>
+          <form action="/devices/{{.Device.Id}}/baseline" method="post" hx-post="/devices/{{.Device.Id}}/baseline" {{template "detail-action-attributes"}}>{{template "detail-action-csrf" .CSRF}}<button type="submit" class="btn btn-sm btn-primary h-auto min-h-9 py-2 whitespace-normal pointer-coarse:min-h-10">{{if .HasBaseline}}Approve current config{{else}}Set approved baseline{{end}}</button></form>
+        </div>
       </section>
-      <section id="detail-history" class="panel detail-history" aria-labelledby="history-title"><div class="detail-panel-heading"><h2 id="history-title">Capture history</h2><span class="detail-count">{{len .Snapshots}}{{if eq (len .Snapshots) 50}} latest{{end}}</span></div><ol class="detail-timeline">{{range .Snapshots}}<li class="{{if eq .Id (get $.Device "baseline")}}detail-baseline-capture{{end}}"><div><p>{{get . "reason"}}{{if eq .Id (get $.Device "baseline")}}<span class="state-chip tone-violet">Approved baseline</span>{{end}}</p>{{if get . "firmware"}}<span>Firmware {{get . "firmware"}}</span>{{end}}</div><time datetime="{{get . "captured"}}">{{when (get . "captured")}}</time></li>{{else}}<li class="detail-empty-history">No captures yet.</li>{{end}}</ol></section>
-      {{if .Detail.Notes}}<section class="panel detail-channel-notes" aria-labelledby="channel-notes-title"><div class="detail-panel-heading"><h2 id="channel-notes-title"><svg class="icon tone-violet" aria-hidden="true"><use href="#icon-note"></use></svg>Channel notes</h2></div>
+      <section id="detail-history" class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50" aria-labelledby="history-title">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"><h2 id="history-title" class="card-title text-sm font-medium">Capture history</h2><span class="badge badge-xs badge-ghost">{{len .Snapshots}}{{if eq (len .Snapshots) 50}} latest{{end}}</span></div>
+        <ol class="timeline timeline-vertical timeline-compact px-4 py-2">
+          {{range .Snapshots}}<li>
+            <hr />
+            <div class="timeline-middle"><span class="status status-sm {{if eq .Id (get $.Device "baseline")}}status-secondary{{else}}bg-base-content/35{{end}}" aria-hidden="true"></span></div>
+            <div class="timeline-end my-0 w-full min-w-0 border-b border-base-content/8 px-3 py-4 text-xs">
+              <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"><p class="flex flex-wrap items-center gap-2">{{get . "reason"}}{{if eq .Id (get $.Device "baseline")}}<span class="badge badge-xs badge-soft badge-secondary">Approved baseline</span>{{end}}</p><time class="text-[11px] text-base-content/60" datetime="{{get . "captured"}}">{{when (get . "captured")}}</time></div>
+              {{if get . "firmware"}}<span class="mt-1 block text-[11px] text-base-content/60">Firmware {{get . "firmware"}}</span>{{end}}
+            </div>
+            <hr />
+          </li>{{else}}<li class="block py-4 text-xs text-base-content/60">No captures yet.</li>{{end}}
+        </ol>
+      </section>
+      {{if .Detail.Notes}}<section class="card card-sm card-border bg-base-200/50" aria-labelledby="channel-notes-title">
+        <div class="border-b border-base-content/10 p-4"><h2 id="channel-notes-title" class="card-title text-sm font-medium"><svg class="icon text-secondary" aria-hidden="true"><use href="#icon-note"></use></svg>Channel notes</h2></div>
         {{range .Detail.Notes}}{{template "detail-note" .}}{{end}}
       </section>{{end}}
     </div>
-    <aside class="detail-sidebar">
-      <section id="detail-connection" class="panel detail-facts detail-connection" aria-labelledby="connection-title"><div class="detail-panel-heading"><h2 id="connection-title"><svg class="icon tone-blue" aria-hidden="true"><use href="#icon-network"></use></svg>Connection</h2></div><dl>{{range .Detail.Network}}<div class="connection-field{{if eq .Label "Shelly Cloud"}} connection-cloud{{end}}"><dt>{{if eq .Label "Shelly Cloud"}}<span class="connection-cloud-icon cloud-indicator tone-{{.Tone}}"><svg class="icon" aria-hidden="true"><use href="#icon-cloud"></use><use class="cloud-glint" href="#icon-cloud"></use></svg></span>{{else}}<svg class="icon" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg>{{end}}{{.Label}}</dt><dd><span class="{{if .State}}state-chip {{end}}tone-{{.Tone}}"{{if .Info}} tabindex="0" data-tooltip="{{.Info}}"{{end}}>{{if .State}}<span class="dot" aria-hidden="true"></span>{{end}}{{.Value}}</span></dd></div>{{end}}</dl></section>
-      <section class="panel detail-facts detail-identity-facts" aria-labelledby="identity-title"><div class="detail-panel-heading"><h2 id="identity-title"><svg class="icon tone-blue" aria-hidden="true"><use href="#icon-device"></use></svg>Device information</h2></div><dl>{{range .Detail.Identity}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl></section>
-      <section id="notes" class="panel detail-metadata" aria-labelledby="notes-title"><div class="detail-panel-heading"><h2 id="notes-title"><svg class="icon tone-violet" aria-hidden="true"><use href="#icon-note"></use></svg>Organization & notes</h2></div><form action="/devices/{{.Device.Id}}/metadata" method="post" data-metadata-form><input type="hidden" name="csrf" value="{{.CSRF}}">{{template "organization-fields" .}}<div class="field"><label for="device-notes">Note</label><textarea id="device-notes" class="textarea w-full" name="notes" rows="5" maxlength="8000">{{get .Device "notes"}}</textarea></div><button class="btn btn-sm btn-primary" type="submit">Save changes</button></form></section>
+    <aside class="grid min-w-0 grid-cols-1 items-start gap-6 min-[481px]:grid-cols-2 min-[801px]:grid-cols-1">
+      <section id="detail-connection" class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50" aria-labelledby="connection-title">
+        <div class="border-b border-base-content/10 p-4"><h2 id="connection-title" class="card-title text-sm font-medium"><svg class="icon text-info" aria-hidden="true"><use href="#icon-network"></use></svg>Connection</h2></div>
+        <dl class="px-4 py-2">
+          {{range .Detail.Network}}<div class="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-base-content/7 py-2.5 text-xs first:border-t-0{{if eq .Label "Shelly Cloud"}} pb-3.5{{end}}">
+            <dt class="flex items-center gap-2 {{if eq .Label "Shelly Cloud"}}font-medium{{else}}text-base-content/55{{end}}">{{if eq .Label "Shelly Cloud"}}<span class="cloud-indicator inline-flex size-6 shrink-0 items-center justify-center rounded {{toneClass .Tone}}"><svg class="icon {{if eq .Tone "ok"}}stroke-[2.2] drop-shadow-[0_0_2px_currentColor]{{end}}" aria-hidden="true"><use href="#icon-cloud"></use><use class="cloud-glint opacity-0 [stroke-dasharray:12_88] [stroke-dashoffset:100] {{if eq .Tone "ok"}}stroke-[color-mix(in_oklab,currentColor_25%,white)] stroke-[2.2] animate-[cloud-shine_2.4s_linear_infinite]{{end}} motion-reduce:animate-none motion-reduce:opacity-0" href="#icon-cloud"></use></svg></span>{{else}}<svg class="icon text-info opacity-80" aria-hidden="true"><use href="#icon-{{.Icon}}"></use></svg>{{end}}{{.Label}}</dt>
+            <dd class="min-w-0 max-w-40 text-right wrap-anywhere"><span class="{{if .State}}badge badge-sm badge-soft {{badgeClass .Tone}}{{else}}{{toneClass .Tone}}{{end}}{{if and .State (eq .Tone "muted")}} opacity-40 group-hover:opacity-100 group-focus-within:opacity-100{{end}}"{{if .Info}} tabindex="0" data-tooltip="{{.Info}}"{{end}}>{{if .State}}<span class="status text-inherit {{if eq .Tone "muted"}}border border-current bg-transparent{{else}}bg-current{{end}}" aria-hidden="true"></span>{{end}}{{.Value}}</span></dd>
+          </div>{{end}}
+        </dl>
+      </section>
+      <section class="card card-sm card-border min-w-0 bg-base-200/50" aria-labelledby="identity-title">
+        <div class="border-b border-base-content/10 p-4"><h2 id="identity-title" class="card-title text-sm font-medium"><svg class="icon text-info" aria-hidden="true"><use href="#icon-device"></use></svg>Device information</h2></div>
+        <dl class="grid gap-3 p-4 text-[11px]">{{range .Detail.Identity}}<div><dt class="text-base-content/55">{{.Label}}</dt><dd class="mt-1 font-mono wrap-anywhere">{{.Value}}</dd></div>{{end}}</dl>
+      </section>
+      <section id="notes" class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50 min-[481px]:col-span-2 min-[801px]:col-span-1" aria-labelledby="notes-title">
+        <div class="border-b border-base-content/10 p-4"><h2 id="notes-title" class="card-title text-sm font-medium"><svg class="icon text-secondary" aria-hidden="true"><use href="#icon-note"></use></svg>Organization & notes</h2></div>
+        <form class="grid gap-4 p-4" action="/devices/{{.Device.Id}}/metadata" method="post" data-metadata-form>
+          <input type="hidden" name="csrf" value="{{.CSRF}}">{{template "organization-fields" .}}
+          <div class="flex flex-col gap-2"><label class="text-xs" for="device-notes">Note</label><textarea id="device-notes" class="textarea w-full scroll-mt-18 text-[13px] pointer-coarse:text-base" name="notes" rows="5" maxlength="8000">{{get .Device "notes"}}</textarea></div>
+          <button class="btn btn-sm btn-primary w-full pointer-coarse:min-h-10" type="submit">Save changes</button>
+        </form>
+      </section>
     </aside>
   </div>
 </main><script src="/assets/detail.js" defer></script></body></html>{{end}}
@@ -69,13 +164,26 @@
 {{define "detail-action-csrf"}}<input type="hidden" name="csrf" value="{{.}}">{{end}}
 
 {{define "detail-channel-body"}}
-{{if .Values}}<dl class="detail-channel-values">{{range .Values}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>{{end}}
-{{if .Settings}}<dl class="detail-settings {{if .SavedSettings}}detail-saved-settings{{end}}">{{range .Settings}}<div><dt>{{.Label}}</dt><dd>{{.Value}}</dd></div>{{end}}</dl>{{end}}
+{{if .Values}}<dl class="mt-3 flex flex-wrap gap-4">
+  {{range .Values}}<div><dt class="text-[11px] text-base-content/60">{{.Label}}</dt><dd class="mt-0.5 text-lg font-medium tabular-nums wrap-anywhere">{{.Value}}</dd></div>{{end}}
+</dl>{{end}}
+{{if .Settings}}<dl class="mt-3 grid gap-2 border-t border-base-content/10 pt-3 text-[11px] {{if .SavedSettings}}detail-saved-settings border-l-2 border-warning pl-2.5{{end}}">
+  {{range .Settings}}<div class="flex flex-wrap justify-between gap-x-3 gap-y-1"><dt class="text-base-content/60">{{.Label}}</dt><dd class="wrap-anywhere">{{.Value}}</dd></div>{{end}}
+</dl>{{end}}
 {{template "detail-note-link" .}}
 {{end}}
 
-{{define "detail-note-link"}}<a class="detail-note-link" href="#note-{{.Key}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg>{{if .Notes}}Edit note{{else}}Add note{{end}}</a>{{end}}
+{{define "detail-note-link"}}<a class="detail-note-link link link-hover mt-2 inline-flex min-h-8 items-center gap-1.5 text-[11px] text-secondary pointer-coarse:min-h-10" href="#note-{{.Key}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg>{{if .Notes}}Edit note{{else}}Add note{{end}}</a>{{end}}
 
 {{define "detail-note"}}
-<details class="detail-note-editor" id="editor-{{.Channel.Key}}"><summary><svg class="icon tone-violet" aria-hidden="true"><use href="#icon-note"></use></svg><span>{{.Channel.Name}}</span><span class="detail-component">{{.Channel.Key}}</span><span class="detail-note-preview">{{if .Channel.Notes}}{{.Channel.Notes}}{{else}}Add note{{end}}</span></summary><form method="post" action="/devices/{{.DeviceID}}/channel-notes"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="component" value="{{.Channel.Key}}"><label class="sr-only" for="note-{{.Channel.Key}}">Note for {{.Channel.Name}}</label><textarea id="note-{{.Channel.Key}}" class="textarea w-full" name="notes" rows="3" maxlength="8000">{{.Channel.Notes}}</textarea><button class="btn btn-sm btn-outline" type="submit">Save note</button></form></details>
+<details class="detail-note-editor collapse collapse-plus rounded-none border-b border-base-content/10 last:border-b-0 has-[:target]:border-l-2 has-[:target]:border-l-secondary" id="editor-{{.Channel.Key}}">
+  <summary class="collapse-title flex min-h-11 items-center gap-2 py-3 text-xs">
+    <svg class="icon text-secondary" aria-hidden="true"><use href="#icon-note"></use></svg><span class="wrap-anywhere">{{.Channel.Name}}</span><span class="detail-component font-mono text-[10px] text-base-content/55 wrap-anywhere">{{.Channel.Key}}</span><span class="ml-auto max-w-[40%] truncate text-[11px] text-base-content/55 max-[480px]:hidden">{{if .Channel.Notes}}{{.Channel.Notes}}{{else}}Add note{{end}}</span>
+  </summary>
+  <form class="collapse-content grid gap-2.5" method="post" action="/devices/{{.DeviceID}}/channel-notes">
+    <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="component" value="{{.Channel.Key}}"><label class="sr-only" for="note-{{.Channel.Key}}">Note for {{.Channel.Name}}</label>
+    <textarea id="note-{{.Channel.Key}}" class="textarea w-full scroll-mt-18 pointer-coarse:text-base" name="notes" rows="3" maxlength="8000">{{.Channel.Notes}}</textarea>
+    <button class="btn btn-sm btn-outline justify-self-start pointer-coarse:min-h-10" type="submit">Save note</button>
+  </form>
+</details>
 {{end}}

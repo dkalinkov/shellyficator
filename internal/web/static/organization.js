@@ -38,7 +38,7 @@ function initializeLabelPickers(container) {
     if (labelPickers.has(root)) continue;
     const multiple = root.dataset.labelPicker === 'tags';
     const input = root.querySelector('[data-picker-input]');
-    const field = root.querySelector('.picker-field');
+    const field = root.querySelector('[data-picker-field]');
     const menu = root.querySelector('[data-picker-menu]');
     const toggle = root.querySelector('[data-picker-toggle]');
     const clear = root.querySelector('[data-picker-clear]');
@@ -98,19 +98,30 @@ function initializeLabelPickers(container) {
       if (!multiple && !query) choices.unshift({value: '', label: 'No room'});
       if (query && !known.some(value => value.toLowerCase() === key) &&
         !selected.some(value => value.toLowerCase() === key)) {
-        choices.push({value: query, label: (multiple ? 'Add “' : 'Create “') + query + '”', create: true});
+        choices.push({value: query, label: (multiple ? 'Add “' : 'Create “') + query + '”'});
       }
       menu.replaceChildren();
       active = -1;
       input.removeAttribute('aria-activedescendant');
       for (const [index, choice] of choices.entries()) {
-        const option = document.createElement('div');
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.tabIndex = -1;
         option.id = menu.id + '-' + index;
-        option.className = 'picker-option' + (choice.create ? ' picker-create' : '');
+        option.className = 'btn btn-ghost h-auto min-h-10 w-full shrink-0 justify-start gap-2 px-3 py-2 text-left text-sm leading-5 font-normal whitespace-normal data-[colored-label]:text-(--label-color) aria-selected:bg-base-content/10 [@media(pointer:coarse)]:min-h-11';
         option.setAttribute('role', 'option');
         option.setAttribute('aria-selected', 'false');
-        option.textContent = choice.label;
         colorLabel(option, choice.value);
+        if (choice.value) {
+          const dot = document.createElement('span');
+          dot.className = 'size-2 shrink-0 rounded-full bg-(--label-color)';
+          dot.setAttribute('aria-hidden', 'true');
+          option.append(dot);
+        }
+        const text = document.createElement('span');
+        text.className = 'min-w-0 wrap-anywhere';
+        text.textContent = choice.label;
+        option.append(text);
         option.addEventListener('pointerdown', event => event.preventDefault());
         option.addEventListener('click', () => choose(choice.value));
         menu.append(option);
@@ -122,7 +133,7 @@ function initializeLabelPickers(container) {
       menu.hidden = false;
       input.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-expanded', 'true');
-      const rect = input.getBoundingClientRect();
+      const rect = field.getBoundingClientRect();
       const below = window.innerHeight - rect.bottom - 18;
       const above = rect.top - 18;
       const upwards = (multiple && root.closest('dialog')) || (below < 160 && above > below);
@@ -139,12 +150,14 @@ function initializeLabelPickers(container) {
       chips.hidden = !selected.length;
       for (const value of selected) {
         const chip = document.createElement('span');
-        chip.className = 'tag-chip';
+        chip.className = 'badge badge-soft badge-sm h-auto min-h-7 max-w-full gap-1 pr-0 [--badge-color:var(--label-color)]';
         colorLabel(chip, value);
         const label = document.createElement('span');
+        label.className = 'min-w-0 wrap-anywhere';
         label.textContent = value;
         const remove = document.createElement('button');
         remove.type = 'button';
+        remove.className = 'btn btn-ghost btn-square btn-xs size-7 shrink-0 text-lg text-current [@media(pointer:coarse)]:size-9';
         remove.setAttribute('aria-label', 'Remove tag ' + value);
         remove.textContent = '×';
         remove.addEventListener('click', () => {
@@ -269,12 +282,12 @@ function initializeLabelPickers(container) {
 function initializeTagFilter() {
   const root = document.querySelector('[data-tag-filter]');
   if (!root || tagFilters.has(root)) return;
-  const toggle = root.querySelector('.tag-filter-toggle');
+  const toggle = root.querySelector('[data-filter-toggle]');
   const summary = root.querySelector('[data-filter-summary]');
   const count = root.querySelector('[data-filter-count]');
   const clear = root.querySelector('[data-filter-clear]');
   const clearAll = root.querySelector('[data-filter-clear-all]');
-  const menu = root.querySelector('.tag-filter-menu');
+  const menu = root.querySelector('[data-filter-menu]');
   const search = root.querySelector('input[type="search"]');
   const options = root.querySelector('[data-filter-options]');
   const serialized = root.querySelector('input[name="tags"]');
@@ -311,10 +324,11 @@ function initializeTagFilter() {
     options.replaceChildren();
     for (const value of values) {
       const label = document.createElement('label');
-      label.className = 'tag-filter-option';
+      label.className = 'btn btn-ghost h-auto min-h-10 w-full justify-start gap-2.5 px-3 py-2 text-sm leading-5 font-normal whitespace-normal text-(--label-color) has-focus-visible:bg-base-content/10 [@media(pointer:coarse)]:min-h-11';
       colorLabel(label, value);
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
+      checkbox.className = 'checkbox checkbox-xs text-base-300 [--input-color:var(--label-color)]';
       checkbox.value = value;
       checkbox.checked = isSelected(value);
       label.addEventListener('pointerdown', event => {
@@ -329,6 +343,7 @@ function initializeTagFilter() {
         root.dispatchEvent(new Event('change', {bubbles: true}));
       });
       const text = document.createElement('span');
+      text.className = 'min-w-0 wrap-anywhere';
       text.textContent = value;
       label.append(checkbox, text);
       options.append(label);
@@ -336,7 +351,7 @@ function initializeTagFilter() {
     }
     if (!values.length) {
       const empty = document.createElement('p');
-      empty.className = 'tag-filter-empty';
+      empty.className = 'p-3 text-sm text-base-content/60';
       empty.textContent = query ? 'No matching tags.' : 'No tags available.';
       options.append(empty);
     }
@@ -345,7 +360,7 @@ function initializeTagFilter() {
 
   function positionMenu() {
     if (menu.hidden) return;
-    const rect = toggle.closest('.tag-filter-control').getBoundingClientRect();
+    const rect = toggle.closest('[data-filter-control]').getBoundingClientRect();
     const viewportHeight = window.visualViewport?.height || window.innerHeight;
     const viewportTop = window.visualViewport?.offsetTop || 0;
     const below = viewportTop + viewportHeight - rect.bottom - 14;
@@ -464,7 +479,7 @@ document.addEventListener('keydown', event => {
     return;
   }
   for (const root of document.querySelectorAll('[data-tag-filter]')) {
-    if (root.querySelector('.tag-filter-menu').hidden) continue;
+    if (root.querySelector('[data-filter-menu]').hidden) continue;
     event.preventDefault();
     tagFilters.get(root)?.close(true);
   }
@@ -550,7 +565,7 @@ if (organizationDialog) {
   let startedOnBackdrop = false;
   function onBackdrop(event) {
     if (event.target !== organizationDialog) return false;
-    const rect = organizationDialog.getBoundingClientRect();
+    const rect = document.getElementById('organization-content').getBoundingClientRect();
     return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
   }
   organizationDialog.addEventListener('pointerdown', event => {

@@ -162,7 +162,7 @@ func TestAutomaticRefreshWaitsForCompletedResultsAndSharesThePass(t *testing.T) 
 	if err := <-result; err != nil {
 		t.Fatal(err)
 	}
-	if requests.Load() != 1 || !strings.Contains(response.Body.String(), `tone-ok">On`) || response.Header().Get("HX-Replace-Url") != "/?group=room" {
+	if requests.Load() != 1 || !strings.Contains(response.Body.String(), `text-success">On`) || response.Header().Get("HX-Replace-Url") != "/?group=room" {
 		t.Fatal("automatic refresh duplicated the scan, lost filters, or returned old values")
 	}
 }

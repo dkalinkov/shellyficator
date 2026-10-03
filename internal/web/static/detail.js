@@ -20,7 +20,9 @@ if ('IntersectionObserver' in window) {
     const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
     if (!visible.length) return;
     for (const link of sectionLinks) {
-      if (link.hash === '#' + visible[0].target.id) link.setAttribute('aria-current', 'location');
+      const current = link.hash === '#' + visible[0].target.id;
+      link.classList.toggle('tab-active', current);
+      if (current) link.setAttribute('aria-current', 'location');
       else link.removeAttribute('aria-current');
     }
   }, {rootMargin: '-48px 0px -55% 0px'});

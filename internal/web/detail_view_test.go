@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 	"shellyficator/internal/inventory"
@@ -164,31 +166,46 @@ func TestDeviceDetailRendersSavedSettingsWithoutMutingLiveChannels(t *testing.T)
 				t.Fatal("configuration availability warning did not follow the latest read")
 			}
 			for _, channel := range []struct{ key, reading, setting, note string }{
-				{"switch:0", "Off", "<dt>After power loss</dt><dd>Off</dd>", "Add note"},
-				{"temperature:0", "0 °C", "<dt>Enabled</dt><dd>No</dd>", "Edit note"},
+				{"switch:0", "Off", "After power loss Off", "Add note"},
+				{"temperature:0", "0 °C", "Enabled No", "Edit note"},
 			} {
 				var card string
 				for _, fragment := range strings.Split(body, "<article ")[1:] {
 					fragment = strings.SplitN(fragment, "</article>", 2)[0]
-					if strings.Contains(fragment, `class="detail-component">`+channel.key+"</p>") {
+					if strings.Contains(fragment, `>`+channel.key+"</p>") {
 						card = fragment
 						break
 					}
 				}
-				if card == "" || !strings.Contains(card, channel.reading) || strings.Contains(card, "Unavailable") || !strings.Contains(card, channel.setting) {
+				if card == "" || !strings.Contains(renderedText(card), channel.reading) || strings.Contains(card, "Unavailable") || !strings.Contains(renderedText(card), channel.setting) {
 					t.Fatalf("%s lost its current reading or preserved setting: %s", channel.key, card)
 				}
 				if strings.Contains(card, "detail-saved-settings") == test.configAvailable {
 					t.Fatalf("%s settings freshness differs from the configuration read", channel.key)
 				}
-				_, noteLink, _ := strings.Cut(card, `class="detail-note-link" href="`)
+				_, noteLink, _ := strings.Cut(card, `href="#note-`)
 				href, _, _ := strings.Cut(noteLink, `"`)
+				href = "#note-" + href
 				anchor, err := url.PathUnescape(href)
 				if err != nil || anchor != "#note-"+channel.key || !strings.Contains(noteLink, channel.note) || !strings.Contains(body, `id="note-`+channel.key+`"`) {
 					t.Fatalf("%s note link lost its editor or saved-note state: %s", channel.key, noteLink)
 				}
 			}
 		})
+	}
+}
+
+func renderedText(markup string) string {
+	tokens := html.NewTokenizer(strings.NewReader(markup))
+	var text strings.Builder
+	for {
+		switch tokens.Next() {
+		case html.ErrorToken:
+			return strings.Join(strings.Fields(text.String()), " ")
+		case html.TextToken:
+			text.Write(tokens.Text())
+			text.WriteByte(' ')
+		}
 	}
 }
 

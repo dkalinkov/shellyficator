@@ -14,6 +14,8 @@ Restart after configuration changes; `make dev` restarts automatically. Choose *
 
 `make dev`, `make run`, and `make build` rebuild CSS and copy vendor assets only when their inputs change or outputs are missing. Generated `internal/web/static/app.css` is ignored by Git. Development builds omit timestamps by default to reuse cached Go builds; set `BUILD_DATE` to include one.
 
+Use DaisyUI components for controls, cards, badges, and tables, and Tailwind utilities in templates for layout and responsive styling. [`ui/styles.css`](../ui/styles.css) contains only shared typography, keyboard focus outlines, the SVG icon utility, and the cloud animation. Tailwind also scans browser JavaScript and the complete status classes in `internal/web/templates.go`, so dynamically created controls and status colors are included in builds.
+
 ## Docker
 
 The [README example](../README.md#docker-on-linux) passes `.env` through `--env-file`. Use unquoted `KEY=value` entries without `export`, or omit the option if there is no file. For full dotenv syntax and `.env.local` overrides, mount the files read-only under `/data`.

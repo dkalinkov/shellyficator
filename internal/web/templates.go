@@ -16,13 +16,40 @@ var assets embed.FS
 
 func parseTemplates() (*template.Template, error) {
 	functions := template.FuncMap{
-		"get":   func(r *core.Record, key string) string { return r.GetString(key) },
-		"flag":  func(r *core.Record, key string) bool { return r.GetBool(key) },
-		"when":  inventory.FormatTime,
-		"value": inventory.Display,
-		"tags":  inventory.SplitTags,
+		"get":        func(r *core.Record, key string) string { return r.GetString(key) },
+		"flag":       func(r *core.Record, key string) bool { return r.GetBool(key) },
+		"when":       inventory.FormatTime,
+		"value":      inventory.Display,
+		"tags":       inventory.SplitTags,
+		"toneClass":  toneClass,
+		"badgeClass": badgeClass,
 	}
 	return template.New("app").Funcs(functions).ParseFS(assets, "templates/*.html")
+}
+
+// Complete class names let Tailwind discover styles for data-driven tones.
+var toneStyles = map[string]struct{ text, badge string }{
+	"ok":      {"text-success", "badge-success"},
+	"warning": {"text-warning", "badge-warning"},
+	"error":   {"text-error", "badge-error"},
+	"blue":    {"text-info", "badge-info"},
+	"violet":  {"text-secondary", "badge-secondary"},
+	"pink":    {"text-accent", "badge-accent"},
+	"muted":   {"text-base-content/60", "badge-ghost text-base-content/60"},
+}
+
+func toneClass(tone string) string {
+	if style, ok := toneStyles[tone]; ok {
+		return style.text
+	}
+	return toneStyles["muted"].text
+}
+
+func badgeClass(tone string) string {
+	if style, ok := toneStyles[tone]; ok {
+		return style.badge
+	}
+	return toneStyles["muted"].badge
 }
 
 func (s *Server) pageMeta(e *core.RequestEvent, title string) PageMeta {

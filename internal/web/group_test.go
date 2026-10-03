@@ -103,7 +103,7 @@ func TestInventoryGroupedResponsePreservesFilters(t *testing.T) {
 		t.Fatalf("grouping or filters lost: %s", location)
 	}
 	body := response.Body.String()
-	if strings.Count(body, `data-room-group="`) != 2 || strings.Count(body, `class="inventory-room-count">1 device`) != 2 || !strings.Contains(body, "2 shown") {
+	if strings.Count(body, `data-room-group="`) != 2 || strings.Count(body, `>1 device</span>`) != 2 || !strings.Contains(body, "2 shown") {
 		t.Fatalf("missing room sections or filtered counts: %s", body)
 	}
 	if strings.Index(body, `data-room-group="Hallway"`) > strings.Index(body, `data-room-group="Kitchen"`) || strings.Contains(body, `data-room-group="Office"`) {
