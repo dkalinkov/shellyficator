@@ -15,6 +15,13 @@
     />
     <title>{{ .Title }} · Shellyficator</title>
     <link
+      rel="preload"
+      href="/assets/archivo-900.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
       rel="stylesheet"
       href="/assets/app.css"
     />
@@ -54,23 +61,49 @@
 
 {{ define "brand" }}
   <span
-    class="inline-flex items-center gap-2 whitespace-nowrap"
+    class="brand"
     role="img"
     aria-label="Shellyficator 9000"
   >
-    <span
-      class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border
-        border-primary/35 text-[22px] text-primary"
+    <svg
+      class="brand-symbol"
+      viewBox="0 0 44 44"
       aria-hidden="true"
     >
-      ↯
-    </span>
-    <span class="text-[17px] font-semibold tracking-tight">Shellyficator</span>
+      <rect
+        x="1"
+        y="1"
+        width="42"
+        height="42"
+        rx="11"
+        fill="currentColor"
+      />
+      <path
+        d="M30 11H19a7 7 0 0 0 0 14h6a4 4 0 0 1 0 8H14"
+        fill="none"
+        stroke="var(--color-base-300)"
+        stroke-width="4"
+        stroke-linecap="round"
+      />
+      <circle
+        cx="30"
+        cy="11"
+        r="3"
+        fill="var(--color-base-300)"
+      />
+      <circle
+        cx="14"
+        cy="33"
+        r="3"
+        fill="var(--color-base-300)"
+      />
+    </svg>
     <span
-      class="badge badge-soft badge-primary badge-xs -rotate-6 px-1.5 font-semibold italic
-        tracking-wide"
+      class="brand-wordmark"
+      aria-hidden="true"
     >
-      9000
+      <span class="brand-name">Shellyficator</span>
+      <span class="brand-number">9000</span>
     </span>
   </span>
 {{ end }}
@@ -85,48 +118,79 @@
 {{ end }}
 
 {{ define "header" }}
-  <header class="border-b border-base-content/10 bg-base-200/50">
-    <div
-      class="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-4
-        lg:px-10"
-    >
-      <div>
-        <a
-          href="/"
-          aria-label="Shellyficator home"
-        >
-          {{ template "brand" . }}
-        </a>
-        {{ template "version" . }}
-      </div>
+  <header class="project-header">
+    <div class="project-header-inner">
+      <a
+        class="project-home"
+        href="/"
+        aria-label="Shellyficator home"
+      >
+        {{ template "brand" . }}
+      </a>
       <nav
         aria-label="Main navigation"
-        class="flex items-center gap-1 text-sm sm:gap-3"
+        class="project-utilities"
       >
-        <a
-          href="/_/"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="btn btn-sm btn-ghost px-2"
+        <p
+          class="project-version"
+          aria-label="App version"
         >
-          Data admin ↗
-        </a>
-        <form
-          action="/logout"
-          method="post"
-        >
-          <input
-            type="hidden"
-            name="csrf"
-            value="{{ .CSRF }}"
-          />
-          <button
-            class="btn btn-sm btn-ghost px-2"
-            type="submit"
+          v{{ .Version }}
+        </p>
+        <div class="project-actions">
+          <a
+            href="/_/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="project-action"
+            aria-label="Data admin (opens in a new tab)"
+            title="Data admin (opens in a new tab)"
           >
-            Sign out
-          </button>
-        </form>
+            <svg
+              class="icon"
+              aria-hidden="true"
+            >
+              <use href="#icon-config"></use>
+            </svg>
+            <span>Data admin</span>
+            <svg
+              class="icon external-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M7 17 17 7M7 7h10v10" />
+            </svg>
+          </a>
+          <span
+            class="project-action-divider"
+            aria-hidden="true"
+          ></span>
+          <form
+            action="/logout"
+            method="post"
+          >
+            <input
+              type="hidden"
+              name="csrf"
+              value="{{ .CSRF }}"
+            />
+            <button
+              class="project-action"
+              type="submit"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <svg
+                class="icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M9 5H4v14h5M14 8l4 4-4 4M8 12h10" />
+              </svg>
+              <span>Sign out</span>
+            </button>
+          </form>
+        </div>
       </nav>
     </div>
   </header>
