@@ -1,6 +1,8 @@
 .PHONY: build run test css dev dev-build docker
 
-CSS_INPUTS := ui/styles.css internal/web/templates $(wildcard internal/web/templates/*.html)
+CSS_INPUTS := ui/styles.css internal/web/templates internal/web/templates.go \
+	$(wildcard internal/web/templates/*.html) \
+	$(filter-out internal/web/static/htmx.min.js,$(wildcard internal/web/static/*.js))
 VENDOR_ASSETS := internal/web/static/htmx.min.js \
 	internal/web/static/htmx.LICENSE \
 	internal/web/static/fonts.LICENSE \

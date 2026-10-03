@@ -60,7 +60,7 @@ func TestCloudConnectionPresentation(t *testing.T) {
 					t.Fatalf("%s lost name escaping", name)
 				}
 				if name == "detail" {
-					if !strings.Contains(body.String(), "tone-"+test.tone) || !strings.Contains(body.String(), test.value) {
+					if !strings.Contains(body.String(), toneClass(test.tone)) || !strings.Contains(body.String(), test.value) {
 						t.Fatal("connection panel lost state or color")
 					}
 				} else {

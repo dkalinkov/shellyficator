@@ -6,14 +6,14 @@
   <title>{{.Title}} · Shellyficator</title>
   <link rel="stylesheet" href="/assets/app.css">
   <script src="/assets/htmx.min.js" defer></script><script src="/assets/app.js" defer></script><script src="/assets/organization.js" defer></script>
-</head><body class="min-h-screen">
+</head><body class="min-h-screen bg-base-100 font-sans text-base-content">
 <a class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 btn" href="#main">Skip to content</a>
 {{template "icons" .}}
-<div id="app-tooltip" class="app-tooltip" role="tooltip" hidden></div>
+<div id="app-tooltip" class="fixed z-100 max-w-[min(320px,calc(100vw-24px))] rounded-lg border border-base-content/20 bg-base-300 px-3 py-2 text-xs leading-relaxed font-normal wrap-anywhere whitespace-pre-line text-base-content shadow-xl" role="tooltip" hidden></div>
 {{end}}
 
 {{define "brand"}}
-<span class="brand" role="img" aria-label="Shellyficator 9000"><span class="brand-symbol" aria-hidden="true">↯</span><span class="brand-name">Shellyficator</span><span class="brand-number">9000</span></span>
+<span class="inline-flex items-center gap-2 whitespace-nowrap" role="img" aria-label="Shellyficator 9000"><span class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/35 text-[22px] text-primary" aria-hidden="true">↯</span><span class="text-[17px] font-semibold tracking-tight">Shellyficator</span><span class="badge badge-soft badge-primary badge-xs -rotate-6 px-1.5 font-semibold italic tracking-wide">9000</span></span>
 {{end}}
 
 {{define "version"}}<p class="mt-2 text-xs text-base-content/45" aria-label="App version">v{{.Version}}</p>{{end}}
@@ -37,12 +37,12 @@
 
 {{define "login"}}{{template "head" .}}
 <main id="main" class="mx-auto flex min-h-screen max-w-md items-center px-6 py-12">
-    <section class="panel w-full p-8">{{template "brand" .}}<p class="brand-tagline">Keeping your Shellys in line. Allegedly.</p>{{template "version" .}}<h1 class="mt-6 text-2xl font-semibold">Sign in</h1>
+    <section class="card card-border w-full bg-base-200/50 p-8">{{template "brand" .}}<p class="mt-3 text-xs text-base-content/60 italic">Keeping your Shellys in line. Allegedly.</p>{{template "version" .}}<h1 class="mt-6 text-2xl font-semibold">Sign in</h1>
       {{if .Error}}<div class="alert alert-error mt-5" role="alert">{{.Error}}</div>{{end}}
       <form action="/login" method="post" class="mt-7 space-y-5">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <div class="field"><label for="email">Email</label><input class="input w-full" id="email" type="email" name="email" autocomplete="username" required></div>
-        <div class="field"><label for="password">Password</label><input class="input w-full" id="password" type="password" name="password" autocomplete="current-password" required></div>
+        <div class="flex flex-col gap-2"><label for="email">Email</label><input class="input w-full" id="email" type="email" name="email" autocomplete="username" required></div>
+        <div class="flex flex-col gap-2"><label for="password">Password</label><input class="input w-full" id="password" type="password" name="password" autocomplete="current-password" required></div>
         <button type="submit" class="btn btn-primary w-full">Sign in</button>
       </form>
     </section>
@@ -50,11 +50,11 @@
 
 {{define "setup"}}{{template "head" .}}
 <main id="main" class="mx-auto flex min-h-screen max-w-lg items-center px-6 py-12">
-  <section class="panel w-full p-8">{{template "brand" .}}<p class="brand-tagline">Keeping your Shellys in line. Allegedly.</p>{{template "version" .}}<h1 class="mt-6 text-2xl font-semibold">Create account</h1><p class="mt-3 text-sm text-base-content/60">Also used for PocketBase admin.</p>
+  <section class="card card-border w-full bg-base-200/50 p-8">{{template "brand" .}}<p class="mt-3 text-xs text-base-content/60 italic">Keeping your Shellys in line. Allegedly.</p>{{template "version" .}}<h1 class="mt-6 text-2xl font-semibold">Create account</h1><p class="mt-3 text-sm text-base-content/60">Also used for PocketBase admin.</p>
     {{if .Error}}<div class="alert alert-error mt-5" role="alert">{{.Error}}</div>{{end}}
     <form action="/setup" method="post" class="mt-7 space-y-5"><input type="hidden" name="csrf" value="{{.CSRF}}">
-      <div class="field"><label for="email">Email</label><input class="input w-full" id="email" type="email" name="email" autocomplete="username" required></div>
-      <div class="field"><label for="password">Password</label><input class="input w-full" id="password" type="password" name="password" autocomplete="new-password" minlength="12" required><p class="text-xs text-base-content/45">At least 12 characters.</p></div>
+      <div class="flex flex-col gap-2"><label for="email">Email</label><input class="input w-full" id="email" type="email" name="email" autocomplete="username" required></div>
+      <div class="flex flex-col gap-2"><label for="password">Password</label><input class="input w-full" id="password" type="password" name="password" autocomplete="new-password" minlength="12" required><p class="text-xs text-base-content/45">At least 12 characters.</p></div>
       <button type="submit" class="btn btn-primary w-full">Create account</button>
     </form>
   </section>
@@ -74,20 +74,20 @@
     <div hx-get="/discovery/progress" hx-trigger="every 2s" hx-swap="innerHTML" aria-live="polite">{{template "discovery" .}}</div>
     <details class="mt-3"><summary class="cursor-pointer text-sm text-base-content/65">Advanced discovery</summary>
       {{if .Networks}}<div class="mt-4 flex flex-wrap gap-2">{{range .Networks}}<form action="/discover" method="post"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="target" value="{{.Prefix}}"><button class="btn btn-sm btn-outline" type="submit">Scan {{.Prefix}}</button></form>{{end}}</div>{{end}}
-      <form action="/discover" method="post" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"><input type="hidden" name="csrf" value="{{.CSRF}}"><div class="field grow"><label for="target">Address or subnet</label><input id="target" name="target" class="input w-full font-mono text-sm" placeholder="192.168.1.0/24 or 192.168.1.31" required></div><button class="btn btn-outline" type="submit">Scan</button></form>
+      <form action="/discover" method="post" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"><input type="hidden" name="csrf" value="{{.CSRF}}"><div class="flex grow flex-col gap-2"><label for="target">Address or subnet</label><input id="target" name="target" class="input w-full font-mono text-sm" placeholder="192.168.1.0/24 or 192.168.1.31" required></div><button class="btn btn-outline" type="submit">Scan</button></form>
     </details>
   </section>
   <form id="filters" action="/" method="get" class="mb-5 flex flex-wrap items-end gap-3" hx-get="/inventory" hx-trigger="input changed delay:350ms from:#search, change from:#room, change from:#tag-filter, change from:#group-by" hx-target="#inventory" hx-swap="innerHTML" hx-sync="#inventory:replace">
-    <div class="field grow sm:max-w-sm"><label for="search">Search devices</label><input class="input w-full" id="search" name="q" value="{{.Query}}" placeholder="Name, address, tag, or note…"></div>
-    <div class="field"><label for="room">Room</label><select id="room" class="select w-44" name="room">{{template "room-options" .}}</select></div>
+    <div class="flex grow flex-col gap-2 sm:max-w-sm"><label for="search">Search devices</label><input class="input w-full" id="search" name="q" value="{{.Query}}" placeholder="Name, address, tag, or note…"></div>
+    <div class="flex flex-col gap-2"><label for="room">Room</label><select id="room" class="select w-44 data-[colored-label]:text-(--label-color) [&_option[data-colored-label]]:text-(--label-color) [&_option:not([data-colored-label])]:text-base-content" name="room">{{template "room-options" .}}</select></div>
     {{template "tag-filter" .}}
-    <div class="field"><label for="group-by">Group by</label><select id="group-by" class="select w-32" name="group"><option value="" {{if not .GroupBy}}selected{{end}}>None</option><option value="room" {{if eq .GroupBy "room"}}selected{{end}}>Room</option></select></div>
+    <div class="flex flex-col gap-2"><label for="group-by">Group by</label><select id="group-by" class="select w-32" name="group"><option value="" {{if not .GroupBy}}selected{{end}}>None</option><option value="room" {{if eq .GroupBy "room"}}selected{{end}}>Room</option></select></div>
     <label class="ml-auto flex items-center gap-2 py-3 text-sm text-base-content/65"><input id="auto-refresh" type="checkbox" class="checkbox checkbox-xs" checked>Auto-refresh (30s)</label>
-    <button class="btn btn-ghost" type="submit" hx-get="/inventory?refresh=1" hx-trigger="click" hx-include="#filters" hx-target="#inventory" hx-swap="innerHTML">Refresh <span class="loading loading-spinner loading-xs loading-indicator" aria-hidden="true"></span></button>
+    <button class="btn btn-ghost" type="submit" hx-get="/inventory?refresh=1" hx-trigger="click" hx-include="#filters" hx-target="#inventory" hx-swap="innerHTML">Refresh <span class="loading loading-spinner loading-xs hidden! in-[.htmx-request]:inline-block!" aria-hidden="true"></span></button>
   </form>
   <div id="inventory" hx-get="/inventory" hx-trigger="every 30s" hx-include="#filters" hx-swap="innerHTML" hx-sync="this:drop">{{template "inventory" .}}</div>
 </main>
-<dialog id="organization-dialog" class="organization-dialog" aria-labelledby="organization-title"><div id="organization-content"></div></dialog>
+<dialog id="organization-dialog" class="modal motion-reduce:transition-none" aria-labelledby="organization-title"><div id="organization-content" class="modal-box w-[min(480px,calc(100vw-32px))] max-w-none max-h-[calc(100dvh-32px)] rounded-xl border border-base-content/20 bg-base-200 p-0 scale-none translate-none motion-reduce:transition-none"></div></dialog>
 <p id="organization-status" class="sr-only" role="status"></p>
 </body></html>{{end}}
 
@@ -96,65 +96,109 @@
 {{else if .Discovery.Message}}<p class="mt-4 text-sm text-base-content/65">{{.Discovery.Message}}</p>{{end}}{{end}}
 
 {{define "inventory"}}
-<div class="panel inventory-panel">
-<section class="inventory-summary" aria-label="Inventory summary">
-  <span><strong>{{.Total}}</strong> devices</span>
-  <span class="summary-online"><span class="dot" aria-hidden="true"></span><strong>{{.Reachable}}</strong> reachable</span>
-  <span class="{{if .Changed}}summary-changed{{end}}"><strong>{{.Changed}}</strong> changed</span>
-  <span class="{{if .Unprotected}}summary-unprotected{{end}}"><strong>{{.Unprotected}}</strong> unprotected</span>
-  {{if or .Query .Room .SelectedTags}}<span class="summary-filtered">{{len .Devices}} shown</span>{{end}}
-</section>
-{{if .Devices}}
-{{if .RoomGroups}}
-{{range $index, $group := .RoomGroups}}
-<section class="inventory-room-group t-acc" data-room-group="{{.Room}}" data-open="true" aria-labelledby="room-heading-{{$index}}">
-  <h2 id="room-heading-{{$index}}" class="inventory-room-heading" data-room-label="{{.Room}}"><button type="button" id="room-toggle-{{$index}}" class="inventory-room-toggle t-acc-head" data-room-toggle aria-expanded="true" aria-controls="room-panel-{{$index}}"><span class="inventory-room-name">{{if .Room}}{{.Room}}{{else}}No room{{end}}</span><span class="inventory-room-count">{{len .Devices}} {{if eq (len .Devices) 1}}device{{else}}devices{{end}}</span><span class="t-acc-chevron" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6.5L8 10.5L12 6.5"/></svg></span></button></h2>
-  <div id="room-panel-{{$index}}" class="t-acc-panel" data-room-panel aria-hidden="false"><div class="t-acc-panel-inner">{{template "inventory-table" .Devices}}</div></div>
-</section>
+<div class="card card-border inventory-panel overflow-hidden bg-base-200/50">
+  <section class="inventory-summary flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-base-content/10 px-4 py-3 text-xs text-base-content/60 *:inline-flex *:items-center *:gap-1.5 [&_strong]:font-medium [&_strong]:tabular-nums max-[481px]:grid max-[481px]:grid-cols-2 max-[481px]:gap-x-4" aria-label="Inventory summary">
+    <span><strong>{{.Total}}</strong> devices</span>
+    <span class="summary-online text-success"><span class="status status-success" aria-hidden="true"></span><strong>{{.Reachable}}</strong> reachable</span>
+    <span class="{{if .Changed}}text-warning{{end}}"><strong>{{.Changed}}</strong> changed</span>
+    <span class="{{if .Unprotected}}text-warning{{end}}"><strong>{{.Unprotected}}</strong> unprotected</span>
+    {{if or .Query .Room .SelectedTags}}<span class="summary-filtered ml-auto max-[481px]:col-span-full max-[481px]:ml-0">{{len .Devices}} shown</span>{{end}}
+  </section>
+  {{if .Devices}}
+    {{if .RoomGroups}}
+      {{range $index, $group := .RoomGroups}}
+      <section class="inventory-room-group t-acc group/room" data-room-group="{{.Room}}" data-open="true" aria-labelledby="room-heading-{{$index}}">
+        <h2 id="room-heading-{{$index}}" class="inventory-room-heading group/label border-b border-base-content/10 bg-base-100/40 text-sm font-medium data-[colored-label]:text-(--label-color)" data-room-label="{{.Room}}">
+          <button type="button" id="room-toggle-{{$index}}" class="inventory-room-toggle t-acc-head btn btn-ghost h-auto min-h-11 w-full justify-start gap-3 rounded-none px-4 py-3 text-left font-medium text-inherit focus-visible:-outline-offset-2" data-room-toggle aria-expanded="true" aria-controls="room-panel-{{$index}}">
+            <span class="inventory-room-name flex min-w-0 flex-1 items-center gap-2 wrap-anywhere"><span class="status hidden bg-(--label-color) text-(--label-color) group-data-[colored-label]/label:inline-block" aria-hidden="true"></span>{{if .Room}}{{.Room}}{{else}}No room{{end}}</span>
+            <span class="inventory-room-count shrink-0 text-xs font-normal text-base-content/60">{{len .Devices}} {{if eq (len .Devices) 1}}device{{else}}devices{{end}}</span>
+            <span class="t-acc-chevron inline-flex transition-transform duration-250 group-data-[open=true]/room:-scale-y-100 motion-reduce:transition-none in-[.inventory-restoring]:transition-none!" aria-hidden="true"><svg class="icon size-3.5!" viewBox="0 0 16 16"><path class="[vector-effect:non-scaling-stroke]" d="M4 6.5L8 10.5L12 6.5"/></svg></span>
+          </button>
+        </h2>
+        <div id="room-panel-{{$index}}" class="t-acc-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-250 group-data-[open=true]/room:grid-rows-[1fr] motion-reduce:transition-none in-[.inventory-restoring]:transition-none!" data-room-panel aria-hidden="false"><div class="t-acc-panel-inner min-h-0 overflow-hidden">{{template "inventory-table" .Devices}}</div></div>
+      </section>
+      {{end}}
+    {{else}}{{template "inventory-table" .Devices}}{{end}}
+  {{else}}
+    <p class="px-6 py-10 text-center text-sm text-base-content/55">{{if .Total}}No matching devices.{{else}}No devices.{{end}}</p>
+  {{end}}
+</div>
 {{end}}
-{{else}}{{template "inventory-table" .Devices}}{{end}}
-{{else}}
-<p class="px-6 py-10 text-center text-sm text-base-content/55">{{if .Total}}No matching devices.{{else}}No devices.{{end}}</p>
-{{end}}
-</div>{{end}}
 
 {{define "inventory-table"}}
-<table class="table device-table w-full"><caption class="sr-only">Shelly device inventory</caption>
-  <colgroup><col class="col-device"><col class="col-model"><col class="col-address"><col class="col-room"><col class="col-status"><col class="col-wifi"><col class="col-config"><col class="col-actions"></colgroup>
-  <thead><tr><th scope="col">Device</th><th scope="col">Model</th><th scope="col">IP</th><th scope="col">Room</th><th scope="col">Status</th><th scope="col">Wi-Fi</th><th scope="col">Saved config</th><th scope="col"><span class="sr-only">Security and links</span></th></tr></thead>
-{{range .}}{{$device := .}}
-<tbody class="device-group t-acc" data-open="false">
-<tr class="device-row {{if .Table.Note}}has-note{{end}} {{if .Table.InputsChanged}}device-row-changed{{end}} {{if eq .Table.ConnectivityTone "error"}}device-row-error{{end}}" data-row-href="/devices/{{.Record.Id}}">
-  <th scope="row" class="device-identity"><div class="device-identity-line"><a class="device-name" href="/devices/{{.Record.Id}}" data-tooltip="{{.Name}}&#10;{{.Table.Identity}}">{{.Name}}</a>{{if .Table.Inputs}}<button id="inputs-toggle-{{.Record.Id}}" type="button" class="input-toggle {{if .Table.InputsChanged}}inputs-changed{{end}}" data-input-toggle aria-controls="inputs-{{.Record.Id}}" aria-expanded="false" aria-label="{{len .Table.Inputs}} {{if eq (len .Table.Inputs) 1}}input{{else}}inputs{{end}} for {{.Name}}" data-tooltip="{{len .Table.Inputs}} {{if eq (len .Table.Inputs) 1}}input{{else}}inputs{{end}} · expand settings"><span>{{len .Table.Inputs}}</span><span class="t-acc-chevron"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5L8 10.5L12 6.5"/></svg></span></button>{{end}}</div></th>
-  <td class="device-model"><span class="model-chip" data-tooltip="{{.Table.Identity}}"><span>{{.Table.Model}}</span><span class="model-generation">G{{get .Record "generation"}}</span></span></td>
-  <td class="device-address"><span class="device-ip" data-tooltip="{{get .Record "address"}}" tabindex="0">{{.Table.Address}}</span></td>
-  <td class="device-room"><button id="room-edit-{{.Record.Id}}" type="button" class="room-chip room-edit {{if not (get .Record "room")}}room-empty{{end}}" hx-get="/devices/{{.Record.Id}}/organization" hx-target="#organization-content" data-organization-open data-room-label="{{get .Record "room"}}" aria-haspopup="dialog" aria-controls="organization-dialog" aria-label="Edit room & tags for {{.Name}}" data-tooltip="{{if get .Record "room"}}Room: {{get .Record "room"}}{{else}}Add room{{end}}">{{if get .Record "room"}}{{get .Record "room"}}{{else}}+ Room{{end}}</button></td>
-  <td class="device-connectivity"><div class="device-status">
-    <a href="/devices/{{.Record.Id}}" class="icon-button status-indicator tone-{{.Table.ConnectivityTone}}" aria-label="{{.Table.Connectivity}}: {{.Name}}" data-tooltip="{{.Table.Connectivity}}&#10;{{.Table.ConnectionInfo}}"><svg class="icon" aria-hidden="true"><use href="#icon-{{.Table.ConnectivityIcon}}"></use></svg></a>
-    {{if eq .Table.Cloud.Value "Connected"}}<a href="/devices/{{.Record.Id}}#detail-connection" class="icon-button cloud-indicator tone-{{.Table.Cloud.Tone}}" aria-label="Shelly Cloud: {{.Table.Cloud.Value}} for {{.Name}}{{if .Table.StatusInfo}} · last reported{{end}}" data-tooltip="Shelly Cloud: {{.Table.Cloud.Value}}{{if .Table.StatusInfo}} · last reported{{end}}&#10;{{.Table.Cloud.Info}}"><svg class="icon" aria-hidden="true"><use href="#icon-cloud"></use><use class="cloud-glint" href="#icon-cloud"></use></svg></a>{{end}}
-    {{if .Table.RestartRequired}}<a href="/devices/{{.Record.Id}}#detail-connection" class="icon-button restart-indicator" aria-label="Restart required for {{.Name}}" data-tooltip="Restart required&#10;Status checked · {{when (get .Record "last_checked")}}"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg></a>{{end}}
-  </div></td>
-  <td class="device-wifi">{{if .Table.Signal}}<button type="button" class="wifi-value tooltip-trigger tone-{{.Table.SignalTone}}" aria-label="{{.Table.Signal}}" data-tooltip="{{.Table.Signal}}"><svg class="icon" aria-hidden="true"><use href="#icon-wifi"></use></svg><span>{{.Table.SignalValue}}</span><span class="wifi-unit">dBm</span></button>{{else}}<span class="tone-muted">—</span>{{end}}</td>
-  <td class="device-config"><a href="/devices/{{.Record.Id}}" class="config-value tone-{{.Table.ConfigurationTone}}" aria-label="Saved config: {{.Table.Configuration}}{{if .Table.ConfigurationStale}} · last known{{end}}" data-tooltip="{{.Table.ConfigurationInfo}}">{{if eq .Table.ConfigurationTone "warning"}}<svg class="icon" aria-hidden="true"><use href="#icon-warning"></use></svg>{{else if eq .Table.ConfigurationTone "ok"}}<svg class="icon" aria-hidden="true"><use href="#icon-check"></use></svg>{{end}}{{.Table.Configuration}}</a></td>
-  <td class="device-actions"><div class="row-actions"><button id="tags-edit-{{.Record.Id}}" type="button" class="icon-button tag-editor" hx-get="/devices/{{.Record.Id}}/organization" hx-target="#organization-content" data-organization-open aria-haspopup="dialog" aria-controls="organization-dialog" aria-label="Edit tags for {{.Name}}" data-tooltip="{{if get .Record "tags"}}Tags: {{get .Record "tags"}}{{else}}Add tags{{end}}"><svg class="icon" aria-hidden="true"><use href="#icon-tag"></use></svg>{{if get .Record "tags"}}<span class="tag-count" aria-hidden="true">{{len (tags (get .Record "tags"))}}</span>{{end}}</button><button type="button" class="icon-button tooltip-trigger {{if flag .Record "auth_enabled"}}security-protected{{else}}security-open{{end}}" aria-label="{{if flag .Record "auth_enabled"}}Device password enabled{{else}}No device password{{end}}" data-tooltip="{{if flag .Record "auth_enabled"}}Device password enabled{{else}}No device password{{end}}"><svg class="icon" aria-hidden="true"><use href="{{if flag .Record "auth_enabled"}}#icon-lock{{else}}#icon-unlock{{end}}"></use></svg></button>{{if .Table.Note}}<a href="/devices/{{.Record.Id}}#device-notes" class="icon-button note-indicator" aria-label="Note for {{.Name}}" data-tooltip="{{.Table.Note}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg></a>{{end}}<a href="{{get .Record "address"}}" target="_blank" rel="noopener noreferrer" class="icon-button device-ui-link" aria-label="Open device UI for {{.Name}}" data-tooltip="Open device UI"><svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg></a></div></td>
-</tr>
-{{if .Table.Inputs}}<tr class="input-detail-row" aria-hidden="true" inert><td colspan="8">
-  <div id="inputs-{{.Record.Id}}" class="t-acc-panel" role="region" aria-label="Inputs for {{.Name}}"><div class="t-acc-panel-inner"><div class="input-panel-body">
-    <div class="input-panel-meta"><span class="input-scroll-hint">Scroll for all settings →</span>{{if .Table.SettingsWarning}}<span class="input-settings-warning tone-warning">{{.Table.SettingsWarning}}</span>{{end}}{{if get .Record "last_captured"}}<span class="input-capture">Settings last read · {{when (get .Record "last_captured")}}</span>{{end}}</div>
-    <div class="input-list-scroll" role="group" aria-label="Input list for {{.Name}}" tabindex="0">
-      <div class="input-list-heading" aria-hidden="true"><span>Input / type</span><span>Mode</span><span>Physical state</span><span>Relay</span><span>Settings</span><span>Notes</span></div>
-      <ul class="input-list" role="list">{{range .Table.Inputs}}<li class="input-row {{if .Changed}}input-row-changed{{end}}" aria-label="Input {{.ID}}">
-        <a class="input-identity" href="/devices/{{$device.Record.Id}}#note-{{.Key}}" data-tooltip="Input {{.ID}} · {{.Type}}{{if .Name}}&#10;{{.Name}}{{end}}"><span class="input-title">Input {{.ID}}</span><span class="input-type">{{.Type}}</span>{{if .Name}}<span class="input-name">{{.Name}}</span>{{end}}</a>
-        <dl class="input-row-values">
-          <div class="input-mode"><dt class="sr-only">Mode</dt><dd><span class="mode-chip tone-{{if .Changed}}warning{{else}}{{.ModeTone}}{{end}}" data-tooltip="{{.Info}}" tabindex="0">{{.Mode}}</span>{{if .Restriction}}<span class="input-restriction" data-tooltip="{{.Restriction}}" tabindex="0" role="img" aria-label="{{.Restriction}}"><svg class="icon" aria-hidden="true"><use href="#icon-warning"></use></svg></span>{{end}}</dd></div>
-          <div><dt class="sr-only">Physical state</dt><dd class="input-state tone-{{.StateTone}}"{{if .StatusInfo}} data-tooltip="{{.StatusInfo}}" tabindex="0"{{end}}>{{.State}}{{if .StatusInfo}}<span class="sr-only"> · {{.StatusInfo}}</span>{{end}}</dd></div>
-          <div><dt class="sr-only">{{if .RelayKey}}Relay {{.RelayID}}{{else}}Relay{{end}}</dt><dd class="input-relay">{{if .RelayKey}}<span class="input-relay-id">{{.RelayID}}</span><span class="input-state tone-{{.OutputTone}}"{{if .StatusInfo}} data-tooltip="{{.StatusInfo}}" tabindex="0"{{end}}>{{.Output}}{{if .StatusInfo}}<span class="sr-only"> · {{.StatusInfo}}</span>{{end}}</span>{{else}}<span class="tone-muted">—</span>{{end}}</dd></div>
-          <div><dt class="sr-only">Settings</dt><dd>{{if .Values}}<dl class="input-settings">{{range .Values}}<div><dt>{{.Label}}</dt><dd class="{{if or (and (eq .Label "Locked") (eq .Value "Yes")) (and (eq .Label "Enabled") (eq .Value "No"))}}tone-warning{{end}}">{{.Value}}</dd></div>{{end}}</dl>{{else}}<span class="tone-muted">—</span>{{end}}</dd></div>
-        </dl>
-        <div class="input-notes">{{if .Note}}<a class="icon-button input-note-link" href="/devices/{{$device.Record.Id}}#note-{{.Key}}" aria-label="Input {{.ID}} note" data-tooltip="Input {{.ID}} note&#10;{{.Note}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg><span class="input-note-label" aria-hidden="true">I</span></a>{{end}}{{if .RelayNote}}<a class="icon-button input-note-link" href="/devices/{{$device.Record.Id}}#note-{{.RelayKey}}" aria-label="Relay {{.RelayID}} note" data-tooltip="Relay {{.RelayID}} note&#10;{{.RelayNote}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg><span class="input-note-label" aria-hidden="true">R</span></a>{{end}}{{if not (or .Note .RelayNote)}}<span class="tone-muted">—</span>{{end}}</div>
-      </li>{{end}}</ul>
-    </div>
-  </div></div></div>
-</td></tr>{{end}}
-</tbody>{{end}}</table>
+<table class="table table-sm device-table w-full table-fixed max-[1101px]:block pointer-coarse:max-[1281px]:block">
+  <caption class="sr-only">Shelly device inventory</caption>
+  <colgroup class="max-[1101px]:hidden pointer-coarse:max-[1281px]:hidden">
+    <col class="w-[24%] min-[1101px]:max-[1200px]:w-[16%] min-[1200px]:max-[1281px]:w-[22%]"><col><col><col><col><col><col><col class="w-[150px] pointer-coarse:w-[190px]">
+  </colgroup>
+  <thead class="max-[1101px]:hidden pointer-coarse:max-[1281px]:hidden [&_th]:border-b [&_th]:border-base-content/10 [&_th]:py-3 [&_th]:text-left [&_th]:text-xs [&_th]:font-medium [&_th]:text-base-content/60"><tr>
+    <th scope="col">Device</th><th scope="col">Model</th><th scope="col">IP</th><th scope="col">Room</th><th scope="col">Status</th><th scope="col">Wi-Fi</th><th scope="col">Saved config</th><th scope="col"><span class="sr-only">Security and links</span></th>
+  </tr></thead>
+  {{range .}}{{$device := .}}
+  <tbody class="device-group t-acc group/device max-[1101px]:block pointer-coarse:max-[1281px]:block" data-open="false">
+    <tr class="device-row cursor-pointer hover:bg-info/5 focus-within:bg-info/5 group-data-[open=true]/device:bg-info/5 *:h-13 *:border-b *:border-base-content/10 *:text-left *:align-middle *:text-[13px] *:font-normal *:whitespace-nowrap max-[1101px]:relative max-[1101px]:grid max-[1101px]:grid-cols-2 max-[1101px]:gap-x-4 max-[1101px]:gap-y-3 max-[1101px]:border-b max-[1101px]:border-base-content/10 max-[1101px]:p-4 max-[1101px]:*:block max-[1101px]:*:h-auto max-[1101px]:*:min-w-0 max-[1101px]:*:border-0! max-[1101px]:*:p-0 pointer-coarse:max-[1281px]:relative pointer-coarse:max-[1281px]:grid pointer-coarse:max-[1281px]:grid-cols-2 pointer-coarse:max-[1281px]:gap-x-4 pointer-coarse:max-[1281px]:gap-y-3 pointer-coarse:max-[1281px]:border-b pointer-coarse:max-[1281px]:border-base-content/10 pointer-coarse:max-[1281px]:p-4 pointer-coarse:max-[1281px]:*:block pointer-coarse:max-[1281px]:*:h-auto pointer-coarse:max-[1281px]:*:min-w-0 pointer-coarse:max-[1281px]:*:border-0! pointer-coarse:max-[1281px]:*:p-0 {{if .Table.Note}}has-note{{end}} {{if .Table.InputsChanged}}device-row-changed{{end}} {{if eq .Table.ConnectivityTone "error"}}device-row-error{{end}}" data-row-href="/devices/{{.Record.Id}}">
+      <th scope="row" class="device-identity border-l-[3px] {{if eq .Table.ConnectivityTone "error"}}border-l-error!{{else if .Table.InputsChanged}}border-l-warning!{{else}}border-l-transparent!{{end}} max-[1101px]:col-span-full max-[1101px]:pr-[108px]! pointer-coarse:max-[1281px]:col-span-full pointer-coarse:max-[1281px]:pr-[134px]! {{if .Table.Note}}max-[1101px]:pr-[140px]! pointer-coarse:max-[1281px]:pr-[174px]!{{end}} max-[481px]:pr-0! pointer-coarse:max-[481px]:pr-0!">
+        <div class="device-identity-line flex min-w-0 items-center gap-2">
+          <a class="device-name block min-w-0 truncate text-[13px] font-medium text-base-content hover:text-info max-[1101px]:wrap-anywhere max-[1101px]:whitespace-normal pointer-coarse:max-[1281px]:wrap-anywhere pointer-coarse:max-[1281px]:whitespace-normal" href="/devices/{{.Record.Id}}" data-tooltip="{{.Name}}&#10;{{.Table.Identity}}">{{.Name}}</a>
+          {{if .Table.Inputs}}
+          <button id="inputs-toggle-{{.Record.Id}}" type="button" class="input-toggle btn btn-xs h-7 min-h-7 shrink-0 gap-1 rounded-md px-1.5 font-medium pointer-coarse:h-10 pointer-coarse:min-h-10 {{if .Table.InputsChanged}}inputs-changed btn-soft btn-warning{{else}}btn-ghost border-base-content/12 text-base-content/60 hover:text-info{{end}}" data-input-toggle aria-controls="inputs-{{.Record.Id}}" aria-expanded="false" aria-label="{{len .Table.Inputs}} {{if eq (len .Table.Inputs) 1}}input{{else}}inputs{{end}} for {{.Name}}" data-tooltip="{{len .Table.Inputs}} {{if eq (len .Table.Inputs) 1}}input{{else}}inputs{{end}} · expand settings">
+            <span>{{len .Table.Inputs}}</span><span class="t-acc-chevron inline-flex transition-transform duration-250 group-data-[open=true]/device:-scale-y-100 motion-reduce:transition-none in-[.inventory-restoring]:transition-none!"><svg class="icon size-3.5!" viewBox="0 0 16 16" aria-hidden="true"><path class="[vector-effect:non-scaling-stroke]" d="M4 6.5L8 10.5L12 6.5"/></svg></span>
+          </button>
+          {{end}}
+        </div>
+      </th>
+      <td class="device-model max-[1101px]:col-start-1 max-[1101px]:row-start-2 pointer-coarse:max-[1281px]:col-start-1 pointer-coarse:max-[1281px]:row-start-2"><span class="model-chip badge badge-soft badge-info badge-sm h-7 max-w-full gap-1.5 rounded-md px-2 text-[11px] pointer-coarse:h-10" data-tooltip="{{.Table.Identity}}"><span class="truncate">{{.Table.Model}}</span><span class="model-generation text-[10px] font-medium text-secondary">G{{get .Record "generation"}}</span></span></td>
+      <td class="device-address max-[1101px]:col-start-1 max-[1101px]:row-start-3 pointer-coarse:max-[1281px]:col-start-1 pointer-coarse:max-[1281px]:row-start-3"><span class="device-ip block truncate font-mono text-xs text-base-content/80 max-[1101px]:text-[11px] pointer-coarse:max-[1281px]:text-[11px]" data-tooltip="{{get .Record "address"}}" tabindex="0">{{.Table.Address}}</span></td>
+      <td class="device-room max-[1101px]:col-start-2 max-[1101px]:row-start-3 pointer-coarse:max-[1281px]:col-start-2 pointer-coarse:max-[1281px]:row-start-3"><button id="room-edit-{{.Record.Id}}" type="button" class="room-chip room-edit btn btn-soft btn-xs [--btn-color:var(--label-color,var(--color-info))] h-7 min-h-7 max-w-full min-w-0 truncate rounded-md px-1.5 text-[11px] pointer-coarse:h-10 pointer-coarse:min-h-10 {{if get .Record "room"}}text-info data-[colored-label]:text-(--label-color){{else}}room-empty btn-ghost border-dashed border-base-content/25 text-base-content/55{{end}}" hx-get="/devices/{{.Record.Id}}/organization" hx-target="#organization-content" data-organization-open data-room-label="{{get .Record "room"}}" aria-haspopup="dialog" aria-controls="organization-dialog" aria-label="Edit room & tags for {{.Name}}" data-tooltip="{{if get .Record "room"}}Room: {{get .Record "room"}}{{else}}Add room{{end}}">{{if get .Record "room"}}{{get .Record "room"}}{{else}}+ Room{{end}}</button></td>
+      <td class="device-connectivity max-[1101px]:col-start-1 max-[1101px]:row-start-4 pointer-coarse:max-[1281px]:col-start-1 pointer-coarse:max-[1281px]:row-start-4"><div class="device-status inline-flex items-center gap-0.5 align-middle">
+        <a href="/devices/{{.Record.Id}}" class="status-indicator btn btn-ghost btn-xs h-8 w-7 p-0 pointer-coarse:h-10 pointer-coarse:w-9 {{toneClass .Table.ConnectivityTone}}" aria-label="{{.Table.Connectivity}}: {{.Name}}" data-tooltip="{{.Table.Connectivity}}&#10;{{.Table.ConnectionInfo}}"><svg class="icon" aria-hidden="true"><use href="#icon-{{.Table.ConnectivityIcon}}"></use></svg></a>
+        {{if eq .Table.Cloud.Value "Connected"}}<a href="/devices/{{.Record.Id}}#detail-connection" class="cloud-indicator btn btn-ghost btn-xs h-8 w-7 p-0 pointer-coarse:h-10 pointer-coarse:w-9 {{toneClass .Table.Cloud.Tone}} {{if eq .Table.Cloud.Tone "muted"}}opacity-30 hover:opacity-100 focus-visible:opacity-100{{end}}" aria-label="Shelly Cloud: {{.Table.Cloud.Value}} for {{.Name}}{{if .Table.StatusInfo}} · last reported{{end}}" data-tooltip="Shelly Cloud: {{.Table.Cloud.Value}}{{if .Table.StatusInfo}} · last reported{{end}}&#10;{{.Table.Cloud.Info}}"><svg class="icon {{if eq .Table.Cloud.Tone "ok"}}stroke-[2.2] drop-shadow-[0_0_2px_currentColor]{{end}}" aria-hidden="true"><use href="#icon-cloud"></use><use class="cloud-glint opacity-0 {{if eq .Table.Cloud.Tone "ok"}}stroke-[color-mix(in_oklab,currentColor_25%,white)] stroke-[2.2] [stroke-dasharray:12_88] animate-[cloud-shine_2.4s_linear_infinite] motion-reduce:animate-none{{end}}" href="#icon-cloud"></use></svg></a>{{end}}
+        {{if .Table.RestartRequired}}<a href="/devices/{{.Record.Id}}#detail-connection" class="restart-indicator btn btn-ghost btn-xs h-8 w-7 p-0 text-warning pointer-coarse:h-10 pointer-coarse:w-9" aria-label="Restart required for {{.Name}}" data-tooltip="Restart required&#10;Status checked · {{when (get .Record "last_checked")}}"><svg class="icon" aria-hidden="true"><use href="#icon-refresh"></use></svg></a>{{end}}
+      </div></td>
+      <td class="device-wifi max-[1101px]:col-start-2 max-[1101px]:row-start-2 pointer-coarse:max-[1281px]:col-start-2 pointer-coarse:max-[1281px]:row-start-2">{{if .Table.Signal}}<button type="button" class="wifi-value tooltip-trigger btn btn-ghost btn-xs h-8 gap-1.5 px-0 text-[13px] font-medium tabular-nums pointer-coarse:h-10 {{toneClass .Table.SignalTone}}" aria-label="{{.Table.Signal}}" data-tooltip="{{.Table.Signal}}"><svg class="icon size-6! stroke-[1.9]" aria-hidden="true"><use href="#icon-wifi"></use></svg><span>{{.Table.SignalValue}}</span><span class="wifi-unit text-[10px] font-normal">dBm</span></button>{{else}}<span class="text-base-content/60">—</span>{{end}}</td>
+      <td class="device-config max-[1101px]:col-start-2 max-[1101px]:row-start-4 pointer-coarse:max-[1281px]:col-start-2 pointer-coarse:max-[1281px]:row-start-4"><a href="/devices/{{.Record.Id}}" class="config-value inline-flex items-center gap-1 text-xs whitespace-nowrap {{if eq .Table.ConfigurationTone "warning"}}badge badge-soft badge-warning badge-sm h-7 rounded-md px-1.5 pointer-coarse:h-10{{else if eq .Table.ConfigurationTone "ok"}}badge badge-soft badge-success badge-sm h-7 rounded-md px-1.5 pointer-coarse:h-10{{else}}{{toneClass .Table.ConfigurationTone}}{{end}}" aria-label="Saved config: {{.Table.Configuration}}{{if .Table.ConfigurationStale}} · last known{{end}}" data-tooltip="{{.Table.ConfigurationInfo}}">{{if eq .Table.ConfigurationTone "warning"}}<svg class="icon size-3.5!" aria-hidden="true"><use href="#icon-warning"></use></svg>{{else if eq .Table.ConfigurationTone "ok"}}<svg class="icon size-3.5!" aria-hidden="true"><use href="#icon-check"></use></svg>{{end}}{{.Table.Configuration}}</a></td>
+      <td class="device-actions max-[1101px]:absolute max-[1101px]:top-2.5 max-[1101px]:right-3 pointer-coarse:max-[1281px]:absolute pointer-coarse:max-[1281px]:top-2.5 pointer-coarse:max-[1281px]:right-3 max-[481px]:static max-[481px]:col-span-full max-[481px]:row-start-5 pointer-coarse:max-[481px]:static pointer-coarse:max-[481px]:col-span-full pointer-coarse:max-[481px]:row-start-5">
+        <div class="row-actions flex items-center justify-center gap-0.5 max-[1101px]:justify-end pointer-coarse:max-[1281px]:justify-end">
+          <button id="tags-edit-{{.Record.Id}}" type="button" class="tag-editor btn btn-ghost btn-xs relative h-8 w-[30px] p-0 text-secondary pointer-coarse:size-10" hx-get="/devices/{{.Record.Id}}/organization" hx-target="#organization-content" data-organization-open aria-haspopup="dialog" aria-controls="organization-dialog" aria-label="Edit tags for {{.Name}}" data-tooltip="{{if get .Record "tags"}}Tags: {{get .Record "tags"}}{{else}}Add tags{{end}}"><svg class="icon" aria-hidden="true"><use href="#icon-tag"></use></svg>{{if get .Record "tags"}}<span class="tag-count badge badge-xs absolute top-0 right-0 h-3.5 min-w-3 border-0 bg-base-200 px-0.5 text-[9px] font-medium" aria-hidden="true">{{len (tags (get .Record "tags"))}}</span>{{end}}</button>
+          <button type="button" class="tooltip-trigger btn btn-ghost btn-xs h-8 w-[30px] p-0 pointer-coarse:size-10 {{if flag .Record "auth_enabled"}}security-protected text-success{{else}}security-open text-warning{{end}}" aria-label="{{if flag .Record "auth_enabled"}}Device password enabled{{else}}No device password{{end}}" data-tooltip="{{if flag .Record "auth_enabled"}}Device password enabled{{else}}No device password{{end}}"><svg class="icon" aria-hidden="true"><use href="{{if flag .Record "auth_enabled"}}#icon-lock{{else}}#icon-unlock{{end}}"></use></svg></button>
+          {{if .Table.Note}}<a href="/devices/{{.Record.Id}}#device-notes" class="note-indicator btn btn-ghost btn-xs h-8 w-[30px] p-0 text-secondary pointer-coarse:size-10" aria-label="Note for {{.Name}}" data-tooltip="{{.Table.Note}}"><svg class="icon" aria-hidden="true"><use href="#icon-note"></use></svg></a>{{end}}
+          <a href="{{get .Record "address"}}" target="_blank" rel="noopener noreferrer" class="device-ui-link btn btn-ghost btn-xs h-8 w-[30px] p-0 text-info pointer-coarse:size-10" aria-label="Open device UI for {{.Name}}" data-tooltip="Open device UI"><svg class="icon" aria-hidden="true"><use href="#icon-external"></use></svg></a>
+        </div>
+      </td>
+    </tr>
+    {{if .Table.Inputs}}
+    <tr class="input-detail-row border-0 max-[1101px]:block pointer-coarse:max-[1281px]:block" aria-hidden="true" inert><td colspan="8" class="h-auto border-0! p-0! max-[1101px]:block pointer-coarse:max-[1281px]:block">
+      <div id="inputs-{{.Record.Id}}" class="t-acc-panel grid grid-rows-[0fr] transition-[grid-template-rows] duration-250 group-data-[open=true]/device:grid-rows-[1fr] motion-reduce:transition-none in-[.inventory-restoring]:transition-none!" role="region" aria-label="Inputs for {{.Name}}"><div class="t-acc-panel-inner min-h-0 overflow-hidden"><div class="input-panel-body border-b border-base-content/10 bg-info/3 px-4 pt-2.5 pb-3 max-[481px]:px-3">
+        <div class="input-panel-meta mb-2 flex flex-wrap items-center justify-between gap-2">
+          <span class="input-scroll-hint hidden text-[10px] font-normal text-base-content/60 max-[1101px]:inline pointer-coarse:max-[1281px]:inline">Scroll for all settings →</span>
+          {{if .Table.SettingsWarning}}<span class="input-settings-warning text-[11px] font-normal text-warning">{{.Table.SettingsWarning}}</span>{{end}}
+          {{if get .Record "last_captured"}}<span class="input-capture ml-auto text-[11px] font-normal text-base-content/60">Settings last read · {{when (get .Record "last_captured")}}</span>{{end}}
+        </div>
+        <div class="input-list-scroll min-w-0 overflow-x-auto overscroll-x-contain rounded-md border border-base-content/10 bg-base-100/40" role="group" aria-label="Input list for {{.Name}}" tabindex="0">
+          <div class="input-list-heading grid min-h-[30px] min-w-[1014px] grid-cols-[minmax(170px,1.2fr)_120px_100px_76px_minmax(400px,2.5fr)_64px] items-center gap-3 border-b border-base-content/10 px-3 text-[11px] font-normal text-base-content/60 pointer-coarse:min-w-[1034px] pointer-coarse:grid-cols-[minmax(170px,1.2fr)_120px_100px_76px_minmax(400px,2.5fr)_84px]" aria-hidden="true"><span>Input / type</span><span>Mode</span><span>Physical state</span><span>Relay</span><span>Settings</span><span>Notes</span></div>
+          <ul class="input-list m-0 list-none p-0" role="list">
+            {{range .Table.Inputs}}
+            <li class="input-row relative grid min-h-10 min-w-[1014px] grid-cols-[minmax(170px,1.2fr)_120px_100px_76px_minmax(400px,2.5fr)_64px] items-center gap-3 border-b border-base-content/10 px-3 text-xs whitespace-nowrap last:border-b-0 hover:bg-info/4 focus-within:bg-info/4 pointer-coarse:min-h-12 pointer-coarse:min-w-[1034px] pointer-coarse:grid-cols-[minmax(170px,1.2fr)_120px_100px_76px_minmax(400px,2.5fr)_84px] {{if .Changed}}input-row-changed bg-warning/4 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-warning{{end}}" aria-label="Input {{.ID}}">
+              <a class="input-identity group/input flex min-h-[30px] min-w-0 items-center gap-2 pointer-coarse:min-h-10" href="/devices/{{$device.Record.Id}}#note-{{.Key}}" data-tooltip="Input {{.ID}} · {{.Type}}{{if .Name}}&#10;{{.Name}}{{end}}"><span class="input-title shrink-0 text-xs font-medium text-info group-hover/input:underline">Input {{.ID}}</span><span class="input-type shrink-0 text-[11px] text-base-content/60">{{.Type}}</span>{{if .Name}}<span class="input-name min-w-0 truncate text-[11px] text-base-content/65">· {{.Name}}</span>{{end}}</a>
+              <dl class="input-row-values contents *:min-w-0">
+                <div class="input-mode"><dt class="sr-only">Mode</dt><dd class="flex items-center gap-1.5"><span class="mode-chip badge badge-soft badge-sm rounded-md text-[11px] font-medium {{if .Changed}}badge-warning{{else}}{{badgeClass .ModeTone}}{{end}}" data-tooltip="{{.Info}}" tabindex="0">{{.Mode}}</span>{{if .Restriction}}<span class="input-restriction inline-flex items-center text-warning" data-tooltip="{{.Restriction}}" tabindex="0" role="img" aria-label="{{.Restriction}}"><svg class="icon size-3.5!" aria-hidden="true"><use href="#icon-warning"></use></svg></span>{{end}}</dd></div>
+                <div><dt class="sr-only">Physical state</dt><dd class="input-state font-medium tabular-nums {{toneClass .StateTone}}"{{if .StatusInfo}} data-tooltip="{{.StatusInfo}}" tabindex="0"{{end}}>{{.State}}{{if .StatusInfo}}<span class="sr-only"> · {{.StatusInfo}}</span>{{end}}</dd></div>
+                <div><dt class="sr-only">{{if .RelayKey}}Relay {{.RelayID}}{{else}}Relay{{end}}</dt><dd class="input-relay flex items-center gap-2">{{if .RelayKey}}<span class="input-relay-id text-[11px] text-base-content/60 tabular-nums">{{.RelayID}}</span><span class="input-state font-medium tabular-nums {{toneClass .OutputTone}}"{{if .StatusInfo}} data-tooltip="{{.StatusInfo}}" tabindex="0"{{end}}>{{.Output}}{{if .StatusInfo}}<span class="sr-only"> · {{.StatusInfo}}</span>{{end}}</span>{{else}}<span class="text-base-content/60">—</span>{{end}}</dd></div>
+                <div><dt class="sr-only">Settings</dt><dd>{{if .Values}}<dl class="input-settings flex items-center gap-3.5 text-[11px] *:flex *:items-baseline *:gap-1 [&_dt]:text-base-content/60 [&_dd]:font-medium">{{range .Values}}<div><dt>{{.Label}}</dt><dd class="{{if or (and (eq .Label "Locked") (eq .Value "Yes")) (and (eq .Label "Enabled") (eq .Value "No"))}}text-warning{{end}}">{{.Value}}</dd></div>{{end}}</dl>{{else}}<span class="text-base-content/60">—</span>{{end}}</dd></div>
+              </dl>
+              <div class="input-notes flex items-center gap-1">
+                {{if .Note}}<a class="input-note-link btn btn-ghost btn-xs relative size-7 p-0 text-secondary pointer-coarse:size-10" href="/devices/{{$device.Record.Id}}#note-{{.Key}}" aria-label="Input {{.ID}} note" data-tooltip="Input {{.ID}} note&#10;{{.Note}}"><svg class="icon size-4!" aria-hidden="true"><use href="#icon-note"></use></svg><span class="input-note-label absolute right-px bottom-0 rounded-sm bg-base-100 px-0.5 text-[8px] leading-[11px] font-medium" aria-hidden="true">I</span></a>{{end}}
+                {{if .RelayNote}}<a class="input-note-link btn btn-ghost btn-xs relative size-7 p-0 text-secondary pointer-coarse:size-10" href="/devices/{{$device.Record.Id}}#note-{{.RelayKey}}" aria-label="Relay {{.RelayID}} note" data-tooltip="Relay {{.RelayID}} note&#10;{{.RelayNote}}"><svg class="icon size-4!" aria-hidden="true"><use href="#icon-note"></use></svg><span class="input-note-label absolute right-px bottom-0 rounded-sm bg-base-100 px-0.5 text-[8px] leading-[11px] font-medium" aria-hidden="true">R</span></a>{{end}}
+                {{if not (or .Note .RelayNote)}}<span class="text-base-content/60">—</span>{{end}}
+              </div>
+            </li>
+            {{end}}
+          </ul>
+        </div>
+      </div></div></div>
+    </td></tr>
+    {{end}}
+  </tbody>
+  {{end}}
+</table>
 {{end}}
