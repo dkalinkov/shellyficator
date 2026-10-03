@@ -7,8 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pocketbase/pocketbase/core"
-	"shellyficator/internal/inventory"
+	"shellyficator/internal/domain"
 )
 
 type DeviceTable struct {
@@ -37,14 +36,14 @@ type TableInput struct {
 	StatusInfo                                             string
 }
 
-func tableDevice(record *core.Record, baseline map[string]any, differences int) DeviceTable {
-	status, config := inventory.Object(record, "status"), inventory.Object(record, "config")
-	currentStatus, currentConfig := inventory.StatusCurrent(record), inventory.ConfigCurrent(record)
-	statusRead := inventory.FormatTime(record.GetString("last_status_read"))
-	if record.GetString("last_status_read") == "" && status != nil {
+func tableDevice(device domain.Device, baseline map[string]any, differences int) DeviceTable {
+	status, config := device.Status, device.Config
+	currentStatus, currentConfig := device.StatusCurrent(), device.ConfigCurrent()
+	statusRead := formatTime(device.LastStatusRead)
+	if device.LastStatusRead.IsZero() && status != nil {
 		statusRead = "Unknown"
 	}
-	model := record.GetString("model")
+	model := device.Model
 	if name := map[string]string{
 		"S4SW-001P8EU": "Mini 1PM", "S4SW-002P16EU": "2PM",
 		"S3SW-002P16EU": "2PM", "SNSW-001P16EU": "Plus 1PM",
@@ -56,10 +55,10 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		Model: model, Connectivity: "Reachable", ConnectivityTone: "ok", ConnectivityIcon: "check-circle",
 		SignalValue: "—", SignalTone: "muted",
 		Configuration: "No baseline", ConfigurationTone: "muted",
-		Identity:          fmt.Sprintf("%s\n%s · Gen %d\nFirmware %s\nMAC %s", record.GetString("device_id"), record.GetString("model"), record.GetInt("generation"), record.GetString("firmware"), record.GetString("mac")),
-		ConnectionInfo:    "Checked " + inventory.FormatTime(record.GetString("last_checked")) + "\nLast seen " + inventory.FormatTime(record.GetString("last_seen")),
-		ConfigurationInfo: "Settings last read · " + inventory.FormatTime(record.GetString("last_captured")),
-		Note:              previewText(record.GetString("notes"), 320),
+		Identity:          fmt.Sprintf("%s\n%s · Gen %d\nFirmware %s\nMAC %s", device.DeviceID, device.Model, device.Generation, device.Firmware, device.MAC),
+		ConnectionInfo:    "Checked " + formatTime(device.LastChecked) + "\nLast seen " + formatTime(device.LastSeen),
+		ConfigurationInfo: "Settings last read · " + formatTime(device.LastCaptured),
+		Note:              previewText(device.Notes, 320),
 	}
 	if !currentConfig {
 		view.SettingsWarning = "Settings unavailable"
@@ -67,28 +66,28 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 			view.SettingsWarning += " · showing saved copy"
 		}
 	}
-	if room := record.GetString("room"); room != "" {
+	if room := device.Room; room != "" {
 		view.Identity += "\nRoom: " + room
 	}
-	if tags := record.GetString("tags"); tags != "" {
+	if tags := strings.Join(device.Tags, ", "); tags != "" {
 		view.Identity += "\nTags: " + tags
 	}
-	if parsed, err := url.Parse(record.GetString("address")); err == nil {
+	if parsed, err := url.Parse(device.Address); err == nil {
 		view.Address = parsed.Host
 	}
-	if record.GetBool("identity_mismatch") {
+	if device.IdentityMismatch {
 		view.Connectivity, view.ConnectivityTone, view.ConnectivityIcon = "Identity mismatch", "error", "warning"
-	} else if !record.GetBool("reachable") {
+	} else if !device.Reachable {
 		view.Connectivity, view.ConnectivityTone = "Offline", "error"
 		view.ConnectivityIcon = "close-circle"
-	} else if record.GetInt("consecutive_failures") > 0 {
+	} else if device.ConsecutiveFailures > 0 {
 		view.Connectivity, view.ConnectivityTone = "Last seen", "muted"
 		view.ConnectionInfo += "\nCheck missed · retrying before marking offline"
 	} else if !currentStatus {
 		view.Connectivity, view.ConnectivityTone = "Read failed", "warning"
 		view.ConnectivityIcon = "warning"
 	}
-	if problem := record.GetString("problem"); problem != "" {
+	if problem := device.Problem; problem != "" {
 		view.ConnectionInfo += "\n" + problem
 	}
 	if !currentStatus && status != nil {
@@ -108,7 +107,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 	}
 	view.Cloud.Info += "\nStatus last read · " + statusRead
 	if view.Cloud.Value == "Disabled" {
-		view.Cloud.Info += "\nSettings last read · " + inventory.FormatTime(record.GetString("last_captured"))
+		view.Cloud.Info += "\nSettings last read · " + formatTime(device.LastCaptured)
 	}
 	if wifi, ok := status["wifi"].(map[string]any); ok {
 		if rssi, ok := wifi["rssi"].(float64); ok {
@@ -154,7 +153,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 		input, _ := config[key].(map[string]any)
 		inputReading, _ := status[key].(map[string]any)
 		id := strings.TrimPrefix(key, "input:")
-		line := TableInput{DeviceID: record.Id, ID: id, Key: key, Type: inputType(input["type"]), Mode: "—", ModeTone: "muted", State: "—", StateTone: "muted", Output: "—", OutputTone: "muted"}
+		line := TableInput{DeviceID: device.ID, ID: id, Key: key, Type: inputType(input["type"]), Mode: "—", ModeTone: "muted", State: "—", StateTone: "muted", Output: "—", OutputTone: "muted"}
 		line.StatusInfo = view.StatusInfo
 		line.Name, _ = input["name"].(string)
 		var settings, reading map[string]any
@@ -173,7 +172,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 				break
 			}
 		}
-		line.Info = fmt.Sprintf("%s: %s\nMode: %s\nSettings last read · %s", key, line.Type, line.Mode, inventory.FormatTime(record.GetString("last_captured")))
+		line.Info = fmt.Sprintf("%s: %s\nMode: %s\nSettings last read · %s", key, line.Type, line.Mode, formatTime(device.LastCaptured))
 		if view.SettingsWarning != "" {
 			line.Info += "\n" + view.SettingsWarning
 		}
@@ -228,7 +227,7 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 			} {
 				if fmt.Sprint(pair.before) != fmt.Sprint(pair.after) {
 					line.Changed = true
-					line.Info += fmt.Sprintf("\n%s: %s → %s", pair.label, inventory.Display(pair.before), inventory.Display(pair.after))
+					line.Info += fmt.Sprintf("\n%s: %s → %s", pair.label, display(pair.before), display(pair.after))
 				}
 			}
 		}
@@ -255,11 +254,11 @@ func tableDevice(record *core.Record, baseline map[string]any, differences int) 
 	return view
 }
 
-func deviceName(record *core.Record) string {
-	if name := record.GetString("name"); name != "" {
+func deviceName(device domain.Device) string {
+	if name := device.Name; name != "" {
 		return name
 	}
-	return record.GetString("device_id")
+	return device.DeviceID
 }
 
 func componentKeys(config, status map[string]any, prefix string) []string {

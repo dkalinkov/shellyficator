@@ -1,10 +1,11 @@
 package inventory
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
 func TestOfflineRequiresBothRepeatedFailuresAndGracePeriod(t *testing.T) {
@@ -21,8 +22,8 @@ func TestOfflineRequiresBothRepeatedFailuresAndGracePeriod(t *testing.T) {
 		{"sustained outage", 2 * time.Minute, 3, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			reading := shelly.Reading{
-				Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4},
+			reading := domain.Reading{
+				Identity: domain.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4},
 				Status:   map[string]any{"switch:0": map[string]any{"output": false}},
 				Config:   map[string]any{"switch:0": map[string]any{"in_mode": "momentary"}},
 			}
@@ -30,38 +31,40 @@ func TestOfflineRequiresBothRepeatedFailuresAndGracePeriod(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			device.Set("last_seen", time.Now().UTC().Add(-test.age))
-			device.Set("last_checked", time.Now().UTC().Add(-test.age))
-			if err := store.App.Save(device); err != nil {
+			record, err := store.App.FindRecordById("devices", device.ID)
+			if err != nil {
 				t.Fatal(err)
 			}
-			before, _ := store.Device(device.Id)
+			record.Set("last_seen", time.Now().UTC().Add(-test.age))
+			record.Set("last_checked", time.Now().UTC().Add(-test.age))
+			if err := store.App.Save(record); err != nil {
+				t.Fatal(err)
+			}
+			before, _ := store.Device(device.ID)
 			for i := 0; i < test.failures; i++ {
-				if err := store.Failed(device.Id, "timeout", false); err != nil {
+				if err := store.Failed(device.ID, "timeout", false); err != nil {
 					t.Fatal(err)
 				}
 			}
 			// Load the saved health through a new store, rather than the old record.
-			after, err := New(store.App).Device(device.Id)
+			after, err := New(store.App).Device(device.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if after.GetBool("reachable") != test.reachable || after.GetInt("consecutive_failures") != test.failures || StatusCurrent(after) || ConfigCurrent(after) {
-				t.Fatalf("incorrect persisted health: reachable=%v failures=%d", after.GetBool("reachable"), after.GetInt("consecutive_failures"))
+			if after.Reachable != test.reachable || after.ConsecutiveFailures != test.failures || after.StatusCurrent() || after.ConfigCurrent() {
+				t.Fatalf("incorrect persisted health: reachable=%v failures=%d", after.Reachable, after.ConsecutiveFailures)
 			}
-			for _, field := range []string{"status", "config", "last_seen", "last_status_read", "last_captured"} {
-				if after.GetString(field) != before.GetString(field) {
-					t.Fatalf("failed check changed saved %s", field)
-				}
+			if !reflect.DeepEqual(after.Status, before.Status) || !reflect.DeepEqual(after.Config, before.Config) || !after.LastSeen.Equal(before.LastSeen) || !after.LastStatusRead.Equal(before.LastStatusRead) || !after.LastCaptured.Equal(before.LastCaptured) {
+				t.Fatal("failed check changed cached readings or their read times")
 			}
-			if after.GetString("last_checked") == before.GetString("last_checked") {
+			if after.LastChecked == before.LastChecked {
 				t.Fatal("failed check did not record its time")
 			}
 			recovered, err := store.SaveReading(reading, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !StatusCurrent(recovered) || !ConfigCurrent(recovered) || recovered.GetInt("consecutive_failures") != 0 || recovered.GetString("problem") != "" || time.Since(recovered.GetDateTime("last_seen").Time()) > time.Second {
+			if !recovered.StatusCurrent() || !recovered.ConfigCurrent() || recovered.ConsecutiveFailures != 0 || recovered.Problem != "" || time.Since(recovered.LastSeen) > time.Second {
 				t.Fatal("successful contact did not immediately recover health")
 			}
 		})
@@ -70,45 +73,49 @@ func TestOfflineRequiresBothRepeatedFailuresAndGracePeriod(t *testing.T) {
 
 func TestIdentityMismatchIsImmediateAndSurvivesLaterTimeout(t *testing.T) {
 	store := testStore(t)
-	reading := shelly.Reading{Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Status: map[string]any{}, Config: map[string]any{}}
+	reading := domain.Reading{Identity: domain.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Status: map[string]any{}, Config: map[string]any{}}
 	device, err := store.SaveReading(reading, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Failed(device.Id, "wrong device", true); err != nil {
+	if err := store.Failed(device.ID, "wrong device", true); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Failed(device.Id, "timeout", false); err != nil {
+	if err := store.Failed(device.ID, "timeout", false); err != nil {
 		t.Fatal(err)
 	}
-	failed, _ := store.Device(device.Id)
-	if failed.GetBool("reachable") || !failed.GetBool("identity_mismatch") || failed.GetString("mac") != "AABBCCDDEEFF" || failed.GetString("problem") != "Address now belongs to a different device. Rediscover this device." {
+	failed, _ := store.Device(device.ID)
+	if failed.Reachable || !failed.IdentityMismatch || failed.MAC != "AABBCCDDEEFF" || failed.Problem != "Address now belongs to a different device. Rediscover this device." {
 		t.Fatal("identity error delayed, hidden, or rebound the device")
 	}
 	recovered, err := store.SaveReading(reading, false)
-	if err != nil || !StatusCurrent(recovered) || recovered.GetBool("identity_mismatch") {
+	if err != nil || !recovered.StatusCurrent() || recovered.IdentityMismatch {
 		t.Fatal("validated contact did not clear the identity error")
 	}
 }
 
 func TestStatusFailurePreservesItsOwnReadTime(t *testing.T) {
 	store := testStore(t)
-	reading := shelly.Reading{Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Status: map[string]any{"switch:0": map[string]any{"output": true}}}
+	reading := domain.Reading{Identity: domain.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Status: map[string]any{"switch:0": map[string]any{"output": true}}}
 	device, err := store.SaveReading(reading, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	device.Set("last_status_read", time.Now().UTC().Add(-time.Minute))
-	if err := store.App.Save(device); err != nil {
+	record, err := store.App.FindRecordById("devices", device.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	before, _ := store.Device(device.Id)
+	record.Set("last_status_read", time.Now().UTC().Add(-time.Minute))
+	if err := store.App.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := store.Device(device.ID)
 	reading.Status, reading.Problem = nil, "Status read failed"
 	after, err := store.SaveReading(reading, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !after.GetBool("reachable") || StatusCurrent(after) || after.GetString("last_status_read") != before.GetString("last_status_read") || after.GetString("status") != before.GetString("status") || after.GetString("last_seen") == after.GetString("last_status_read") {
+	if !after.Reachable || after.StatusCurrent() || after.LastStatusRead != before.LastStatusRead || !reflect.DeepEqual(after.Status, before.Status) || after.LastSeen == after.LastStatusRead {
 		t.Fatal("failed status read changed cached status or claimed a newer status time")
 	}
 }

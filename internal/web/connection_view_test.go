@@ -5,13 +5,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"shellyficator/internal/inventory"
 )
 
 func TestCloudConnectionPresentation(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	for _, test := range []struct {
 		name                          string
 		status, config                map[string]any
@@ -38,7 +36,7 @@ func TestCloudConnectionPresentation(t *testing.T) {
 			record.Set("reachable", test.reachable)
 			record.Set("status_available", test.statusOK)
 			record.Set("config_available", test.configOK)
-			detail := detailDevice(record, nil, nil, nil)
+			detail := detailDevice(domainRecord(record), nil, nil, nil)
 			cloud := detail.Table.Cloud
 			if cloud.Value != test.value || cloud.Tone != test.tone || detail.Network[0].Value != cloud.Value || detail.Network[0].Tone != cloud.Tone {
 				t.Fatalf("cloud state differs or is stale: table=%+v panel=%+v", cloud, detail.Network)
@@ -46,12 +44,12 @@ func TestCloudConnectionPresentation(t *testing.T) {
 			if (!test.reachable || !test.statusOK) && !strings.Contains(cloud.Info, "Last reported") {
 				t.Fatal("cached cloud connection lost its freshness label")
 			}
-			page := DevicePage{Device: record, Name: "Desk <lamp>", Detail: detail}
+			page := DevicePage{Device: deviceView(domainRecord(record)), Name: "Desk <lamp>", Detail: detail}
 			for _, name := range []string{"detail", "inventory-table"} {
 				var body bytes.Buffer
 				data := any(page)
 				if name == "inventory-table" {
-					data = []Device{{Record: record, Name: page.Name, Table: detail.Table}}
+					data = []Device{{Info: deviceView(domainRecord(record)), Name: page.Name, Table: detail.Table}}
 				}
 				if err := s.templates.ExecuteTemplate(&body, name, data); err != nil {
 					t.Fatal(err)
@@ -79,7 +77,7 @@ func TestCloudConnectionPresentation(t *testing.T) {
 
 func TestConnectionFieldsUseIndependentReadStates(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	record.Set("status", map[string]any{
 		"cloud": map[string]any{"connected": true},
 		"mqtt":  map[string]any{"connected": false},
@@ -87,7 +85,7 @@ func TestConnectionFieldsUseIndependentReadStates(t *testing.T) {
 		"sys":   map[string]any{"restart_required": true},
 	})
 	record.Set("config", map[string]any{"mqtt": map[string]any{"enable": false}})
-	view := detailDevice(record, nil, nil, nil)
+	view := detailDevice(domainRecord(record), nil, nil, nil)
 	fields := map[string]ConnectionField{}
 	for _, field := range view.Network {
 		fields[field.Label] = field
@@ -96,7 +94,7 @@ func TestConnectionFieldsUseIndependentReadStates(t *testing.T) {
 		t.Fatalf("connection fields lost reported states: %+v", fields)
 	}
 	record.Set("status_available", false)
-	for _, field := range detailDevice(record, nil, nil, nil).Network {
+	for _, field := range detailDevice(domainRecord(record), nil, nil, nil).Network {
 		if field.Label == "Shelly Cloud" {
 			if field.Value != "Connected" || field.Tone != "muted" || !strings.Contains(field.Info, "Last reported") {
 				t.Fatalf("cached cloud connection is not labelled: %+v", field)
@@ -113,7 +111,7 @@ func TestConnectionFieldsUseIndependentReadStates(t *testing.T) {
 			t.Fatalf("wrong Wi-Fi state tone: %+v", wifi)
 		}
 	}
-	if inventory.Object(record, "config")["mqtt"] == nil {
+	if objectField(record, "config")["mqtt"] == nil {
 		t.Fatal("presenter mutated saved configuration")
 	}
 }

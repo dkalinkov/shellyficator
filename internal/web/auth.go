@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"shellyficator/internal/accounts"
+	"shellyficator/internal/domain"
 )
 
 type loginAttempt struct {
@@ -22,11 +21,11 @@ type loginAttempt struct {
 }
 
 func (s *Server) loginPage(e *core.RequestEvent) error {
-	count, err := s.store.App.CountRecords("operators")
+	needsSetup, err := s.accounts.NeedsSetup()
 	if err != nil {
 		return err
 	}
-	if count == 0 {
+	if needsSetup {
 		return e.Redirect(http.StatusSeeOther, "/setup")
 	}
 	return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in")})
@@ -72,9 +71,8 @@ func (s *Server) requireLogin(e *core.RequestEvent) error {
 	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
 	cookie, err := e.Request.Cookie("shelly_session")
 	if err == nil {
-		record, err := s.store.App.FindAuthRecordByToken(cookie.Value, core.TokenTypeAuth)
-		if err == nil && record.Collection().Name == "operators" {
-			e.Auth = record
+		_, err := s.accounts.ValidateSession(cookie.Value)
+		if err == nil {
 			return e.Next()
 		}
 	}
@@ -103,28 +101,27 @@ func (s *Server) login(e *core.RequestEvent) error {
 	if attempt.count > 10 {
 		return e.TooManyRequestsError("Too many sign in attempts. Try again in 15 minutes.", nil)
 	}
-	record, err := s.store.App.FindAuthRecordByEmail("operators", strings.TrimSpace(e.Request.FormValue("email")))
-	if err != nil || !record.ValidatePassword(e.Request.FormValue("password")) {
+	session, err := s.accounts.Authenticate(strings.TrimSpace(e.Request.FormValue("email")), e.Request.FormValue("password"))
+	if err != nil {
+		if !errors.Is(err, domain.ErrInvalidCredentials) {
+			return e.InternalServerError("Could not sign in", nil)
+		}
 		e.Response.Header().Set("Cache-Control", "no-store")
 		return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in"), Error: "Email or password is incorrect."})
-	}
-	token, err := record.NewAuthToken()
-	if err != nil {
-		return e.InternalServerError("Could not sign in", nil)
 	}
 	s.authMu.Lock()
 	delete(s.loginAttempts, ip)
 	s.authMu.Unlock()
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: 86400})
+	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: session.Token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie(e), MaxAge: 86400})
 	return e.Redirect(http.StatusSeeOther, "/")
 }
 
 func (s *Server) setupPage(e *core.RequestEvent) error {
-	count, err := s.store.App.CountRecords("operators")
+	needsSetup, err := s.accounts.NeedsSetup()
 	if err != nil {
 		return err
 	}
-	if count > 0 {
+	if !needsSetup {
 		return e.Redirect(http.StatusSeeOther, "/login")
 	}
 	return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account")})
@@ -135,32 +132,7 @@ func (s *Server) setup(e *core.RequestEvent) error {
 	if len(password) < 12 {
 		return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account"), Error: "Choose a password with at least 12 characters."})
 	}
-	err := s.store.App.RunInTransaction(func(app core.App) error {
-		count, err := app.CountRecords("operators")
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			return errors.New("setup already completed")
-		}
-		if err := accounts.CreateVerified(app, "operators", email, password); err != nil {
-			return err
-		}
-		count, err = app.CountRecords(core.CollectionNameSuperusers, dbx.Not(dbx.HashExp{"email": core.DefaultInstallerEmail}))
-		if err != nil {
-			return err
-		}
-		if count == 0 {
-			if err := accounts.CreateVerified(app, core.CollectionNameSuperusers, email, password); err != nil {
-				return err
-			}
-			if installer, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, core.DefaultInstallerEmail); err == nil {
-				return app.Delete(installer)
-			}
-			return nil
-		}
-		return nil
-	})
+	err := s.accounts.Setup(email, password)
 	if err != nil {
 		return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account"), Error: "Could not create the account. Check the email and password, or sign in if setup is already complete."})
 	}

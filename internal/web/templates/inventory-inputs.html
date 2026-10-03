@@ -7,10 +7,10 @@
       {{ if .Table.SettingsWarning }}
         <span class="input-settings-warning text-warning">{{ .Table.SettingsWarning }}</span>
       {{ end }}
-      {{ if get .Record "last_captured" }}
+      {{ if .Info.HasCapture }}
         <span class="input-capture ml-auto text-base-content/60">
           Settings last read ·
-          {{ when (get .Record "last_captured") }}
+          {{ .Info.LastCaptured }}
         </span>
       {{ end }}
     </div>

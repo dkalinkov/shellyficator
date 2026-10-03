@@ -14,7 +14,7 @@ import (
 
 func TestInventoryRoomGrouping(t *testing.T) {
 	s, _ := tagFilterTestServer(t)
-	records, err := s.store.Devices()
+	records, err := s.records()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestInventoryGroupedResponsePreservesFilters(t *testing.T) {
 
 func TestOrganizationSavePreservesGroupingAndMovesDevice(t *testing.T) {
 	s, _ := tagFilterTestServer(t)
-	records, err := s.store.Devices()
+	records, err := s.records()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,58 +4,95 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
+// Store maps PocketBase records to domain types and keeps related writes atomic.
 type Store struct{ App core.App }
 
 func New(app core.App) *Store { return &Store{App: app} }
 
-const OfflineGrace = 90 * time.Second
-const OfflineFailures = 3
-
-func StatusCurrent(record *core.Record) bool {
-	return record.GetBool("reachable") && record.GetBool("status_available") && record.GetInt("consecutive_failures") == 0 && !record.GetBool("identity_mismatch")
-}
-
-func ConfigCurrent(record *core.Record) bool {
-	return record.GetBool("reachable") && record.GetBool("config_available") && record.GetInt("consecutive_failures") == 0 && !record.GetBool("identity_mismatch")
-}
-
-func Object(record *core.Record, name string) map[string]any {
+func object(record *core.Record, name string) map[string]any {
 	var result map[string]any
 	_ = json.Unmarshal([]byte(record.GetString(name)), &result)
 	return result
 }
 
-func (s *Store) Devices() ([]*core.Record, error) {
-	return s.App.FindRecordsByFilter("devices", "", "name,device_id", 0, 0)
+func deviceFromRecord(record *core.Record) domain.Device {
+	return domain.Device{
+		ID: record.Id, DeviceID: record.GetString("device_id"), MAC: record.GetString("mac"),
+		Name: record.GetString("name"), Model: record.GetString("model"),
+		Generation: record.GetInt("generation"), Firmware: record.GetString("firmware"),
+		Address: record.GetString("address"), AuthEnabled: record.GetBool("auth_enabled"),
+		Room: record.GetString("room"), Tags: domain.SplitTags(record.GetString("tags")), Notes: record.GetString("notes"),
+		Reachable: record.GetBool("reachable"), StatusAvailable: record.GetBool("status_available"), ConfigAvailable: record.GetBool("config_available"),
+		ConsecutiveFailures: record.GetInt("consecutive_failures"), IdentityMismatch: record.GetBool("identity_mismatch"), Problem: record.GetString("problem"),
+		LastSeen: record.GetDateTime("last_seen").Time(), LastChecked: record.GetDateTime("last_checked").Time(),
+		LastCaptured: record.GetDateTime("last_captured").Time(), LastStatusRead: record.GetDateTime("last_status_read").Time(),
+		Status: object(record, "status"), Config: object(record, "config"), BaselineID: record.GetString("baseline"),
+	}
 }
 
-func (s *Store) Device(id string) (*core.Record, error) { return s.App.FindRecordById("devices", id) }
+// writeDeviceState leaves local metadata and baseline selection untouched.
+func writeDeviceState(record *core.Record, device domain.Device) {
+	for key, value := range map[string]any{
+		"device_id": device.DeviceID, "mac": device.MAC, "name": device.Name, "model": device.Model,
+		"generation": device.Generation, "firmware": device.Firmware, "address": device.Address, "auth_enabled": device.AuthEnabled,
+		"reachable": device.Reachable, "status_available": device.StatusAvailable, "config_available": device.ConfigAvailable,
+		"consecutive_failures": device.ConsecutiveFailures, "identity_mismatch": device.IdentityMismatch, "problem": device.Problem,
+		"last_seen": device.LastSeen, "last_checked": device.LastChecked, "last_captured": device.LastCaptured, "last_status_read": device.LastStatusRead,
+		"status": device.Status, "config": device.Config,
+	} {
+		record.Set(key, value)
+	}
+}
 
-func (s *Store) SaveReading(reading shelly.Reading, capture bool) (*core.Record, error) {
+func deviceLookupError(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrNotFound
+	}
+	return err
+}
+
+func (s *Store) Devices() ([]domain.Device, error) {
+	records, err := s.App.FindRecordsByFilter("devices", "", "name,device_id", 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	devices := make([]domain.Device, 0, len(records))
+	for _, record := range records {
+		devices = append(devices, deviceFromRecord(record))
+	}
+	return devices, nil
+}
+
+func (s *Store) Device(id string) (domain.Device, error) {
+	record, err := s.App.FindRecordById("devices", id)
+	if err != nil {
+		return domain.Device{}, deviceLookupError(err)
+	}
+	return deviceFromRecord(record), nil
+}
+
+func (s *Store) SaveReading(reading domain.Reading, capture bool) (domain.Device, error) {
 	return s.saveReading(reading, capture, false)
 }
 
-// ApproveReading captures a fresh configuration and selects that exact snapshot
-// as the baseline in the same transaction.
-func (s *Store) ApproveReading(reading shelly.Reading) (*core.Record, error) {
+// ApproveReading selects its own fresh snapshot in the same transaction.
+func (s *Store) ApproveReading(reading domain.Reading) (domain.Device, error) {
 	if reading.Config == nil {
-		return nil, errors.New("capture configuration before approving a baseline")
+		return domain.Device{}, errors.New("capture configuration before approving a baseline")
 	}
 	return s.saveReading(reading, true, true)
 }
 
-func (s *Store) saveReading(reading shelly.Reading, capture, approve bool) (*core.Record, error) {
-	var saved *core.Record
+func (s *Store) saveReading(reading domain.Reading, capture, approve bool) (domain.Device, error) {
+	var saved domain.Device
 	err := s.App.RunInTransaction(func(app core.App) error {
 		record, err := app.FindFirstRecordByFilter("devices", "mac = {:mac}", dbx.Params{"mac": reading.Identity.MAC})
 		if err != nil {
@@ -68,32 +105,8 @@ func (s *Store) saveReading(reading shelly.Reading, capture, approve bool) (*cor
 			}
 			record = core.NewRecord(collection)
 		}
-		now := time.Now().UTC()
-		for key, value := range map[string]any{"device_id": reading.Identity.ID, "mac": reading.Identity.MAC, "model": reading.Identity.Model, "generation": reading.Identity.Gen, "firmware": reading.Identity.Version, "address": reading.Address, "auth_enabled": reading.Identity.Auth, "reachable": true, "status_available": reading.Status != nil, "problem": reading.Problem, "last_seen": now, "last_checked": now, "consecutive_failures": 0, "identity_mismatch": false} {
-			record.Set(key, value)
-		}
-		if reading.Identity.Name != "" {
-			record.Set("name", reading.Identity.Name)
-		}
-		if reading.Status != nil {
-			record.Set("status", reading.Status)
-			record.Set("last_status_read", now)
-		}
-		// Configuration availability follows reads; capture only adds a snapshot.
-		if capture || reading.ConfigAttempted || reading.Config != nil {
-			record.Set("config_available", reading.Config != nil)
-		}
-		if reading.Config != nil {
-			record.Set("config", reading.Config)
-			record.Set("last_captured", now)
-			if sys, ok := reading.Config["sys"].(map[string]any); ok {
-				if device, ok := sys["device"].(map[string]any); ok {
-					if name, ok := device["name"].(string); ok {
-						record.Set("name", name)
-					}
-				}
-			}
-		}
+		device := deviceFromRecord(record).ApplyReading(reading, capture, time.Now().UTC())
+		writeDeviceState(record, device)
 		if err := app.Save(record); err != nil {
 			return err
 		}
@@ -117,35 +130,19 @@ func (s *Store) saveReading(reading shelly.Reading, capture, approve bool) (*cor
 				}
 			}
 		}
-		saved = record
+		saved = deviceFromRecord(record)
 		return nil
 	})
 	return saved, err
 }
 
-func (s *Store) Failed(id string, problem string, identityMismatch bool) error {
+func (s *Store) Failed(id, problem string, identityMismatch bool) error {
 	return s.App.RunInTransaction(func(app core.App) error {
 		record, err := app.FindRecordById("devices", id)
 		if err != nil {
-			return err
+			return deviceLookupError(err)
 		}
-		now := time.Now().UTC()
-		failures := record.GetInt("consecutive_failures") + 1
-		record.Set("consecutive_failures", failures)
-		// A later timeout cannot hide an identity mismatch; only a validated
-		// successful reading clears it.
-		identityMismatch = identityMismatch || record.GetBool("identity_mismatch")
-		record.Set("identity_mismatch", identityMismatch)
-		if identityMismatch {
-			record.Set("reachable", false)
-			problem = "Address now belongs to a different device. Rediscover this device."
-		} else if failures >= OfflineFailures && now.Sub(record.GetDateTime("last_seen").Time()) >= OfflineGrace {
-			record.Set("reachable", false)
-		}
-		record.Set("status_available", false)
-		record.Set("config_available", false)
-		record.Set("problem", problem)
-		record.Set("last_checked", now)
+		writeDeviceState(record, deviceFromRecord(record).FailedCheck(problem, identityMismatch, time.Now().UTC()))
 		return app.Save(record)
 	})
 }
@@ -154,42 +151,63 @@ func (s *Store) Metadata(id, room, tags, notes string) error {
 	return s.saveMetadata(id, room, tags, &notes)
 }
 
-func (s *Store) Snapshots(id string) ([]*core.Record, error) {
-	return s.App.FindRecordsByFilter("snapshots", "device = {:id}", "-captured", 50, 0, dbx.Params{"id": id})
+func (s *Store) Snapshots(id string) ([]domain.Snapshot, error) {
+	records, err := s.App.FindRecordsByFilter("snapshots", "device = {:id}", "-captured", 50, 0, dbx.Params{"id": id})
+	if err != nil {
+		return nil, err
+	}
+	snapshots := make([]domain.Snapshot, 0, len(records))
+	for _, record := range records {
+		snapshots = append(snapshots, domain.Snapshot{
+			ID: record.Id, DeviceID: record.GetString("device"), Firmware: record.GetString("firmware"),
+			Reason: record.GetString("reason"), Captured: record.GetDateTime("captured").Time(), Config: object(record, "config"),
+		})
+	}
+	return snapshots, nil
 }
 
-func (s *Store) Baseline(record *core.Record) map[string]any {
-	if record.GetString("baseline") == "" {
-		return nil
+func (s *Store) Baseline(device domain.Device) (map[string]any, error) {
+	if device.BaselineID == "" {
+		return nil, nil
 	}
-	snapshot, err := s.App.FindRecordById("snapshots", record.GetString("baseline"))
-	if err != nil || snapshot.GetString("device") != record.Id {
-		return nil
+	snapshot, err := s.App.FindRecordById("snapshots", device.BaselineID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
-	return Object(snapshot, "config")
+	if err != nil {
+		return nil, err
+	}
+	if snapshot.GetString("device") != device.ID {
+		return nil, nil
+	}
+	return object(snapshot, "config"), nil
 }
 
-func (s *Store) ChannelNotes(id string) map[string]string {
-	result := map[string]string{}
-	records, _ := s.App.FindRecordsByFilter("channel_notes", "device = {:id}", "", 0, 0, dbx.Params{"id": id})
+func (s *Store) ChannelNotes(id string) (map[string]string, error) {
+	records, err := s.App.FindRecordsByFilter("channel_notes", "device = {:id}", "", 0, 0, dbx.Params{"id": id})
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]string, len(records))
 	for _, record := range records {
 		result[record.GetString("component")] = record.GetString("notes")
 	}
-	return result
+	return result, nil
 }
 
 func (s *Store) SaveChannelNote(id, component, notes string) error {
 	return s.App.RunInTransaction(func(app core.App) error {
-		device, err := app.FindRecordById("devices", id)
+		record, err := app.FindRecordById("devices", id)
 		if err != nil {
-			return err
+			return deviceLookupError(err)
 		}
-		_, inStatus := Object(device, "status")[component]
-		_, inConfig := Object(device, "config")[component]
+		device := deviceFromRecord(record)
+		_, inStatus := device.Status[component]
+		_, inConfig := device.Config[component]
 		if !inStatus && !inConfig {
 			return errors.New("unknown device component")
 		}
-		record, err := app.FindFirstRecordByFilter("channel_notes", "device = {:id} && component = {:component}", dbx.Params{"id": id, "component": component})
+		note, err := app.FindFirstRecordByFilter("channel_notes", "device = {:id} && component = {:component}", dbx.Params{"id": id, "component": component})
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return err
@@ -198,76 +216,11 @@ func (s *Store) SaveChannelNote(id, component, notes string) error {
 			if err != nil {
 				return err
 			}
-			record = core.NewRecord(collection)
-			record.Set("device", id)
-			record.Set("component", component)
+			note = core.NewRecord(collection)
+			note.Set("device", id)
+			note.Set("component", component)
 		}
-		record.Set("notes", strings.TrimSpace(notes))
-		return app.Save(record)
+		note.Set("notes", strings.TrimSpace(notes))
+		return app.Save(note)
 	})
-}
-
-type Difference struct{ Path, Before, After string }
-
-func Differences(baseline, current map[string]any) []Difference {
-	before, after := map[string]string{}, map[string]string{}
-	flatten("", baseline, before)
-	flatten("", current, after)
-	keys := map[string]bool{}
-	for key := range before {
-		keys[key] = true
-	}
-	for key := range after {
-		keys[key] = true
-	}
-	var differences []Difference
-	for key := range keys {
-		old, hadOld := before[key]
-		now, hasNow := after[key]
-		if hadOld && hasNow && old == now {
-			continue
-		}
-		if !hadOld {
-			old = "Not present"
-		}
-		if !hasNow {
-			now = "Not present"
-		}
-		differences = append(differences, Difference{Path: key, Before: old, After: now})
-	}
-	sort.Slice(differences, func(i, j int) bool { return differences[i].Path < differences[j].Path })
-	return differences
-}
-
-func flatten(prefix string, object map[string]any, result map[string]string) {
-	for key, value := range object {
-		path := key
-		if prefix != "" {
-			path = prefix + " / " + key
-		}
-		if nested, ok := value.(map[string]any); ok && len(nested) > 0 {
-			flatten(path, nested, result)
-			continue
-		}
-		bytes, _ := json.Marshal(value)
-		result[path] = string(bytes)
-	}
-}
-
-func FormatTime(value string) string {
-	parsed, err := time.Parse("2006-01-02 15:04:05.000Z", value)
-	if err != nil {
-		return "Never"
-	}
-	return parsed.Local().Format("02 Jan, 15:04:05")
-}
-
-func Display(value any) string {
-	if value == nil {
-		return "Not reported"
-	}
-	if number, ok := value.(float64); ok {
-		return fmt.Sprintf("%.1f", number)
-	}
-	return fmt.Sprint(value)
 }

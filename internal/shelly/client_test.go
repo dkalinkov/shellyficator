@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"shellyficator/internal/domain"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -24,7 +25,7 @@ func TestReadIdentityBeforeAuthenticatedRequests(t *testing.T) {
 	}))
 	defer server.Close()
 	_, err := NewClient("unused").Read(context.Background(), server.URL, "112233445566", true)
-	if !errors.Is(err, ErrIdentity) || requests != 0 {
+	if !errors.Is(err, domain.ErrIdentity) || requests != 0 {
 		t.Fatalf("identity mismatch should stop management reads; err=%v requests=%d", err, requests)
 	}
 }
@@ -169,7 +170,7 @@ func TestFailedStatusDoesNotReturnPartialDataOrRetryAccessErrors(t *testing.T) {
 			if err != nil || reading.Status != nil || reading.Problem == "" || attempts.Load() != 1 || reading.Identity.MAC != "AABBCCDDEEFF" {
 				t.Fatalf("status error lost reachable identity, returned partial data, or retried: %+v err=%v", reading, err)
 			}
-			if mode == "authentication" && reading.Problem != ErrAuthentication.Error() {
+			if mode == "authentication" && reading.Problem != domain.ErrAuthentication.Error() {
 				t.Fatal("authentication failure was described as connectivity failure")
 			}
 		})
@@ -191,7 +192,7 @@ func TestReadPreservesAuthenticationFailureAcrossBothReads(t *testing.T) {
 			}))
 			defer server.Close()
 			reading, err := NewClient("").Read(context.Background(), server.URL, "AABBCCDDEEFF", true)
-			if err != nil || reading.Problem != ErrAuthentication.Error() || reading.Status != nil || reading.Config != nil || !reading.ConfigAttempted {
+			if err != nil || reading.Problem != domain.ErrAuthentication.Error() || reading.Status != nil || reading.Config != nil || !reading.ConfigAttempted {
 				t.Fatalf("authentication failure hidden by another read failure: %+v err=%v", reading, err)
 			}
 		})

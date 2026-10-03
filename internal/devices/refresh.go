@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
 func (s *Service) Refresh(force bool) <-chan struct{} {
@@ -60,13 +60,13 @@ func (s *Service) refreshDevices(force bool) {
 	records, err := s.store.Devices()
 	s.inventoryMu.RUnlock()
 	if err != nil {
-		s.store.App.Logger().Error("Could not load devices for refresh", "error", err)
+		s.logger.Error("Could not load devices for refresh", "error", err)
 		return
 	}
 	limit := make(chan struct{}, 4)
 	var group sync.WaitGroup
 	results := make([]struct {
-		reading shelly.Reading
+		reading domain.Reading
 		err     error
 	}, len(records))
 	for i, record := range records {
@@ -79,15 +79,15 @@ func (s *Service) refreshDevices(force bool) {
 		group.Add(1)
 		go func() {
 			defer func() { <-limit; group.Done() }()
-			lastRead := record.GetDateTime("last_captured").Time()
-			readConfig := force || !record.GetBool("reachable") || record.GetInt("consecutive_failures") > 0 || !record.GetBool("config_available") || time.Since(lastRead) >= 5*time.Minute
+			lastRead := record.LastCaptured
+			readConfig := force || !record.Reachable || record.ConsecutiveFailures > 0 || !record.ConfigAvailable || time.Since(lastRead) >= 5*time.Minute
 			timeout := 12 * time.Second
 			if readConfig {
 				timeout = 20 * time.Second
 			}
 			ctx, cancel := context.WithTimeout(s.ctx, timeout)
 			defer cancel()
-			results[i].reading, results[i].err = s.client.Read(ctx, record.GetString("address"), record.GetString("mac"), readConfig)
+			results[i].reading, results[i].err = s.client.Read(ctx, record.Address, record.MAC, readConfig)
 		}()
 	}
 	group.Wait()
@@ -102,16 +102,16 @@ func (s *Service) refreshDevices(force bool) {
 		record := records[i]
 		if result.err != nil {
 			problem := "Device could not be reached. Last successful readings are preserved."
-			if errors.Is(result.err, shelly.ErrIdentity) {
+			if errors.Is(result.err, domain.ErrIdentity) {
 				problem = "Address now belongs to a different device. Rediscover this device."
 			}
-			if saveErr := s.store.Failed(record.Id, problem, errors.Is(result.err, shelly.ErrIdentity)); saveErr != nil {
-				s.store.App.Logger().Error("Could not save device check failure", "device", record.Id)
+			if saveErr := s.store.Failed(record.ID, problem, errors.Is(result.err, domain.ErrIdentity)); saveErr != nil {
+				s.logger.Error("Could not save device check failure", "device", record.ID, "error", saveErr)
 			}
 			continue
 		}
 		if _, err := s.store.SaveReading(result.reading, false); err != nil {
-			s.store.App.Logger().Error("Could not save device reading", "device", record.Id)
+			s.logger.Error("Could not save device reading", "device", record.ID, "error", err)
 		}
 	}
 }

@@ -17,7 +17,7 @@
           class="link link-hover inline-flex min-h-7 max-w-full items-baseline gap-1.5 text-lg
             leading-tight font-medium wrap-anywhere
             text-[var(--label-color,var(--color-info))] pointer-coarse:min-h-10"
-          data-room-label="{{ get .Device "room" }}"
+          data-room-label="{{ .Device.Room }}"
         >
           <svg
             class="icon self-center"
@@ -25,8 +25,8 @@
           >
             <use href="#icon-pin"></use>
           </svg>
-          {{ if get .Device "room" }}
-            {{ get .Device "room" }}
+          {{ if .Device.Room }}
+            {{ .Device.Room }}
           {{ else }}
             Add room
           {{ end }}
@@ -47,15 +47,15 @@
           </span>
           <span
             class="badge badge-sm badge-ghost min-h-7"
-            {{ if get .Device "model" }}
-              data-tooltip="Model {{ get .Device "model" }}" tabindex="0"
+            {{ if .Device.Model }}
+              data-tooltip="Model {{ .Device.Model }}" tabindex="0"
             {{ end }}
           >
             {{ if .Detail.Table.Model }}<span>{{ .Detail.Table.Model }}</span>{{ end }}
-            <span class="text-base-content/50">Gen {{ get .Device "generation" }}</span>
+            <span class="text-base-content/50">Gen {{ .Device.Generation }}</span>
           </span>
         </div>
-        {{ with tags (get .Device "tags") }}
+        {{ with .Device.Tags }}
           <div
             class="flex min-w-0 flex-wrap items-center gap-2 min-[801px]:border-l
               min-[801px]:border-base-content/15 min-[801px]:pl-3"
@@ -78,9 +78,9 @@
     <div class="grid w-full max-w-80 grid-cols-2 items-start gap-2">
       <form
         class="min-w-0"
-        action="/devices/{{ .Device.Id }}/refresh"
+        action="/devices/{{ .Device.ID }}/refresh"
         method="post"
-        hx-post="/devices/{{ .Device.Id }}/refresh"
+        hx-post="/devices/{{ .Device.ID }}/refresh"
         {{ template "detail-action-attributes" }}
       >
         {{ template "detail-action-csrf" .CSRF }}
@@ -99,7 +99,7 @@
       </form>
       <a
         class="btn btn-sm btn-info btn-soft w-full pointer-coarse:min-h-10"
-        href="{{ get .Device "address" }}"
+        href="{{ .Device.Address }}"
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -146,9 +146,9 @@
         </div>
       {{ end }}
     </dl>
-    {{ if get .Device "problem" }}
+    {{ if .Device.Problem }}
       <p class="alert alert-warning alert-soft mb-4 text-xs wrap-anywhere">
-        {{ get .Device "problem" }}
+        {{ .Device.Problem }}
       </p>
     {{ end }}
     {{ range .Detail.Faults }}

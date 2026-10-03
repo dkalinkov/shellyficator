@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"shellyficator/internal/domain"
+	"shellyficator/internal/shelly"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -11,9 +13,9 @@ import (
 
 func TestEmptyAutomaticDiscoveryStopsWithoutProbingAddresses(t *testing.T) {
 	for _, queryError := range []error{nil, errors.New("multicast unavailable")} {
-		s := New(nil, nil)
+		s := New(nil, nil, Options{Discovery: shelly.NetworkDiscovery{}})
 		t.Cleanup(s.Close)
-		s.discovery = Discovery{Running: true}
+		s.discovery = domain.Discovery{Running: true}
 		s.announcements = func(context.Context) ([]string, error) { return nil, queryError }
 		s.neighbors = func(context.Context) ([]string, error) { return nil, nil }
 		// No client/store: empty discovery must finish without making device requests.
@@ -42,7 +44,7 @@ func TestAutomaticDiscoveryOnlyVerifiesAnnouncedDevices(t *testing.T) {
 			w.WriteHeader(404)
 		}
 	}))
-	s.discovery = Discovery{Running: true}
+	s.discovery = domain.Discovery{Running: true}
 	s.announcements = func(context.Context) ([]string, error) { return []string{device.URL, device.URL}, nil }
 	s.neighbors = func(context.Context) ([]string, error) { return []string{device.URL}, nil }
 	s.runDiscovery(true, nil)
@@ -50,7 +52,7 @@ func TestAutomaticDiscoveryOnlyVerifiesAnnouncedDevices(t *testing.T) {
 		t.Fatalf("discovery checked more than the announced device: job=%+v requests=%d", s.discovery, requests.Load())
 	}
 	records, err := s.store.Devices()
-	if err != nil || len(records) != 1 || !records[0].GetBool("config_available") {
+	if err != nil || len(records) != 1 || !records[0].ConfigAvailable {
 		t.Fatalf("identified device/configuration not saved: count=%d err=%v", len(records), err)
 	}
 }
@@ -64,7 +66,7 @@ func TestDiscoveryVerifiesCachedNeighborWhenMulticastIsUnavailable(t *testing.T)
 			_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"momentary"}}`))
 		}
 	}))
-	s.discovery = Discovery{Running: true}
+	s.discovery = domain.Discovery{Running: true}
 	s.announcements = func(context.Context) ([]string, error) { return nil, errors.New("multicast unavailable") }
 	s.neighbors = func(context.Context) ([]string, error) { return []string{device.URL}, nil }
 	s.runDiscovery(true, nil)
@@ -72,7 +74,7 @@ func TestDiscoveryVerifiesCachedNeighborWhenMulticastIsUnavailable(t *testing.T)
 		t.Fatalf("cached device not discovered: %+v", s.discovery)
 	}
 	records, err := s.store.Devices()
-	if err != nil || len(records) != 1 || records[0].GetString("device_id") != "cached-device" {
+	if err != nil || len(records) != 1 || records[0].DeviceID != "cached-device" {
 		t.Fatalf("cached identity not saved: count=%d err=%v", len(records), err)
 	}
 }

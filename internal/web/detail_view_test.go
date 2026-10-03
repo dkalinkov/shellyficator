@@ -11,10 +11,9 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	"shellyficator/internal/inventory"
 )
 
-func detailEvent(s *Server, id, method, action string, form url.Values) (*core.RequestEvent, *httptest.ResponseRecorder) {
+func detailEvent(s *testServer, id, method, action string, form url.Values) (*core.RequestEvent, *httptest.ResponseRecorder) {
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(method, "/devices/"+id+action, strings.NewReader(form.Encode()))
 	request.SetPathValue("id", id)
@@ -26,7 +25,7 @@ func detailEvent(s *Server, id, method, action string, form url.Values) (*core.R
 
 func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	record.Set("name", "Desk <light>")
 	record.Set("status", map[string]any{
 		"switch:3":  map[string]any{"output": true, "temperature": map[string]any{"tC": nil}, "apower": 105},
@@ -42,8 +41,8 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 		"input:9":   map[string]any{"type": "button", "enable": false, "invert": false},
 		"input:10":  map[string]any{"type": "switch", "enable": true},
 	})
-	baseline := inventory.Object(record, "config")
-	view := detailDevice(record, baseline, nil, map[string]string{"input:9": "Physical switch note"})
+	baseline := objectField(record, "config")
+	view := detailDevice(domainRecord(record), baseline, nil, map[string]string{"input:9": "Physical switch note"})
 	if len(view.Outputs) != 2 || len(view.Inputs) != 2 || view.Outputs[0].Key != "switch:3" || view.Outputs[1].Key != "switch:10" {
 		t.Fatalf("incorrect grouping/order: %+v", view)
 	}
@@ -80,7 +79,7 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 			record.Set("reachable", test.reachable)
 			record.Set("status_available", test.status)
 			record.Set("config_available", test.config)
-			result := detailDevice(record, baseline, nil, nil)
+			result := detailDevice(domainRecord(record), baseline, nil, nil)
 			if result.Outputs[0].State != test.state || result.Table.Configuration != test.configuration {
 				t.Fatalf("failures conflated: %+v", result)
 			}
@@ -108,7 +107,7 @@ func TestDeviceDetailRendersFailureAndEmptyStates(t *testing.T) {
 		{"empty", func(r *core.Record) { r.Set("status", nil); r.Set("config", nil) }, "No channel data yet"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			r, _ := s.store.Device(id)
+			r, _ := s.record(id)
 			test.mutate(r)
 			if err := s.store.App.Save(r); err != nil {
 				t.Fatal(err)
@@ -130,7 +129,7 @@ func TestDeviceDetailRendersFailureAndEmptyStates(t *testing.T) {
 
 func TestDeviceDetailRendersSavedSettingsWithoutMutingLiveChannels(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	record.Set("status", map[string]any{
 		"switch:0":      map[string]any{"output": false},
 		"temperature:0": map[string]any{"tC": 0},
@@ -222,21 +221,21 @@ func renderedChannelArticle(markup, key string) string {
 
 func TestDeviceDetailReportedFaults(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	record.Set("status", map[string]any{"switch:0": map[string]any{"output": false, "errors": []any{"overtemp"}}})
-	view := detailDevice(record, nil, nil, nil)
+	view := detailDevice(domainRecord(record), nil, nil, nil)
 	if view.Table.Connectivity != "Device fault" || len(view.Faults) != 1 || !strings.Contains(view.Faults[0], "overtemp") {
 		t.Fatalf("fault lost: %+v", view)
 	}
 	record.Set("status_available", false)
-	if view = detailDevice(record, nil, nil, nil); len(view.Faults) != 0 || view.Outputs[0].State != "Unavailable" {
+	if view = detailDevice(domainRecord(record), nil, nil, nil); len(view.Faults) != 0 || view.Outputs[0].State != "Unavailable" {
 		t.Fatalf("cached fault presented as current: %+v", view)
 	}
 }
 
 func TestDeviceDetailKeepsSettingsWithTheirOwners(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	record.Set("config", map[string]any{
 		"input:9":  map[string]any{"type": "button", "enable": false, "invert": true},
 		"switch:0": map[string]any{"input_id": 9, "in_mode": "detached", "in_locked": true, "initial_state": "restore_last"},
@@ -246,7 +245,7 @@ func TestDeviceDetailKeepsSettingsWithTheirOwners(t *testing.T) {
 		"switch:0": map[string]any{"output": true, "tC": 18, "temperature": map[string]any{"tC": 22}},
 		"switch:1": map[string]any{"output": false, "tC": 0},
 	})
-	view := detailDevice(record, nil, nil, nil)
+	view := detailDevice(domainRecord(record), nil, nil, nil)
 	find := func(metrics []Metric, label string) (string, bool) {
 		for _, metric := range metrics {
 			if metric.Label == label {
@@ -289,7 +288,7 @@ func TestDeviceDetailKeepsSettingsWithTheirOwners(t *testing.T) {
 
 func TestDeviceDetailShowsDistinctLastSeenTime(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.store.Device(id)
+	record, _ := s.record(id)
 	record.Set("last_checked", "2026-10-02 17:00:00.500Z")
 	for _, test := range []struct {
 		name, lastSeen string
@@ -301,12 +300,12 @@ func TestDeviceDetailShowsDistinctLastSeenTime(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			record.Set("last_seen", test.lastSeen)
-			view := detailDevice(record, nil, nil, nil)
+			view := detailDevice(domainRecord(record), nil, nil, nil)
 			found := false
 			for _, metric := range view.Network {
 				if metric.Label == "Last seen" {
 					found = true
-					if metric.Value != inventory.FormatTime(test.lastSeen) {
+					if metric.Value != formatStoredTime(test.lastSeen) {
 						t.Fatal("last-seen value changed")
 					}
 				}
@@ -343,7 +342,7 @@ func TestSelectedDeviceRefreshPreservesHistoryAndIdentity(t *testing.T) {
 					w.WriteHeader(404)
 				}
 			})
-			before, _ := s.store.Device(id)
+			before, _ := s.record(id)
 			baselineID := before.GetString("baseline")
 			config := before.GetString("config")
 			captured := before.GetString("last_captured")
@@ -351,9 +350,9 @@ func TestSelectedDeviceRefreshPreservesHistoryAndIdentity(t *testing.T) {
 			if err := s.refreshDevice(event); err != nil {
 				t.Fatal(err)
 			}
-			after, _ := s.store.Device(id)
+			after, _ := s.record(id)
 			snapshots, _ := s.store.Snapshots(id)
-			if after.GetString("baseline") != baselineID || len(snapshots) != 1 || snapshots[0].Id != baselineID || after.GetString("config") != config || after.GetString("last_captured") != captured {
+			if after.GetString("baseline") != baselineID || len(snapshots) != 1 || snapshots[0].ID != baselineID || after.GetString("config") != config || after.GetString("last_captured") != captured {
 				t.Fatal("refresh changed configuration, baseline or snapshots")
 			}
 			if after.GetString("mac") != "AABBCCDDEEFF" {
@@ -362,7 +361,7 @@ func TestSelectedDeviceRefreshPreservesHistoryAndIdentity(t *testing.T) {
 			if response.Code != http.StatusSeeOther {
 				t.Fatalf("did not redirect: %d", response.Code)
 			}
-			if mode == "success" && (!after.GetBool("reachable") || !after.GetBool("status_available") || !inventory.Object(after, "status")["switch:0"].(map[string]any)["output"].(bool)) {
+			if mode == "success" && (!after.GetBool("reachable") || !after.GetBool("status_available") || !objectField(after, "status")["switch:0"].(map[string]any)["output"].(bool)) {
 				t.Fatal("status was not updated")
 			}
 			if mode == "status-failed" && (!after.GetBool("reachable") || after.GetBool("status_available")) {
@@ -385,8 +384,8 @@ func TestDetailNotesAndMetadataSaveIndependently(t *testing.T) {
 	if err := s.channelNote(channel); err != nil {
 		t.Fatal(err)
 	}
-	record, _ := s.store.Device(id)
-	if record.GetString("room") != "Office" || record.GetString("notes") != "Device note" || s.store.ChannelNotes(id)["input:0"] != "Physical input note" {
+	record, _ := s.record(id)
+	if record.GetString("room") != "Office" || record.GetString("notes") != "Device note" || s.channelNotes(id)["input:0"] != "Physical input note" {
 		t.Fatal("note save changed unrelated metadata")
 	}
 }

@@ -14,13 +14,16 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
+	"shellyficator/internal/accounts"
+	"shellyficator/internal/accountstore"
 	"shellyficator/internal/devices"
+	"shellyficator/internal/domain"
 	"shellyficator/internal/inventory"
 	"shellyficator/internal/shelly"
 	_ "shellyficator/migrations"
 )
 
-func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*Server, string) {
+func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*testServer, string) {
 	t.Helper()
 	app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: t.TempDir()})
 	if err := app.Bootstrap(); err != nil {
@@ -33,8 +36,8 @@ func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*Server, string)
 	device := httptest.NewServer(handler)
 	t.Cleanup(device.Close)
 	store := inventory.New(app)
-	record, err := store.ApproveReading(shelly.Reading{
-		Identity: shelly.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Address: device.URL,
+	record, err := store.ApproveReading(domain.Reading{
+		Identity: domain.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Address: device.URL,
 		Status: map[string]any{"input:0": map[string]any{"state": nil}, "switch:0": map[string]any{"output": false}},
 		Config: map[string]any{"input:0": map[string]any{"type": "button", "enable": true}, "switch:0": map[string]any{"in_mode": "momentary"}},
 	})
@@ -46,12 +49,12 @@ func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*Server, string)
 		t.Fatal(err)
 	}
 	client := shelly.NewClient("")
-	service := devices.New(store, client)
+	service := devices.New(store, client, devices.Options{Discovery: shelly.NetworkDiscovery{}})
 	t.Cleanup(func() {
 		service.Close()
 		_ = app.OnTerminate().Trigger(&core.TerminateEvent{App: app})
 	})
-	return &Server{store: store, client: client, devices: service, templates: templates}, record.Id
+	return &testServer{Server: &Server{devices: service, accounts: accounts.New(accountstore.New(app)), templates: templates, loginAttempts: map[string]loginAttempt{}}, store: store, client: client, devices: service}, record.ID
 }
 
 func waitForRefresh(t *testing.T, done <-chan struct{}) {
@@ -77,7 +80,7 @@ func TestInventoryFiltersUseSavedReadingsWithoutContactingDevices(t *testing.T) 
 	if err := s.store.Organization(id, "Kitchen", "light"); err != nil {
 		t.Fatal(err)
 	}
-	before, err := s.store.Device(id)
+	before, err := s.record(id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +99,7 @@ func TestInventoryFiltersUseSavedReadingsWithoutContactingDevices(t *testing.T) 
 			}
 		})
 	}
-	after, err := s.store.Device(id)
+	after, err := s.record(id)
 	if err != nil {
 		t.Fatal(err)
 	}

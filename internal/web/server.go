@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -9,22 +10,43 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 
-	"shellyficator/internal/devices"
-	"shellyficator/internal/inventory"
-	"shellyficator/internal/shelly"
+	"shellyficator/internal/domain"
 )
 
+// Devices describes application operations consumed by the HTML adapter.
+type Devices interface {
+	Inventory() ([]domain.InventoryEntry, error)
+	Detail(string) (domain.DeviceDetails, error)
+	RefreshDevice(context.Context, string) (domain.RefreshResult, error)
+	Capture(context.Context, string) (domain.Device, error)
+	ApproveBaseline(context.Context, string) (domain.Device, error)
+	OrganizationOptions() (domain.OrganizationOptions, error)
+	Metadata(string, string, string, string) error
+	Organization(string, string, string) error
+	SaveChannelNote(string, string, string) error
+	LocalNetworks() ([]domain.Network, error)
+	Discover(string, bool) error
+	Discovery() domain.Discovery
+	Refresh(bool) <-chan struct{}
+}
+
+type Accounts interface {
+	NeedsSetup() (bool, error)
+	Setup(string, string) error
+	Authenticate(string, string) (domain.Session, error)
+	ValidateSession(string) (domain.Operator, error)
+}
+
 type Server struct {
-	store         *inventory.Store
-	client        *shelly.Client
-	devices       *devices.Service
+	devices       Devices
+	accounts      Accounts
 	templates     *template.Template
 	version       string
 	authMu        sync.Mutex
 	loginAttempts map[string]loginAttempt
 }
 
-func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client, version string) error {
+func Register(e *core.ServeEvent, devices Devices, accounts Accounts, version string) error {
 	// The app's first-run form creates both accounts; the PocketBase installer is redundant.
 	e.InstallerFunc = nil
 	templates, err := parseTemplates()
@@ -35,11 +57,7 @@ func Register(e *core.ServeEvent, store *inventory.Store, client *shelly.Client,
 	if err != nil {
 		return err
 	}
-	s := &Server{store: store, client: client, devices: devices.New(store, client), templates: templates, version: version, loginAttempts: map[string]loginAttempt{}}
-	e.App.OnTerminate().BindFunc(func(event *core.TerminateEvent) error {
-		s.devices.Close()
-		return event.Next()
-	})
+	s := &Server{devices: devices, accounts: accounts, templates: templates, version: version, loginAttempts: map[string]loginAttempt{}}
 	s.registerRoutes(e.Router, static)
 	return nil
 }

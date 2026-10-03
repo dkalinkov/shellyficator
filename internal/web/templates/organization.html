@@ -18,7 +18,7 @@
         id="device-room"
         class="min-w-0 grow [@media(pointer:coarse)]:text-base"
         name="room"
-        value="{{ get .Device "room" }}"
+        value="{{ .Device.Room }}"
         maxlength="100"
         autocomplete="off"
         placeholder="Choose or add a room…"
@@ -92,7 +92,7 @@
         id="device-tags"
         class="min-w-0 grow [@media(pointer:coarse)]:text-base"
         name="tags"
-        value="{{ get .Device "tags" }}"
+        value="{{ .Device.TagsText }}"
         maxlength="500"
         autocomplete="off"
         placeholder="Find or add a tag…"
@@ -142,9 +142,9 @@
 
 {{ define "organization-editor" }}
   <form
-    action="/devices/{{ .Device.Id }}/organization"
+    action="/devices/{{ .Device.ID }}/organization"
     method="post"
-    hx-post="/devices/{{ .Device.Id }}/organization"
+    hx-post="/devices/{{ .Device.ID }}/organization"
     hx-target="#inventory"
     hx-swap="innerHTML"
     hx-disabled-elt="find fieldset"
