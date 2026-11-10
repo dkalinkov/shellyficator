@@ -49,6 +49,18 @@
                   {{ .Error }}
                 </div>
               {{ end }}
+              {{ if .OIDCEnabled }}
+                <form action="/login/authelia" method="post" class="login-form">
+                  <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+                  <button type="submit" class="login-submit">
+                    <span>Sign in with Authelia</span>
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#icon-arrow-right"></use>
+                    </svg>
+                  </button>
+                </form>
+                <p class="login-description mt-6">Or sign in with your password.</p>
+              {{ end }}
               <form action="/login" method="post" class="login-form">
                 <input type="hidden" name="csrf" value="{{ .CSRF }}" />
                 <div class="login-field">

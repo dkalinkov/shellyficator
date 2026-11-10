@@ -10,7 +10,8 @@ type PageMeta struct {
 
 type AuthPage struct {
 	PageMeta
-	Error string
+	Error       string
+	OIDCEnabled bool
 }
 
 type InventoryPage struct {

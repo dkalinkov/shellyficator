@@ -15,6 +15,7 @@ available to HTML/HTMX handlers, background work, and future agent endpoints.
 | `internal/shelly` | Device HTTP and LAN discovery adapters, wire formats, authentication, identity validation, redaction, and network retries. Returns domain types. |
 | `internal/accounts` | Operator authentication and account bootstrap services consuming a repository interface. |
 | `internal/accountstore` | PocketBase account storage, atomic bootstrap, and token handling. |
+| `internal/oidc` | Provider discovery, PKCE authorization, and ID-token/userinfo validation; returns external identities for existing-operator linking. |
 | `internal/web` | Routes, request parsing, cookies/CSRF, HTTP errors and redirects, view builders, and full-page/partial template rendering. |
 | Future API adapter | Explicit authenticated JSON commands/queries that call the same services. Its public request/response schemas belong to the API adapter. |
 

@@ -17,13 +17,14 @@ func TestApplicationLayerDependencies(t *testing.T) {
 	root := filepath.Dir(filename)
 	allowed := map[string]map[string]bool{
 		"main":         {"bootstrap": true},
-		"bootstrap":    {"accounts": true, "accountstore": true, "devices": true, "domain": true, "inventory": true, "shelly": true, "web": true},
+		"bootstrap":    {"accounts": true, "accountstore": true, "devices": true, "domain": true, "inventory": true, "shelly": true, "web": true, "oidc": true},
 		"domain":       {},
 		"devices":      {"domain": true},
 		"accounts":     {"domain": true},
 		"inventory":    {"domain": true},
 		"accountstore": {"domain": true},
 		"shelly":       {"domain": true},
+		"oidc":         {"domain": true},
 		"web":          {"domain": true},
 	}
 	for layer, dependencies := range allowed {

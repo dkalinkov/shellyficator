@@ -13,6 +13,7 @@ import (
 	"shellyficator/internal/devices"
 	"shellyficator/internal/domain"
 	"shellyficator/internal/inventory"
+	"shellyficator/internal/oidc"
 	"shellyficator/internal/shelly"
 	"shellyficator/internal/web"
 	_ "shellyficator/migrations"
@@ -43,6 +44,10 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 		return event.Next()
 	})
 	app.OnServe().BindFunc(func(event *core.ServeEvent) error {
+		login, err := oidc.New(oidc.Config{Issuer: config.OIDCIssuer, ClientID: config.OIDCClientID, ClientSecret: config.OIDCClientSecret, RedirectURL: config.OIDCRedirectURL})
+		if err != nil {
+			return err
+		}
 		mu.Lock()
 		if terminated {
 			mu.Unlock()
@@ -58,9 +63,11 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 		service := deviceService
 		mu.Unlock()
 		accountService := accounts.New(accountstore.New(app))
-		if err := web.Register(event, service, accountService, web.Options{
-			Version: build.Version, CookieSecure: config.CookieSecure,
-		}); err != nil {
+		options := web.Options{Version: build.Version, CookieSecure: config.CookieSecure}
+		if login != nil {
+			options.OIDC = login
+		}
+		if err := web.Register(event, service, accountService, options); err != nil {
 			closeServices()
 			return err
 		}
