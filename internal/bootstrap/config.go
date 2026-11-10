@@ -11,10 +11,14 @@ import (
 // Config contains process configuration passed to concrete adapters and commands.
 // Setup credentials are validated only when the setup command runs.
 type Config struct {
-	DevicePassword string
-	AdminEmail     string
-	AdminPassword  string
-	CookieSecure   bool
+	DevicePassword   string
+	AdminEmail       string
+	AdminPassword    string
+	CookieSecure     bool
+	OIDCIssuer       string
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCRedirectURL  string
 }
 
 // LoadConfig reads optional dotenv files relative to the process working directory.
@@ -24,10 +28,14 @@ func LoadConfig() (Config, error) {
 		return Config{}, err
 	}
 	return Config{
-		DevicePassword: os.Getenv("SHELLY_DEVICE_PASSWORD"),
-		AdminEmail:     os.Getenv("SHELLY_ADMIN_EMAIL"),
-		AdminPassword:  os.Getenv("SHELLY_ADMIN_PASSWORD"),
-		CookieSecure:   os.Getenv("SHELLY_COOKIE_SECURE") == "true",
+		DevicePassword:   os.Getenv("SHELLY_DEVICE_PASSWORD"),
+		AdminEmail:       os.Getenv("SHELLY_ADMIN_EMAIL"),
+		AdminPassword:    os.Getenv("SHELLY_ADMIN_PASSWORD"),
+		CookieSecure:     os.Getenv("SHELLY_COOKIE_SECURE") == "true",
+		OIDCIssuer:       os.Getenv("SHELLY_OIDC_ISSUER"),
+		OIDCClientID:     os.Getenv("SHELLY_OIDC_CLIENT_ID"),
+		OIDCClientSecret: os.Getenv("SHELLY_OIDC_CLIENT_SECRET"),
+		OIDCRedirectURL:  os.Getenv("SHELLY_OIDC_REDIRECT_URL"),
 	}, nil
 }
 

@@ -28,6 +28,10 @@ func (*recordingRepository) ValidateSession(string) (domain.Operator, error) {
 	return domain.Operator{}, nil
 }
 
+func (*recordingRepository) AuthenticateIdentity(domain.ExternalIdentity) (domain.Session, error) {
+	return domain.Session{}, nil
+}
+
 func TestAccountServiceValidatesBeforePersistence(t *testing.T) {
 	repository := &recordingRepository{}
 	service := New(repository)

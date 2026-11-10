@@ -14,10 +14,16 @@ func (s *Server) registerRoutes(r *router.Router[*core.RequestEvent], static fs.
 	r.GET("/favicon.ico", func(e *core.RequestEvent) error { return e.NoContent(204) })
 	r.GET("/login", s.loginPage)
 	r.GET("/setup", s.setupPage)
+	if s.oidc != nil {
+		r.GET("/auth/oidc/callback", s.oidcCallback)
+	}
 
 	publicWrites := r.Group("").BindFunc(checkCSRF)
 	publicWrites.POST("/setup", s.setup)
 	publicWrites.POST("/login", s.login)
+	if s.oidc != nil {
+		publicWrites.POST("/login/authelia", s.oidcLogin)
+	}
 
 	protected := r.Group("").BindFunc(s.requireLogin)
 	protected.GET("/{$}", s.dashboard)

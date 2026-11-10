@@ -89,11 +89,50 @@ func (s *Store) Authenticate(email, password string) (domain.Session, error) {
 	if !record.ValidatePassword(password) {
 		return domain.Session{}, domain.ErrInvalidCredentials
 	}
+	return newSession(record)
+}
+
+func newSession(record *core.Record) (domain.Session, error) {
 	token, err := record.NewAuthToken()
 	if err != nil {
 		return domain.Session{}, err
 	}
 	return domain.Session{Operator: domain.Operator{ID: record.Id, Email: record.Email()}, Token: token}, nil
+}
+
+// AuthenticateIdentity links only an existing verified operator. Once linked,
+// issuer and subject are authoritative, including after an email address change.
+// It never provisions an operator or grants access to the superuser collection.
+func (s *Store) AuthenticateIdentity(identity domain.ExternalIdentity) (domain.Session, error) {
+	if identity.Issuer == "" || identity.Subject == "" || identity.Email == "" || !identity.EmailVerified {
+		return domain.Session{}, domain.ErrInvalidCredentials
+	}
+	var session domain.Session
+	err := s.app.RunInTransaction(func(app core.App) error {
+		record, err := app.FindFirstRecordByFilter("operators", "oidc_issuer = {:issuer} && oidc_subject = {:subject}", dbx.Params{"issuer": identity.Issuer, "subject": identity.Subject})
+		if errors.Is(err, sql.ErrNoRows) {
+			record, err = app.FindAuthRecordByEmail("operators", identity.Email)
+			if errors.Is(err, sql.ErrNoRows) {
+				return domain.ErrInvalidCredentials
+			}
+			if err != nil {
+				return err
+			}
+			if !record.Verified() || record.GetString("oidc_issuer") != "" || record.GetString("oidc_subject") != "" {
+				return domain.ErrInvalidCredentials
+			}
+			record.Set("oidc_issuer", identity.Issuer)
+			record.Set("oidc_subject", identity.Subject)
+			if err := app.Save(record); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+		session, err = newSession(record)
+		return err
+	})
+	return session, err
 }
 
 func (s *Store) ValidateSession(token string) (domain.Operator, error) {

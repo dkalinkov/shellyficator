@@ -27,7 +27,16 @@ func (s *Server) loginPage(e *core.RequestEvent) error {
 	if needsSetup {
 		return e.Redirect(http.StatusSeeOther, "/setup")
 	}
-	return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in")})
+	message := ""
+	if e.Request.URL.Query().Get("oidc_error") != "" {
+		message = "Authelia sign-in failed. Try again or use your password."
+	}
+	return s.renderLogin(e, message)
+}
+
+func (s *Server) renderLogin(e *core.RequestEvent, message string) error {
+	e.Response.Header().Set("Cache-Control", "no-store")
+	return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in"), Error: message, OIDCEnabled: s.oidc != nil})
 }
 
 func (s *Server) csrf(e *core.RequestEvent) string {
@@ -106,13 +115,17 @@ func (s *Server) login(e *core.RequestEvent) error {
 			return e.InternalServerError("Could not sign in", nil)
 		}
 		e.Response.Header().Set("Cache-Control", "no-store")
-		return s.render(e, "login", AuthPage{PageMeta: s.pageMeta(e, "Sign in"), Error: "Email or password is incorrect."})
+		return s.renderLogin(e, "Email or password is incorrect.")
 	}
 	s.authMu.Lock()
 	delete(s.loginAttempts, ip)
 	s.authMu.Unlock()
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: session.Token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: s.secureCookie(e), MaxAge: 86400})
+	s.setSession(e, session.Token)
 	return e.Redirect(http.StatusSeeOther, "/")
+}
+
+func (s *Server) setSession(e *core.RequestEvent, token string) {
+	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: s.secureCookie(e), MaxAge: 86400})
 }
 
 func (s *Server) setupPage(e *core.RequestEvent) error {

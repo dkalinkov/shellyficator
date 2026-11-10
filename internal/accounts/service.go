@@ -13,6 +13,7 @@ type Repository interface {
 	Setup(email, password string) error
 	Bootstrap(email, password string) error
 	Authenticate(email, password string) (domain.Session, error)
+	AuthenticateIdentity(domain.ExternalIdentity) (domain.Session, error)
 	ValidateSession(token string) (domain.Operator, error)
 }
 
@@ -53,4 +54,12 @@ func (s *Service) Authenticate(email, password string) (domain.Session, error) {
 
 func (s *Service) ValidateSession(token string) (domain.Operator, error) {
 	return s.repository.ValidateSession(token)
+}
+
+func (s *Service) AuthenticateIdentity(identity domain.ExternalIdentity) (domain.Session, error) {
+	identity.Email = strings.TrimSpace(identity.Email)
+	if identity.Issuer == "" || identity.Subject == "" || identity.Email == "" || !identity.EmailVerified {
+		return domain.Session{}, domain.ErrInvalidCredentials
+	}
+	return s.repository.AuthenticateIdentity(identity)
 }

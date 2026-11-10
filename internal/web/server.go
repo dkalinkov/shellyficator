@@ -35,13 +35,20 @@ type Accounts interface {
 	NeedsSetup() (bool, error)
 	Setup(string, string) error
 	Authenticate(string, string) (domain.Session, error)
+	AuthenticateIdentity(domain.ExternalIdentity) (domain.Session, error)
 	ValidateSession(string) (domain.Operator, error)
+}
+
+type OIDC interface {
+	AuthorizationURL(context.Context, string, string, string) (string, error)
+	Exchange(context.Context, string, string, string) (domain.ExternalIdentity, error)
 }
 
 // Options contains presentation configuration supplied by the application.
 type Options struct {
 	Version      string
 	CookieSecure bool
+	OIDC         OIDC
 }
 
 type Server struct {
@@ -52,6 +59,8 @@ type Server struct {
 	cookieSecure  bool
 	authMu        sync.Mutex
 	loginAttempts map[string]loginAttempt
+	oidc          OIDC
+	oidcPending   map[string]oidcAttempt
 }
 
 func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Options) error {
@@ -65,7 +74,7 @@ func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Op
 	if err != nil {
 		return err
 	}
-	s := &Server{devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}}
+	s := &Server{devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}, oidc: options.OIDC, oidcPending: map[string]oidcAttempt{}}
 	s.registerRoutes(e.Router, static)
 	return nil
 }

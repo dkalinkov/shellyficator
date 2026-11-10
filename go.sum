@@ -57,6 +57,8 @@ github.com/clipperhouse/displaywidth v0.10.0 h1:GhBG8WuerxjFQQYeuZAeVTuyxuX+Urai
 github.com/clipperhouse/displaywidth v0.10.0/go.mod h1:XqJajYsaiEwkxOj4bowCTMcT1SgvHo9flfF3jQasdbs=
 github.com/clipperhouse/uax29/v2 v2.6.0 h1:z0cDbUV+aPASdFb2/ndFnS9ts/WNXgTNNGFoKXuhpos=
 github.com/clipperhouse/uax29/v2 v2.6.0/go.mod h1:Wn1g7MK6OoeDT0vL+Q0SQLDz/KpfsVRgg6W7ihQeh4g=
+github.com/coreos/go-oidc/v3 v3.21.0 h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=
+github.com/coreos/go-oidc/v3 v3.21.0/go.mod h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
@@ -85,6 +87,8 @@ github.com/ganigeorgiev/fexpr v0.6.0 h1:Fza3O/QMBKEudUvxV862qe6GjxM60GJjjKytdp+V
 github.com/ganigeorgiev/fexpr v0.6.0/go.mod h1:RyGiGqmeXhEQ6+mlGdnUleLHgtzzu/VGO2WtJkF5drE=
 github.com/getkin/kin-openapi v0.140.0 h1:JFn675aXRFjyiZKa/BFWploGldQlI0gobp4J5k0EZ2g=
 github.com/getkin/kin-openapi v0.140.0/go.mod h1:lISrB64F0CPcuDJ3LdtPTMJBY8VENjR9wJBdrcT6J3g=
+github.com/go-jose/go-jose/v4 v4.1.4 h1:moDMcTHmvE6Groj34emNPLs/qtYXRVcd6S7NHbHz3kA=
+github.com/go-jose/go-jose/v4 v4.1.4/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
 github.com/go-openapi/jsonpointer v0.22.5 h1:8on/0Yp4uTb9f4XvTrM2+1CPrV05QPZXu+rvu2o9jcA=
 github.com/go-openapi/jsonpointer v0.22.5/go.mod h1:gyUR3sCvGSWchA2sUBJGluYMbe1zazrYWIkWPjjMUY0=
 github.com/go-openapi/swag/jsonname v0.25.5 h1:8p150i44rv/Drip4vWI3kGi9+4W9TdI3US3uUYSFhSo=
