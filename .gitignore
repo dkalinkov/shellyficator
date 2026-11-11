@@ -9,3 +9,8 @@
 /node_modules/
 /.playwright-mcp/
 /internal/web/static/app.css
+
+# Local Impeccable installation and hook state.
+/.agents/skills/impeccable/
+/.codex/hooks.json
+/.impeccable/
