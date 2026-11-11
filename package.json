@@ -5,6 +5,7 @@
     "format:templates": "prettier --write internal/web/templates/*.html",
     "check:templates": "prettier --check internal/web/templates/*.html",
     "build:css": "tailwindcss -i ui/styles.css -o internal/web/static/app.css --minify",
+    "build:mascot": "node scripts/animate-mascot.mjs",
     "watch:css": "tailwindcss -i ui/styles.css -o internal/web/static/app.css --watch",
     "vendor": "node scripts/vendor.mjs",
     "build": "npm run vendor && npm run build:css"

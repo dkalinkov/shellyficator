@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 — 2026-11-11
+
+- Animate the header mascot with a smooth wink, a 900 ms open-eye hold, and a 3.5-second loop while keeping its head still.
+- Give the login mascot a wink, playful lean, and little hop, with quiet rests between performances.
+- Respect reduced motion and pause hidden or offscreen animations; retain static artwork when animation is unavailable.
+- Include transparent GIF exports and a reproducible mascot asset builder.
+
 ## 0.2.0 — 2026-11-10
 
 - Add optional Authelia/OpenID Connect login using authorization code flow, PKCE and validated ID tokens.
