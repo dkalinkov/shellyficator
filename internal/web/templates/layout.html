@@ -8,9 +8,10 @@
     <link rel="icon" href="/assets/logo-mascot-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/assets/logo-mascot-180.png" sizes="180x180" />
     <link rel="preload" href="/assets/archivo-900.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="stylesheet" href="/assets/app.css?v=wink-rest" />
     <script src="/assets/htmx.min.js" defer></script>
     <script src="/assets/app.js" defer></script>
+    <script src="/assets/mascot.js?v=wink-900ms" defer></script>
     <script src="/assets/organization.js" defer></script>
   </head>
 {{ end }}
@@ -36,14 +37,10 @@
 
 {{ define "brand" }}
   <span class="brand" role="img" aria-label="Shellyficator 9000">
-    <img
-      class="brand-symbol"
-      src="/assets/logo-mascot.png"
-      width="128"
-      height="128"
-      alt=""
-      aria-hidden="true"
-    />
+    <span class="brand-symbol mascot" data-mascot="head" aria-hidden="true">
+      <img class="mascot-still" src="/assets/logo-mascot.png" width="128" height="128" alt="" />
+      <span class="mascot-frames"></span>
+    </span>
     <span class="brand-wordmark" aria-hidden="true">
       <span class="brand-name">Shellyficator</span>
       <span class="brand-number">9000</span>

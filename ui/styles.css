@@ -86,6 +86,41 @@
   flex: none;
 }
 
+/* Four eye poses share one sheet; the original artwork is the static fallback. */
+.mascot { position: relative; aspect-ratio: 1; }
+.mascot-still { display: block; width: 100%; height: auto; }
+.mascot-frames {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background-size: 400% 100%;
+  background-position: 0% 0%;
+  background-repeat: no-repeat;
+}
+.mascot.is-ready > .mascot-still { opacity: 0; }
+.mascot.is-ready > .mascot-frames { display: block; }
+.login-mascot.mascot { transform-origin: 50% 91%; }
+
+/* Only this small eye layer changes; the header's head bitmap stays fixed. */
+.mascot-head-base { display: block; width: 100%; height: 100%; }
+.mascot-eye {
+  position: absolute;
+  contain: paint;
+  isolation: isolate;
+  left: 55.5024%;
+  top: 47.8469%;
+  width: 16.3477%;
+  height: 20.4944%;
+}
+.mascot-eye img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.mascot-eye-open { clip-path: inset(50% 0%); }
+.mascot-eye-closed { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot.is-ready > .mascot-still { opacity: 1; }
+  .mascot.is-ready > .mascot-frames { display: none; }
+}
+
 .brand-wordmark {
   display: inline-flex;
   align-items: center;
