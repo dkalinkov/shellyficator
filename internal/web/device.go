@@ -41,6 +41,24 @@ func (s *Server) refreshDevice(e *core.RequestEvent) error {
 	return s.redirect(e, "/devices/"+id, "Status refreshed.")
 }
 
+func (s *Server) checkFirmware(e *core.RequestEvent) error {
+	id := e.Request.PathValue("id")
+	device, err := s.devices.CheckFirmware(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrNotFound) {
+		return e.NotFoundError("Device not found", nil)
+	}
+	if errors.Is(err, domain.ErrDeviceRead) {
+		return s.redirect(e, "/devices/"+id, "Firmware check failed. Check device access.", "error")
+	}
+	if err != nil {
+		return err
+	}
+	if device.FirmwareCheck != nil && device.FirmwareCheck.Problem != "" {
+		return s.redirect(e, "/devices/"+id, device.FirmwareCheck.Problem, "warning")
+	}
+	return s.redirect(e, "/devices/"+id, "Firmware availability checked.")
+}
+
 func (s *Server) metadata(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	if err := s.devices.Metadata(id, e.Request.FormValue("room"), e.Request.FormValue("tags"), e.Request.FormValue("notes")); err != nil {

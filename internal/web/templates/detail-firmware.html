@@ -1,0 +1,106 @@
+{{ define "detail-firmware" }}
+  <section
+    id="firmware"
+    class="card card-sm card-border min-w-0 scroll-mt-18 bg-base-200/50"
+    aria-labelledby="firmware-title"
+  >
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"
+    >
+      <h2 id="firmware-title" class="card-title">
+        <svg class="icon text-info" aria-hidden="true"><use href="#icon-update"></use></svg>
+        Firmware
+      </h2>
+      <div class="flex flex-wrap items-center gap-2">
+        <form
+          action="/devices/{{ .Device.ID }}/firmware/check"
+          method="post"
+          hx-post="/devices/{{ .Device.ID }}/firmware/check"
+          {{ template "detail-action-attributes" }}
+        >
+          {{ template "detail-action-csrf" .CSRF }}
+          <button type="submit" class="btn btn-sm btn-outline pointer-coarse:min-h-10">
+            <span
+              class="loading loading-spinner loading-xs hidden in-[.htmx-request]:inline-block"
+              aria-hidden="true"
+            ></span>
+            Check for updates
+          </button>
+        </form>
+      </div>
+    </div>
+    {{ with .Detail.Table.Firmware }}
+      <div class="grid gap-3 p-4 text-xs">
+        <p class="flex flex-wrap items-center gap-2">
+          <span class="badge badge-sm badge-soft h-auto min-h-6 py-1 {{ badgeClass .Tone }}">
+            {{ .Label }}
+          </span>
+          <span class="text-base-content/65">
+            Installed
+            <span class="font-mono wrap-anywhere">{{ .Installed }}</span>
+          </span>
+        </p>
+        {{ if .Stable }}
+          <p class="wrap-anywhere">
+            Stable release
+            <strong class="font-mono font-medium">{{ .Stable }}</strong>
+          </p>
+        {{ end }}
+        {{ if .Beta }}
+          <p class="wrap-anywhere text-base-content/65">
+            Beta release
+            <span class="font-mono">{{ .Beta }}</span>
+          </p>
+        {{ end }}
+        {{ if and .Known (not .Current) }}
+          <p class="text-base-content/65">
+            Showing saved availability. Refresh or check again when the device is reachable.
+          </p>
+        {{ end }}
+        {{ if .Problem }}
+          <p role="status" class="text-warning wrap-anywhere">{{ .Problem }}</p>
+        {{ end }}
+        {{ if .Checked }}
+          <p class="text-base-content/65">Last firmware check · {{ .Checked }}</p>
+        {{ else }}
+          <p class="text-base-content/65">
+            Availability comes from the device's cached check. Check now for a fresh result.
+          </p>
+        {{ end }}
+        {{ if .Staged }}
+          <p class="text-warning">
+            This device reports a staged update. A final pass may run automatically after reboot;
+            wait for the installed version to settle.
+          </p>
+        {{ end }}
+        {{ if .ClockWarning }}
+          <p class="text-warning">
+            The device clock is not synchronized. Check its time server and internet access before
+            retrying an update.
+          </p>
+        {{ end }}
+        <details class="border-t border-base-content/10 pt-3">
+          <summary class="cursor-pointer py-1 font-medium pointer-coarse:min-h-10">
+            Update not finishing?
+          </summary>
+          <div class="mt-2 grid gap-2 leading-relaxed text-base-content/65">
+            <p>
+              After updating in the device UI or Home Assistant, refresh status here and compare the
+              installed version with the offered release. An accepted update request does not
+              confirm installation.
+            </p>
+            <p>
+              If the version stays unchanged, check the device's internet access, DNS and time
+              synchronization. Being reachable on your local network does not confirm it can
+              download firmware.
+            </p>
+            <p>
+              Retry from the device UI and inspect its diagnostics for download or installation
+              errors.
+            </p>
+          </div>
+        </details>
+      </div>
+    {{ end }}
+  </section>
+{{ end }}

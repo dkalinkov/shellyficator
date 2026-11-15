@@ -177,6 +177,10 @@ func (c workflowClient) Discover(ctx context.Context, address string) (domain.Re
 	return c.discover(ctx, address)
 }
 
+func (c workflowClient) CheckForUpdate(ctx context.Context, address, mac string) (domain.Reading, error) {
+	return c.read(ctx, address, mac, false)
+}
+
 func workflowFixture(t *testing.T, client workflowClient) (*Service, *memoryRepository, domain.Device) {
 	t.Helper()
 	repository := newMemoryRepository()

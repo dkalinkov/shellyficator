@@ -56,6 +56,8 @@ func formatStoredTime(value string) string {
 
 // Unsaved record changes model regression fixtures independently of persistence.
 func domainRecord(record *core.Record) domain.Device {
+	var firmwareCheck *domain.FirmwareCheck
+	_ = json.Unmarshal([]byte(record.GetString("firmware_check")), &firmwareCheck)
 	return domain.Device{
 		ID: record.Id, DeviceID: record.GetString("device_id"), Name: record.GetString("name"),
 		Model: record.GetString("model"), MAC: record.GetString("mac"), Firmware: record.GetString("firmware"),
@@ -66,5 +68,6 @@ func domainRecord(record *core.Record) domain.Device {
 		LastSeen: record.GetDateTime("last_seen").Time(), LastChecked: record.GetDateTime("last_checked").Time(),
 		LastCaptured: record.GetDateTime("last_captured").Time(), LastStatusRead: record.GetDateTime("last_status_read").Time(),
 		Status: objectField(record, "status"), Config: objectField(record, "config"), BaselineID: record.GetString("baseline"),
+		FirmwareCheck: firmwareCheck,
 	}
 }

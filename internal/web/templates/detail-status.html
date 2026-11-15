@@ -48,6 +48,16 @@
             {{ if .Detail.Table.Model }}<span>{{ .Detail.Table.Model }}</span>{{ end }}
             <span class="text-base-content/50">Gen {{ .Device.Generation }}</span>
           </span>
+          {{ if .Detail.Table.Firmware.Visible }}
+            <a
+              href="#firmware"
+              class="badge badge-sm badge-soft min-h-7 {{ badgeClass .Detail.Table.Firmware.Tone }}"
+              data-tooltip="{{ .Detail.Table.Firmware.Info }}"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#icon-update"></use></svg>
+              {{ .Detail.Table.Firmware.Label }}
+            </a>
+          {{ end }}
         </div>
         {{ with .Device.Tags }}
           <div

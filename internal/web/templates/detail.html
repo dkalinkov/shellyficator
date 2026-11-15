@@ -26,6 +26,7 @@
             Overview
           </a>
           <a href="#channels" class="tab shrink-0 text-xs max-[480px]:px-2">Channels & inputs</a>
+          <a href="#firmware" class="tab shrink-0 text-xs max-[480px]:px-2">Firmware</a>
           <a href="#configuration" class="tab shrink-0 text-xs max-[480px]:px-2">Configuration</a>
           <a href="#notes" class="tab shrink-0 text-xs max-[480px]:px-2">Notes</a>
         </nav>
@@ -37,6 +38,7 @@
         >
           <div class="grid min-w-0 gap-6">
             {{ template "detail-channels" . }}
+            {{ template "detail-firmware" . }}
             {{ template "detail-configuration" . }}
             {{ template "detail-history" . }}
             {{ template "detail-channel-notes" . }}

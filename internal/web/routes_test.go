@@ -29,6 +29,8 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 			_, _ = w.Write([]byte(`{"switch:0":{"output":true}}`))
 		case "/rpc/Shelly.GetConfig":
 			_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"detached"}}`))
+		case "/rpc/Shelly.CheckForUpdate":
+			_, _ = w.Write([]byte(`{}`))
 		default:
 			t.Errorf("unexpected device request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -109,7 +111,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if hxResponse.Code != http.StatusUnauthorized || hxResponse.Header().Get("HX-Redirect") != "/login" {
 		t.Fatalf("HTMX authentication redirect lost: %d %v", hxResponse.Code, hxResponse.Header())
 	}
-	for _, path := range []string{"/logout", "/discover", devicePath + "/refresh", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
+	for _, path := range []string{"/logout", "/discover", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
 		if response := request(http.MethodPost, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("POST %s lost authentication precedence: %d", path, response.Code)
 		}
@@ -122,6 +124,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		form                 url.Values
 	}{
 		{"/refresh", devicePath, "Status refreshed.", url.Values{}},
+		{"/firmware/check", devicePath, "Firmware availability checked.", url.Values{}},
 		{"/organization", "/", "Room & tags saved.", url.Values{"room": {"Dining"}, "tags": {"lighting"}}},
 		{"/metadata", devicePath, "Device info saved.", url.Values{"room": {"Dining"}, "tags": {"lighting"}, "notes": {"Device note"}}},
 		{"/channel-notes", devicePath, "Note saved.", url.Values{"component": {"switch:0"}, "notes": {"Channel note"}}},

@@ -30,6 +30,12 @@ func (d Device) FailedCheck(problem string, identityMismatch bool, now time.Time
 
 // ApplyReading preserves local metadata and cached values absent from this read.
 func (d Device) ApplyReading(r Reading, capture bool, now time.Time) Device {
+	if d.Firmware != r.Identity.Version {
+		d.FirmwareCheck = nil
+	}
+	if r.FirmwareCheck != nil {
+		d.FirmwareCheck = r.FirmwareCheck
+	}
 	d.DeviceID, d.MAC, d.Model = r.Identity.ID, r.Identity.MAC, r.Identity.Model
 	d.Generation, d.Firmware, d.Address = r.Identity.Gen, r.Identity.Version, r.Address
 	d.AuthEnabled, d.Reachable = r.Identity.Auth, true
@@ -41,6 +47,9 @@ func (d Device) ApplyReading(r Reading, capture bool, now time.Time) Device {
 	}
 	if r.Status != nil {
 		d.Status, d.LastStatusRead = r.Status, now
+		if !r.StatusReadAt.IsZero() {
+			d.LastStatusRead = r.StatusReadAt
+		}
 	}
 	if capture || r.ConfigAttempted || r.Config != nil {
 		d.ConfigAvailable = r.Config != nil
