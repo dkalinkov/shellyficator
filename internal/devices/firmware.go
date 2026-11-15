@@ -19,11 +19,18 @@ func (s *Service) CheckFirmware(caller context.Context, id string) (domain.Devic
 	if err != nil {
 		return domain.Device{}, err
 	}
+	if device.FirmwareUpdate.Active() {
+		return domain.Device{}, domain.ErrFirmwareBusy
+	}
 	reading, err := s.client.CheckForUpdate(ctx, device.Address, device.MAC)
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
 	if cancelled := cancellation(ctx, caller, s.ctx); cancelled != nil {
 		return domain.Device{}, cancelled
+	}
+	latest, lookupErr := s.store.Device(id)
+	if lookupErr == nil && firmwareChanged(device, latest) {
+		return domain.Device{}, domain.ErrFirmwareBusy
 	}
 	if err != nil {
 		if saveErr := s.store.Failed(id, "Firmware check could not reach the saved device. Check device identity and connectivity.", errors.Is(err, domain.ErrIdentity)); saveErr != nil {

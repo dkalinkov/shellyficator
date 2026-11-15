@@ -17,6 +17,9 @@ var (
 	ErrClosed             = errors.New("device service is closed")
 	ErrInvalidCredentials = errors.New("email or password is incorrect")
 	ErrSetupCompleted     = errors.New("setup already completed")
+	ErrFirmwareBusy       = errors.New("a firmware update is already running")
+	ErrFirmwareSelection  = errors.New("review the selected devices and firmware versions")
+	ErrFirmwareRejected   = errors.New("device rejected the firmware update")
 )
 
 type Identity struct {
@@ -33,6 +36,7 @@ type Reading struct {
 	Problem         string
 	FirmwareCheck   *FirmwareCheck
 	StatusReadAt    time.Time
+	CaptureReason   string
 }
 
 type Device struct {
@@ -50,6 +54,7 @@ type Device struct {
 	Status, Config                                      map[string]any
 	BaselineID                                          string
 	FirmwareCheck                                       *FirmwareCheck
+	FirmwareUpdate                                      *FirmwareUpdate
 }
 
 // FirmwareCheck is the result of an explicit device-side update check. Polling

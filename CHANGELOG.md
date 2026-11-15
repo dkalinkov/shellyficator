@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Show stable/beta firmware offers as compact Status icons, with detailed tooltips and manual checks.
+- Implement serial firmware installation with configuration captures, post-reboot version verification, and persistent results without automatically repeating update commands.
 
 ## 0.3.0 — 2026-11-11
 
