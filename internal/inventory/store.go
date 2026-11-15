@@ -26,6 +26,8 @@ func object(record *core.Record, name string) map[string]any {
 func deviceFromRecord(record *core.Record) domain.Device {
 	var firmwareCheck *domain.FirmwareCheck
 	_ = json.Unmarshal([]byte(record.GetString("firmware_check")), &firmwareCheck)
+	var firmwareUpdate *domain.FirmwareUpdate
+	_ = json.Unmarshal([]byte(record.GetString("firmware_update")), &firmwareUpdate)
 	return domain.Device{
 		ID: record.Id, DeviceID: record.GetString("device_id"), MAC: record.GetString("mac"),
 		Name: record.GetString("name"), Model: record.GetString("model"),
@@ -37,7 +39,8 @@ func deviceFromRecord(record *core.Record) domain.Device {
 		LastSeen: record.GetDateTime("last_seen").Time(), LastChecked: record.GetDateTime("last_checked").Time(),
 		LastCaptured: record.GetDateTime("last_captured").Time(), LastStatusRead: record.GetDateTime("last_status_read").Time(),
 		Status: object(record, "status"), Config: object(record, "config"), BaselineID: record.GetString("baseline"),
-		FirmwareCheck: firmwareCheck,
+		FirmwareCheck:  firmwareCheck,
+		FirmwareUpdate: firmwareUpdate,
 	}
 }
 
@@ -50,7 +53,8 @@ func writeDeviceState(record *core.Record, device domain.Device) {
 		"consecutive_failures": device.ConsecutiveFailures, "identity_mismatch": device.IdentityMismatch, "problem": device.Problem,
 		"last_seen": device.LastSeen, "last_checked": device.LastChecked, "last_captured": device.LastCaptured, "last_status_read": device.LastStatusRead,
 		"status": device.Status, "config": device.Config,
-		"firmware_check": device.FirmwareCheck,
+		"firmware_check":  device.FirmwareCheck,
+		"firmware_update": device.FirmwareUpdate,
 	} {
 		record.Set(key, value)
 	}
@@ -123,7 +127,11 @@ func (s *Store) saveReading(reading domain.Reading, capture, approve bool) (doma
 			snapshot.Set("device", record.Id)
 			snapshot.Set("config", reading.Config)
 			snapshot.Set("firmware", reading.Identity.Version)
-			snapshot.Set("reason", "Manual capture")
+			reason := reading.CaptureReason
+			if reason == "" {
+				reason = "Manual capture"
+			}
+			snapshot.Set("reason", reason)
 			if err := app.Save(snapshot); err != nil {
 				return err
 			}

@@ -68,8 +68,13 @@ func (s *Service) refreshDevices(force bool) {
 	results := make([]struct {
 		reading domain.Reading
 		err     error
+		skipped bool
 	}, len(records))
 	for i, record := range records {
+		if record.FirmwareUpdate.Active() {
+			results[i].skipped = true
+			continue
+		}
 		select {
 		case limit <- struct{}{}:
 		case <-s.ctx.Done():
@@ -100,6 +105,10 @@ func (s *Service) refreshDevices(force bool) {
 	}
 	for i, result := range results {
 		record := records[i]
+		latest, lookupErr := s.store.Device(record.ID)
+		if result.skipped || lookupErr == nil && firmwareChanged(record, latest) {
+			continue
+		}
 		if result.err != nil {
 			problem := "Device could not be reached. Last successful readings are preserved."
 			if errors.Is(result.err, domain.ErrIdentity) {

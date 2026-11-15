@@ -34,11 +34,18 @@ func (s *Service) RefreshDevice(caller context.Context, id string) (domain.Refre
 	if err != nil {
 		return domain.RefreshResult{}, err
 	}
+	if device.FirmwareUpdate.Active() {
+		return domain.RefreshResult{}, domain.ErrFirmwareBusy
+	}
 	reading, err := s.client.Read(ctx, device.Address, device.MAC, false)
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
 	if err := cancellation(ctx, caller, s.ctx); err != nil {
 		return domain.RefreshResult{}, err
+	}
+	latest, lookupErr := s.store.Device(id)
+	if lookupErr == nil && firmwareChanged(device, latest) {
+		return domain.RefreshResult{}, domain.ErrFirmwareBusy
 	}
 	if err != nil {
 		if saveErr := s.store.Failed(id, "Status could not be read. Check device identity and connectivity.", errors.Is(err, domain.ErrIdentity)); saveErr != nil {
@@ -81,11 +88,18 @@ func (s *Service) configuration(caller context.Context, id string, approve bool)
 	if err != nil {
 		return domain.Device{}, err
 	}
+	if device.FirmwareUpdate.Active() {
+		return domain.Device{}, domain.ErrFirmwareBusy
+	}
 	reading, err := s.client.Read(ctx, device.Address, device.MAC, true)
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
 	if err := cancellation(ctx, caller, s.ctx); err != nil {
 		return domain.Device{}, err
+	}
+	latest, lookupErr := s.store.Device(id)
+	if lookupErr == nil && firmwareChanged(device, latest) {
+		return domain.Device{}, domain.ErrFirmwareBusy
 	}
 	if err != nil {
 		if saveErr := s.store.Failed(id, "Configuration could not be captured. Check device identity and connectivity.", errors.Is(err, domain.ErrIdentity)); saveErr != nil {

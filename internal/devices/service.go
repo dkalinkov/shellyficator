@@ -27,12 +27,14 @@ type Repository interface {
 	Baseline(domain.Device) (map[string]any, error)
 	ChannelNotes(string) (map[string]string, error)
 	SaveChannelNote(id, component, notes string) error
+	SaveFirmwareUpdates(map[string]domain.FirmwareUpdate) error
 }
 
 type Client interface {
 	Read(ctx context.Context, address, expectedMAC string, configuration bool) (domain.Reading, error)
 	Discover(ctx context.Context, address string) (domain.Reading, error)
 	CheckForUpdate(ctx context.Context, address, expectedMAC string) (domain.Reading, error)
+	StartFirmwareUpdate(ctx context.Context, address, expectedMAC, stage string) error
 }
 
 type DiscoverySource interface {
@@ -65,12 +67,14 @@ type Service struct {
 	inventoryMu   sync.RWMutex
 	closed        bool
 
-	discovery     domain.Discovery
-	refreshing    bool
-	lastRefresh   time.Time
-	refreshDone   chan struct{}
-	refreshForced bool
-	forcePending  bool
+	discovery                                      domain.Discovery
+	refreshing                                     bool
+	lastRefresh                                    time.Time
+	refreshDone                                    chan struct{}
+	refreshForced                                  bool
+	forcePending                                   bool
+	firmwareRunning                                bool
+	firmwarePoll, firmwareSettle, firmwareDeadline time.Duration
 }
 
 func New(store Repository, client Client, options Options) *Service {
@@ -80,6 +84,8 @@ func New(store Repository, client Client, options Options) *Service {
 		logger = slog.Default()
 	}
 	s := &Service{store: store, client: client, source: options.Discovery, logger: logger, ctx: ctx, cancel: cancel}
+	s.firmwarePoll, s.firmwareSettle, s.firmwareDeadline = 5*time.Second, 120*time.Second, 12*time.Minute
+	s.recoverFirmwareUpdates()
 	if s.source != nil {
 		s.announcements, s.neighbors = s.source.Announcements, s.source.Neighbors
 	}

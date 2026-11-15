@@ -167,6 +167,29 @@ func (r *memoryRepository) SaveChannelNote(id, component, notes string) error {
 type workflowClient struct {
 	read     func(context.Context, string, string, bool) (domain.Reading, error)
 	discover func(context.Context, string) (domain.Reading, error)
+	update   func(context.Context, string, string, string) error
+}
+
+func (c workflowClient) StartFirmwareUpdate(ctx context.Context, address, mac, stage string) error {
+	if c.update == nil {
+		return domain.ErrFirmwareRejected
+	}
+	return c.update(ctx, address, mac, stage)
+}
+
+func (r *memoryRepository) SaveFirmwareUpdates(updates map[string]domain.FirmwareUpdate) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.saveErr != nil {
+		return r.saveErr
+	}
+	for id, update := range updates {
+		device := r.devices[id]
+		copy := update
+		device.FirmwareUpdate = &copy
+		r.devices[id] = device
+	}
+	return nil
 }
 
 func (c workflowClient) Read(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
