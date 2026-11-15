@@ -1,0 +1,199 @@
+{{ define "firmware-dialog" }}
+  <dialog
+    id="firmware-dialog"
+    class="modal motion-reduce:transition-none"
+    aria-labelledby="firmware-plan-title"
+  >
+    <div
+      id="firmware-dialog-content"
+      class="modal-box w-[min(576px,calc(100vw-24px))] max-w-xl max-h-[calc(100dvh-24px)] overflow-y-auto border border-base-content/20 bg-base-200 p-0 scale-none translate-none motion-reduce:transition-none"
+    ></div>
+  </dialog>
+{{ end }}
+
+{{ define "firmware-page" }}
+  <!doctype html>
+  <html lang="en" data-theme="abyss">
+    {{ template "head" . }}
+    <body class="min-h-screen bg-base-100 font-sans text-base-content">
+      {{ template "page-tools" . }}{{ template "header" . }}
+      <main
+        id="main"
+        hx-disable
+        class="mx-auto my-8 w-[min(576px,calc(100vw-24px))] rounded-box border border-base-content/20 bg-base-200"
+      >
+        {{ template "firmware-plan" . }}
+      </main>
+    </body>
+  </html>
+{{ end }}
+
+{{ define "firmware-plan" }}
+  <form
+    action="/firmware/update"
+    method="post"
+    hx-post="/firmware/update"
+    hx-swap="none"
+    hx-disabled-elt="find fieldset"
+    data-firmware-form
+    data-firmware-running="{{ .Running }}"
+  >
+    <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+    <input type="hidden" name="confirm" value="update" />
+    {{ if .Running }}
+      <div
+        hidden
+        data-firmware-watch
+        hx-get="{{ .URL }}"
+        hx-trigger="every 2s [!document.hidden]"
+        hx-target="#firmware-dialog-content"
+        hx-swap="innerHTML"
+        hx-sync="this:drop"
+      ></div>
+    {{ end }}
+    <fieldset>
+      <div class="flex items-start justify-between gap-3 border-b border-base-content/10 px-4 py-3">
+        <div class="min-w-0">
+          <h2 id="firmware-plan-title" class="text-base font-semibold">
+            {{ if .Running }}
+              Firmware update progress
+            {{ else }}
+              Update firmware
+            {{ end }}
+          </h2>
+          {{ if not .Running }}
+            <p class="mt-1 text-sm text-base-content/75">
+              Devices restart; outputs may briefly turn off.
+            </p>
+          {{ end }}
+        </div>
+        <button
+          id="firmware-dialog-close"
+          type="button"
+          class="btn btn-ghost btn-square btn-xs shrink-0 pointer-coarse:size-10"
+          data-firmware-close
+          aria-label="Close firmware dialog"
+        >
+          <svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+        </button>
+      </div>
+      {{ if .Rows }}
+        {{ if not .Running }}
+          <div class="flex justify-end px-4 pt-2">
+            <button
+              type="button"
+              class="btn btn-xs btn-ghost pointer-coarse:min-h-10"
+              data-firmware-select-stable
+            >
+              Select stable
+            </button>
+          </div>
+        {{ end }}
+        <div class="divide-y divide-base-content/10 px-4">
+          {{ range .Rows }}
+            <div
+              class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 py-2.5"
+              data-firmware-choice
+            >
+              <input
+                id="firmware-choice-{{ .ID }}"
+                class="checkbox checkbox-sm mt-1"
+                type="checkbox"
+                name="device"
+                value="{{ .ID }}"
+                data-has-stable="{{ ne .Stable "" }}"
+                {{ if .Selected }}checked{{ end }}
+                {{ if .DisabledReason }}disabled{{ end }}
+              />
+              <div
+                class="grid min-w-0 items-center gap-x-3 gap-y-1 {{ if or .Stable .Beta }}
+                  sm:grid-cols-[minmax(0,1fr)_minmax(0,15rem)]
+                {{ end }}"
+              >
+                <label
+                  for="firmware-choice-{{ .ID }}"
+                  class="flex min-h-10 cursor-pointer flex-col justify-center text-sm leading-snug font-medium wrap-anywhere"
+                >
+                  <span>{{ .Name }}</span>
+                  <span class="mt-0.5 text-xs font-normal text-base-content/70">
+                    Installed
+                    <span class="font-mono wrap-anywhere">{{ .Installed }}</span>
+                  </span>
+                </label>
+                <input type="hidden" name="from_{{ .ID }}" value="{{ .Installed }}" />
+                <input type="hidden" name="target_stable_{{ .ID }}" value="{{ .Stable }}" />
+                <input type="hidden" name="target_beta_{{ .ID }}" value="{{ .Beta }}" />
+                {{ if or .Stable .Beta }}
+                  <select
+                    class="select select-sm w-full min-w-0 text-sm sm:col-start-2 sm:row-start-1 pointer-coarse:min-h-10 pointer-coarse:text-base"
+                    name="stage_{{ .ID }}"
+                    aria-label="Firmware version for {{ .Name }}"
+                    {{ if .DisabledReason }}disabled{{ end }}
+                  >
+                    {{ if .Stable }}<option value="stable">Stable · {{ .Stable }}</option>{{ end }}
+                    {{ if .Beta }}
+                      <option value="beta">Beta · {{ .Beta }}</option>
+                    {{ end }}
+                  </select>
+                {{ end }}
+                {{ if .State.HasResult }}
+                  <p
+                    class="flex items-start gap-2 text-xs leading-relaxed wrap-anywhere sm:col-span-full {{ toneClass .State.Tone }}"
+                  >
+                    {{ if .State.Active }}
+                      <span
+                        class="loading loading-spinner loading-xs mt-0.5 shrink-0 motion-reduce:animate-none"
+                        aria-hidden="true"
+                      ></span>
+                    {{ end }}
+                    <span>{{ .State.Label }} · {{ .State.Message }}</span>
+                  </p>
+                {{ end }}
+                {{ if and .DisabledReason (not .State.Active) }}
+                  <p class="text-xs leading-relaxed text-base-content/70 sm:col-span-full">
+                    {{ .DisabledReason }}
+                  </p>
+                {{ end }}
+              </div>
+            </div>
+          {{ end }}
+        </div>
+      {{ else }}
+        <p class="p-4 text-sm text-base-content/75">No updates available in this view.</p>
+      {{ end }}
+      <p
+        class="alert alert-error mx-4 mb-3 w-auto py-2 text-sm"
+        role="alert"
+        data-firmware-error
+        hidden
+      ></p>
+      <div
+        class="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t border-base-content/10 bg-base-200 px-4 py-3"
+      >
+        <span class="mr-auto text-xs text-base-content/70" role="status" data-firmware-selection>
+          {{ .Selected }} selected
+        </span>
+        <a
+          id="firmware-dialog-cancel"
+          href="/"
+          class="btn btn-sm btn-ghost pointer-coarse:min-h-10"
+          data-firmware-close
+        >
+          {{ if .Running }}
+            Close
+          {{ else }}
+            Cancel
+          {{ end }}
+        </a>
+        <button
+          type="submit"
+          class="btn btn-sm btn-primary pointer-coarse:min-h-10"
+          data-firmware-submit
+          {{ if or .Running (eq .Selected 0) }}disabled{{ end }}
+        >
+          Update {{ .Selected }} {{ if eq .Selected 1 }}device{{ else }}devices{{ end }}
+        </button>
+      </div>
+    </fieldset>
+  </form>
+{{ end }}

@@ -39,6 +39,7 @@ func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFi
 	page.Total = len(entries)
 	for _, entry := range entries {
 		model := entry.Device
+		page.FirmwareRunning = page.FirmwareRunning || model.FirmwareUpdate.Active()
 		name := deviceName(model)
 		device := Device{Info: deviceView(model), Name: name}
 		if model.Reachable {

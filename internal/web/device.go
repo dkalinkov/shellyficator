@@ -20,12 +20,17 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if e.Request.Header.Get("HX-Request") == "true" {
 		s.notify(e, meta.Notice, meta.NoticeLevel)
 	}
-	return s.render(e, "detail", devicePage(meta, details))
+	page := devicePage(meta, details)
+	page.FirmwareRunning = details.Device.FirmwareUpdate.Active() || s.devices.FirmwareRunning()
+	return s.render(e, "detail", page)
 }
 
 func (s *Server) refreshDevice(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	result, err := s.devices.RefreshDevice(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrFirmwareBusy) {
+		return s.redirect(e, "/devices/"+id, "Firmware update in progress. Status is verified automatically.", "warning")
+	}
 	if errors.Is(err, domain.ErrNotFound) {
 		return e.NotFoundError("Device not found", nil)
 	}
@@ -44,6 +49,9 @@ func (s *Server) refreshDevice(e *core.RequestEvent) error {
 func (s *Server) checkFirmware(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	device, err := s.devices.CheckFirmware(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrFirmwareBusy) {
+		return s.redirect(e, "/devices/"+id, "Firmware update in progress. Wait for verification to finish.", "warning")
+	}
 	if errors.Is(err, domain.ErrNotFound) {
 		return e.NotFoundError("Device not found", nil)
 	}

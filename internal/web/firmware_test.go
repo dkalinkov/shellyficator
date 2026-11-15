@@ -145,3 +145,24 @@ func TestFirmwareRendersAccessibleIndicatorsAndCheckAction(t *testing.T) {
 		t.Fatal("inventory update indicator lost accessible label")
 	}
 }
+
+func TestFirmwareProgressContinuesWhenTheUpdatingDeviceIsFilteredOut(t *testing.T) {
+	entries := []domain.InventoryEntry{{Device: domain.Device{DeviceID: "updating", FirmwareUpdate: &domain.FirmwareUpdate{Phase: "verifying"}}}, {Device: domain.Device{DeviceID: "other"}}}
+	templates, err := parseTemplates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, active := range []bool{true, false} {
+		if !active {
+			entries[0].Device.FirmwareUpdate.Phase = "succeeded"
+		}
+		page := inventoryPage(PageMeta{}, entries, "other", "", "", "")
+		var output bytes.Buffer
+		if err := templates.ExecuteTemplate(&output, "inventory", page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Devices) != 1 || page.FirmwareRunning != active || strings.Contains(output.String(), "every 2s") != active {
+			t.Fatalf("filtering lost running progress or completion: active=%v page=%+v", active, page)
+		}
+	}
+}

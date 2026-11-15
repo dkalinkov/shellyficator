@@ -12,8 +12,8 @@ type FirmwareView struct {
 	Checked, Problem                           string
 	Known, Current, Available, Staged          bool
 	ClockWarning                               bool
-	Icon                                       string
-	Visible                                    bool
+	Icon, Phase, Message                       string
+	Active, HasResult, Visible                 bool
 }
 
 func firmwareView(device domain.Device) FirmwareView {
@@ -94,6 +94,35 @@ func firmwareView(device domain.Device) FirmwareView {
 		seconds, synced := unix.(float64)
 		view.ClockWarning = !synced || seconds <= 0
 	}
-	view.Visible = view.Available || view.Problem != ""
+	if update := device.FirmwareUpdate; update != nil && (update.Phase != "succeeded" || device.Firmware == update.TargetVersion) {
+		view.Active, view.HasResult = update.Active(), true
+		view.Phase, view.Message = update.Phase, update.Message
+		if update.Phase == "succeeded" && view.Available {
+			// A completed attempt must not hide a newly offered stable or beta release.
+			view.Info += "\nLast update: " + update.Message
+			view.Visible = true
+			return view
+		}
+		switch update.Phase {
+		case "queued":
+			view.Label, view.Tone, view.Icon = "Update queued", "blue", "clock"
+		case "capturing":
+			view.Label, view.Tone = "Capturing settings", "blue"
+		case "starting":
+			view.Label, view.Tone = "Starting update", "blue"
+		case "verifying":
+			view.Label, view.Tone = "Updating · verifying", "blue"
+		case "succeeded":
+			view.Label, view.Tone, view.Icon = "Updated", "ok", "check-circle"
+		case "failed":
+			view.Label, view.Tone, view.Icon = "Update failed", "error", "warning"
+		case "unconfirmed":
+			view.Label, view.Tone, view.Icon = "Update not verified", "warning", "warning"
+		case "warning":
+			view.Label, view.Tone, view.Icon = "Updated · capture unavailable", "warning", "warning"
+		}
+		view.Info = view.Label + "\n" + update.Message + "\n" + update.FromVersion + " → " + update.TargetVersion + " (" + update.Stage + ")\nLast progress · " + formatTime(update.UpdatedAt) + "\nInstalled firmware " + view.Installed
+	}
+	view.Visible = view.Available || view.Problem != "" || view.HasResult
 	return view
 }

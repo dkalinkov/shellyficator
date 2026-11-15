@@ -98,7 +98,7 @@ document.addEventListener('htmx:afterSettle', clearNoticeURL);
 for (const name of ['htmx:responseError', 'htmx:sendError', 'htmx:timeout']) {
   document.addEventListener(name, event => {
     const source = event.detail.elt;
-    if (source.matches('[data-organization-form], [data-organization-open]') || event.detail.xhr?.getResponseHeader('HX-Redirect')) return;
+    if (source.matches('[data-organization-form], [data-organization-open], [data-firmware-form], [data-firmware-watch]') || event.detail.xhr?.getResponseHeader('HX-Redirect')) return;
     let message = source.id === 'inventory' ? 'Refresh failed. Try again.' : 'Request failed. Try again.';
     try { message = JSON.parse(event.detail.xhr.responseText).message || message; } catch { /* Network failure. */ }
     showToast(message, 'error');
@@ -113,7 +113,8 @@ document.addEventListener('htmx:beforeRequest', event => {
   if (event.detail.elt.id !== 'inventory') return;
   const tooltip = document.getElementById('app-tooltip');
   const editor = document.getElementById('organization-dialog');
-  if (document.hidden || event.detail.elt.dataset.paused === 'true' || (tooltip && !tooltip.hidden) || (editor && editor.open) || document.querySelector('[data-tag-filter] [aria-expanded="true"]')) event.preventDefault();
+  const firmware = document.getElementById('firmware-dialog');
+  if (document.hidden || event.detail.elt.dataset.paused === 'true' || (tooltip && !tooltip.hidden) || (editor && editor.open) || (firmware && firmware.open) || document.querySelector('[data-tag-filter] [aria-expanded="true"]')) event.preventDefault();
 });
 
 // Keep ordinary links and buttons native; the remaining row area opens details.

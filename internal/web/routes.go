@@ -30,14 +30,17 @@ func (s *Server) registerRoutes(r *router.Router[*core.RequestEvent], static fs.
 	protected.GET("/inventory", s.table)
 	protected.GET("/inventory/refresh", s.refreshInventory)
 	protected.GET("/discovery/progress", s.progress)
+	protected.GET("/firmware", s.firmwarePlan)
 
 	writes := protected.Group("").BindFunc(checkCSRF)
 	writes.POST("/logout", s.logout)
 	writes.POST("/discover", s.discover)
+	writes.POST("/firmware/update", s.updateFirmware)
 
 	devices := protected.Group("/devices/{id}")
 	devices.GET("", s.detail)
 	devices.GET("/organization", s.organizationEditor)
+	devices.GET("/firmware", s.firmwarePlan)
 
 	deviceWrites := devices.Group("").BindFunc(checkCSRF)
 	deviceWrites.POST("/refresh", s.refreshDevice)

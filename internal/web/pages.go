@@ -22,19 +22,21 @@ type InventoryPage struct {
 	Rooms, Tags, SelectedTags              []string
 	Total, Reachable, Changed, Unprotected int
 	Updates                                int
+	FirmwareRunning                        bool
 	Discovery                              domain.Discovery
 	Networks                               []domain.Network
 }
 
 type DevicePage struct {
 	PageMeta
-	Device      DeviceView
-	Name        string
-	Rooms, Tags []string
-	Detail      DeviceDetail
-	Differences []DifferenceView
-	HasBaseline bool
-	Snapshots   []SnapshotView
+	Device          DeviceView
+	Name            string
+	Rooms, Tags     []string
+	Detail          DeviceDetail
+	Differences     []DifferenceView
+	HasBaseline     bool
+	FirmwareRunning bool
+	Snapshots       []SnapshotView
 }
 
 type DiscoveryPage struct {

@@ -20,6 +20,8 @@ type Devices interface {
 	Detail(string) (domain.DeviceDetails, error)
 	RefreshDevice(context.Context, string) (domain.RefreshResult, error)
 	CheckFirmware(context.Context, string) (domain.Device, error)
+	StartFirmwareUpdates(context.Context, []domain.FirmwareSelection) error
+	FirmwareRunning() bool
 	Capture(context.Context, string) (domain.Device, error)
 	ApproveBaseline(context.Context, string) (domain.Device, error)
 	OrganizationOptions() (domain.OrganizationOptions, error)

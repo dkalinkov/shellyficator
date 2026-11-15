@@ -170,15 +170,28 @@
           {{ end }}
           {{ if .Table.Firmware.Visible }}
             <a
-              href="/devices/{{ .Info.ID }}#firmware"
+              id="firmware-open-{{ .Info.ID }}"
+              href="/devices/{{ .Info.ID }}/firmware"
+              hx-get="/devices/{{ .Info.ID }}/firmware"
+              hx-target="#firmware-dialog-content"
+              data-firmware-open
+              aria-haspopup="dialog"
+              aria-controls="firmware-dialog"
               class="firmware-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
                 {{ toneClass .Table.Firmware.Tone }}"
               aria-label="Firmware for {{ .Name }}: {{ .Table.Firmware.Label }}"
               data-tooltip="{{ .Table.Firmware.Info }}"
             >
-              <svg class="icon" aria-hidden="true">
-                <use href="#icon-{{ .Table.Firmware.Icon }}"></use>
-              </svg>
+              {{ if and .Table.Firmware.Active (ne .Table.Firmware.Phase "queued") }}
+                <span
+                  class="loading loading-spinner size-4 motion-reduce:animate-none"
+                  aria-hidden="true"
+                ></span>
+              {{ else }}
+                <svg class="icon" aria-hidden="true">
+                  <use href="#icon-{{ .Table.Firmware.Icon }}"></use>
+                </svg>
+              {{ end }}
             </a>
           {{ end }}
           {{ if .Table.RestartRequired }}

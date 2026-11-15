@@ -96,7 +96,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		t.Fatalf("application middleware affected PocketBase authentication: %d", response.Code)
 	}
 	devicePath := "/devices/" + id
-	for _, path := range []string{"/", "/inventory", "/inventory/refresh", "/discovery/progress", devicePath, devicePath + "/organization"} {
+	for _, path := range []string{"/", "/inventory", "/inventory/refresh", "/discovery/progress", "/firmware", devicePath, devicePath + "/organization", devicePath + "/firmware"} {
 		if response := request(http.MethodGet, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("GET %s bypassed authentication: %d", path, response.Code)
 		}
@@ -111,7 +111,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if hxResponse.Code != http.StatusUnauthorized || hxResponse.Header().Get("HX-Redirect") != "/login" {
 		t.Fatalf("HTMX authentication redirect lost: %d %v", hxResponse.Code, hxResponse.Header())
 	}
-	for _, path := range []string{"/logout", "/discover", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
+	for _, path := range []string{"/logout", "/discover", "/firmware/update", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
 		if response := request(http.MethodPost, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("POST %s lost authentication precedence: %d", path, response.Code)
 		}
