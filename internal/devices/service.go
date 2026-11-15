@@ -32,6 +32,7 @@ type Repository interface {
 type Client interface {
 	Read(ctx context.Context, address, expectedMAC string, configuration bool) (domain.Reading, error)
 	Discover(ctx context.Context, address string) (domain.Reading, error)
+	CheckForUpdate(ctx context.Context, address, expectedMAC string) (domain.Reading, error)
 }
 
 type DiscoverySource interface {

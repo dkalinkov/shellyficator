@@ -5,6 +5,7 @@
 - Embedded PocketBase/SQLite, migrations, dashboard login, first-run setup, and data admin.
 - Optional Authelia/OIDC login linked to existing operators; password recovery and separate data-admin access remain available.
 - Responsive inventory, input disclosures, device details, rooms/tags, and device/channel notes.
+- Firmware availability on inventory and device details, with stable/beta release tooltips and manual device-side checks.
 - Gen2+ discovery via IPv4 mDNS and cached LAN neighbors; explicit host/subnet scans under Advanced discovery. MAC identity and offline entries persist.
 - Shared completed status polling every 30 seconds, one transient retry, and a persisted offline grace period (three failed checks and 90 seconds without contact). Stale inventory values remain visible and muted. Configuration reads on recovery/every five minutes/manual Refresh, pause, manual configuration captures, baseline approval, and differences. Failed configuration reads retain saved settings with a separate warning; automatic reads preserve snapshots and approved baselines.
 - Environment and dotenv configuration, embedded assets, automatic development restarts, and a non-root container with persistent data.

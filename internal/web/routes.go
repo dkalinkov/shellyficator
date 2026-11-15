@@ -41,6 +41,7 @@ func (s *Server) registerRoutes(r *router.Router[*core.RequestEvent], static fs.
 
 	deviceWrites := devices.Group("").BindFunc(checkCSRF)
 	deviceWrites.POST("/refresh", s.refreshDevice)
+	deviceWrites.POST("/firmware/check", s.checkFirmware)
 	deviceWrites.POST("/organization", s.organization)
 	deviceWrites.POST("/metadata", s.metadata)
 	deviceWrites.POST("/channel-notes", s.channelNote)

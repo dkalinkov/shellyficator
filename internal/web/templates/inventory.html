@@ -23,6 +23,17 @@
         <strong>{{ .Unprotected }}</strong>
         unprotected
       </span>
+      {{ if .Updates }}
+        <span class="text-warning">
+          <svg class="icon" aria-hidden="true"><use href="#icon-update"></use></svg>
+          <strong>{{ .Updates }}</strong>
+          {{ if eq .Updates 1 }}
+            update available
+          {{ else }}
+            updates available
+          {{ end }}
+        </span>
+      {{ end }}
       {{ if or .Query .Room .SelectedTags }}
         <span class="summary-filtered col-span-2 sm:ml-auto">{{ len .Devices }} shown</span>
       {{ end }}
@@ -116,7 +127,7 @@
       <col />
       <col />
       <col />
-      <col class="pointer-coarse:w-36" />
+      <col class="w-28 pointer-coarse:w-44" />
       <col />
       <col />
       <col class="w-[150px] pointer-coarse:w-[190px]" />

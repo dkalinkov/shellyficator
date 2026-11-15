@@ -17,6 +17,7 @@ type DeviceTable struct {
 	ConnectivityIcon                                    string
 	Configuration, ConfigurationTone, ConfigurationInfo string
 	Cloud                                               ConnectionState
+	Firmware                                            FirmwareView
 	Inputs                                              []TableInput
 	SettingsWarning                                     string
 	InputsChanged                                       bool
@@ -52,7 +53,8 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int)
 		model = name
 	}
 	view := DeviceTable{
-		Model: model, Connectivity: "Reachable", ConnectivityTone: "ok", ConnectivityIcon: "check-circle",
+		Firmware: firmwareView(device),
+		Model:    model, Connectivity: "Reachable", ConnectivityTone: "ok", ConnectivityIcon: "check-circle",
 		SignalValue: "—", SignalTone: "muted",
 		Configuration: "No baseline", ConfigurationTone: "muted",
 		Identity:          fmt.Sprintf("%s\n%s · Gen %d\nFirmware %s\nMAC %s", device.DeviceID, device.Model, device.Generation, device.Firmware, device.MAC),

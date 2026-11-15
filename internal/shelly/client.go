@@ -31,14 +31,17 @@ type identityResponse struct {
 	Auth    bool   `json:"auth_en"`
 }
 
-type Client struct{ public, authenticated *http.Client }
+type Client struct{ public, authenticated, firmware *http.Client }
 
 func NewClient(password string) *Client {
-	transport := &http.Transport{Proxy: nil, DialContext: dialLocal, ResponseHeaderTimeout: 3 * time.Second, TLSHandshakeTimeout: 3 * time.Second, MaxIdleConnsPerHost: 2}
+	transport := &http.Transport{Proxy: nil, DialContext: dialLocal, ResponseHeaderTimeout: 30 * time.Second, TLSHandshakeTimeout: 3 * time.Second, MaxIdleConnsPerHost: 2}
+	// Checking for firmware waits on an upstream service, unlike local status
+	// reads. A short status timeout can falsely report that a healthy check failed.
 	noRedirect := func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 	return &Client{
 		public:        &http.Client{Transport: transport, Timeout: 5 * time.Second, CheckRedirect: noRedirect},
 		authenticated: &http.Client{Transport: &digest.Transport{Username: "admin", Password: password, Transport: transport, NoReuse: true}, Timeout: 5 * time.Second, CheckRedirect: noRedirect},
+		firmware:      &http.Client{Transport: &digest.Transport{Username: "admin", Password: password, Transport: transport, NoReuse: true}, Timeout: 30 * time.Second, CheckRedirect: noRedirect},
 	}
 }
 
@@ -89,6 +92,33 @@ func NormalizeMAC(value string) string {
 }
 
 func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConfig bool) (domain.Reading, error) {
+	reading, err := c.identify(ctx, address, expectedMAC)
+	if err != nil {
+		return reading, err
+	}
+	address = reading.Address
+	if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetStatus", &reading.Status); err != nil {
+		reading.Status = nil
+		reading.Problem = describe(err)
+	} else if reading.Status != nil {
+		reading.StatusReadAt = time.Now().UTC()
+	}
+	if readConfig {
+		reading.ConfigAttempted = true
+		if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetConfig", &reading.Config); err != nil {
+			reading.Config = nil
+			if reading.Problem == "" || errors.Is(err, domain.ErrAuthentication) {
+				reading.Problem = describe(err)
+			}
+		}
+		if reading.Config != nil {
+			Redact(reading.Config)
+		}
+	}
+	return reading, nil
+}
+
+func (c *Client) identify(ctx context.Context, address, expectedMAC string) (domain.Reading, error) {
 	address, err := NormalizeAddress(address)
 	if err != nil {
 		return domain.Reading{}, err
@@ -104,22 +134,6 @@ func (c *Client) Read(ctx context.Context, address, expectedMAC string, readConf
 	}
 	if expectedMAC != "" && reading.Identity.MAC != NormalizeMAC(expectedMAC) {
 		return reading, domain.ErrIdentity
-	}
-	if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetStatus", &reading.Status); err != nil {
-		reading.Status = nil
-		reading.Problem = describe(err)
-	}
-	if readConfig {
-		reading.ConfigAttempted = true
-		if err := c.get(ctx, c.authenticated, address+"/rpc/Shelly.GetConfig", &reading.Config); err != nil {
-			reading.Config = nil
-			if reading.Problem == "" || errors.Is(err, domain.ErrAuthentication) {
-				reading.Problem = describe(err)
-			}
-		}
-		if reading.Config != nil {
-			Redact(reading.Config)
-		}
 	}
 	return reading, nil
 }
@@ -174,6 +188,13 @@ type httpError struct{ code int }
 
 func (e *httpError) Error() string { return fmt.Sprintf("device returned HTTP %d", e.code) }
 
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *rpcError) Error() string { return fmt.Sprintf("device error %d: %s", e.Code, e.Message) }
+
 func (c *Client) getOnce(ctx context.Context, client *http.Client, address string, dst any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, address, nil)
 	if err != nil {
@@ -187,15 +208,30 @@ func (c *Client) getOnce(ctx context.Context, client *http.Client, address strin
 	if response.StatusCode == 401 || response.StatusCode == 403 {
 		return domain.ErrAuthentication
 	}
-	if response.StatusCode != 200 {
-		return &httpError{code: response.StatusCode}
-	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1048577))
 	if err != nil {
 		return err
 	}
 	if len(body) > 1048576 {
 		return errors.New("device response too large")
+	}
+	// Some firmware returns RPC errors in a successful HTTP response. Decoding
+	// these as an ordinary status/update object would falsely report success.
+	var envelope struct {
+		Code    *int      `json:"code"`
+		Message string    `json:"message"`
+		Error   *rpcError `json:"error"`
+	}
+	if json.Unmarshal(body, &envelope) == nil {
+		if envelope.Error != nil {
+			return envelope.Error
+		}
+		if envelope.Code != nil && envelope.Message != "" {
+			return &rpcError{Code: *envelope.Code, Message: envelope.Message}
+		}
+	}
+	if response.StatusCode != 200 {
+		return &httpError{code: response.StatusCode}
 	}
 	if err := json.Unmarshal(body, dst); err != nil {
 		return errors.New("device returned an invalid JSON response")

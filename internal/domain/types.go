@@ -31,6 +31,8 @@ type Reading struct {
 	Status, Config  map[string]any
 	ConfigAttempted bool
 	Problem         string
+	FirmwareCheck   *FirmwareCheck
+	StatusReadAt    time.Time
 }
 
 type Device struct {
@@ -47,6 +49,16 @@ type Device struct {
 	LastSeen, LastChecked, LastCaptured, LastStatusRead time.Time
 	Status, Config                                      map[string]any
 	BaselineID                                          string
+	FirmwareCheck                                       *FirmwareCheck
+}
+
+// FirmwareCheck is the result of an explicit device-side update check. Polling
+// does not erase its error, so a failed check remains visible until retried.
+type FirmwareCheck struct {
+	CheckedAt time.Time      `json:"checked_at"`
+	Firmware  string         `json:"firmware"`
+	Available map[string]any `json:"available"`
+	Problem   string         `json:"problem,omitempty"`
 }
 
 type Snapshot struct {

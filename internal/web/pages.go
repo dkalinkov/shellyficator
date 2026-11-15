@@ -21,6 +21,7 @@ type InventoryPage struct {
 	RoomGroups                             []RoomGroup
 	Rooms, Tags, SelectedTags              []string
 	Total, Reachable, Changed, Unprotected int
+	Updates                                int
 	Discovery                              domain.Discovery
 	Networks                               []domain.Network
 }

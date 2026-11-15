@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Show stable/beta firmware offers as compact Status icons, with detailed tooltips and manual checks.
+
 ## 0.3.0 — 2026-11-11
 
 - Animate the header mascot with a smooth wink, a 900 ms open-eye hold, and a 3.5-second loop while keeping its head still.

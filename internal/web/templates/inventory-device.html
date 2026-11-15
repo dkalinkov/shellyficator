@@ -120,7 +120,9 @@
         </button>
       </td>
       <td class="device-connectivity inventory-card:col-start-1 inventory-card:row-start-4">
-        <div class="device-status inline-flex max-w-full flex-wrap items-center">
+        <div
+          class="device-status inline-flex max-w-full flex-nowrap items-center inventory-card:flex-wrap [&>a]:shrink-0"
+        >
           <a
             href="/devices/{{ .Info.ID }}"
             class="status-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
@@ -163,6 +165,19 @@
                   {{ end }}"
                   href="#icon-cloud"
                 ></use>
+              </svg>
+            </a>
+          {{ end }}
+          {{ if .Table.Firmware.Visible }}
+            <a
+              href="/devices/{{ .Info.ID }}#firmware"
+              class="firmware-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
+                {{ toneClass .Table.Firmware.Tone }}"
+              aria-label="Firmware for {{ .Name }}: {{ .Table.Firmware.Label }}"
+              data-tooltip="{{ .Table.Firmware.Info }}"
+            >
+              <svg class="icon" aria-hidden="true">
+                <use href="#icon-{{ .Table.Firmware.Icon }}"></use>
               </svg>
             </a>
           {{ end }}

@@ -47,6 +47,10 @@ func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFi
 		if !model.AuthEnabled {
 			page.Unprotected++
 		}
+		firmware := firmwareView(model)
+		if firmware.Current && firmware.Stable != "" {
+			page.Updates++
+		}
 		baseline := entry.Baseline
 		differences := 0
 		if config := model.Config; baseline != nil && config != nil {
