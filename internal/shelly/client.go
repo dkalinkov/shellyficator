@@ -145,6 +145,9 @@ func DiscoveryError(err error) string {
 
 func (c *Client) get(ctx context.Context, client *http.Client, address string, dst any) error {
 	err := c.getOnce(ctx, client, address, dst)
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	var networkError net.Error
 	var responseError *httpError
 	transient := errors.As(err, &networkError) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
@@ -154,7 +157,7 @@ func (c *Client) get(ctx context.Context, client *http.Client, address string, d
 			transient = true
 		}
 	}
-	if err == nil || ctx.Err() != nil || !transient {
+	if err == nil || !transient {
 		return err
 	}
 	timer := time.NewTimer(350 * time.Millisecond)
