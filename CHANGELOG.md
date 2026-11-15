@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Show stable/beta firmware offers as compact Status icons, with detailed tooltips and manual checks.
-- Implement serial firmware installation with configuration captures, post-reboot version verification, and persistent results without automatically repeating update commands.
+- Add confirmed single-device and selected-device firmware installation, serial execution, before/after configuration captures, and version verification after reboot.
+- Keep progress and results across page reloads; detect unchanged firmware and interrupted verification without automatically retrying update commands.
 
 ## 0.3.0 — 2026-11-11
 

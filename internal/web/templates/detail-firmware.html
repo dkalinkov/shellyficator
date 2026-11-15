@@ -5,6 +5,17 @@
     aria-labelledby="firmware-title"
   >
     <div
+      id="firmware-detail-watch"
+      hidden
+      data-firmware-watch
+      hx-get="/devices/{{ .Device.ID }}"
+      hx-trigger="firmware-progress from:body{{ if .FirmwareRunning }}
+        , every 2s [!document.hidden]
+      {{ end }}"
+      hx-sync="this:drop"
+      {{ template "detail-action-attributes" }}
+    ></div>
+    <div
       class="flex flex-wrap items-center justify-between gap-3 border-b border-base-content/10 p-4"
     >
       <h2 id="firmware-title" class="card-title">
@@ -12,6 +23,26 @@
         Firmware
       </h2>
       <div class="flex flex-wrap items-center gap-2">
+        {{ if or .Detail.Table.Firmware.Available .Detail.Table.Firmware.HasResult }}
+          <a
+            id="firmware-update-open-{{ .Device.ID }}"
+            href="/devices/{{ .Device.ID }}/firmware"
+            hx-get="/devices/{{ .Device.ID }}/firmware"
+            hx-target="#firmware-dialog-content"
+            data-firmware-open
+            aria-haspopup="dialog"
+            aria-controls="firmware-dialog"
+            class="btn btn-sm btn-primary pointer-coarse:min-h-10"
+          >
+            {{ if .Detail.Table.Firmware.Active }}
+              View progress
+            {{ else if .Detail.Table.Firmware.Available }}
+              Update firmware…
+            {{ else }}
+              View result
+            {{ end }}
+          </a>
+        {{ end }}
         <form
           action="/devices/{{ .Device.ID }}/firmware/check"
           method="post"
@@ -19,7 +50,11 @@
           {{ template "detail-action-attributes" }}
         >
           {{ template "detail-action-csrf" .CSRF }}
-          <button type="submit" class="btn btn-sm btn-outline pointer-coarse:min-h-10">
+          <button
+            type="submit"
+            class="btn btn-sm btn-outline pointer-coarse:min-h-10"
+            {{ if .Detail.Table.Firmware.Active }}disabled{{ end }}
+          >
             <span
               class="loading loading-spinner loading-xs hidden in-[.htmx-request]:inline-block"
               aria-hidden="true"
@@ -40,6 +75,20 @@
             <span class="font-mono wrap-anywhere">{{ .Installed }}</span>
           </span>
         </p>
+        {{ if .HasResult }}
+          <p
+            class="flex items-start gap-2 leading-relaxed wrap-anywhere {{ toneClass .Tone }}"
+            role="status"
+          >
+            {{ if .Active }}
+              <span
+                class="loading loading-spinner loading-xs mt-0.5 shrink-0 motion-reduce:animate-none"
+                aria-hidden="true"
+              ></span>
+            {{ end }}
+            {{ .Message }}
+          </p>
+        {{ end }}
         {{ if .Stable }}
           <p class="wrap-anywhere">
             Stable release

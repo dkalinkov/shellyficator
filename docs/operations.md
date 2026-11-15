@@ -53,6 +53,25 @@ SSO login; existing Shellyficator sessions retain their usual lifetime.
 
 Use DaisyUI components for controls, cards, badges, and tables, and Tailwind utilities in templates for layout and responsive styling. [`ui/styles.css`](../ui/styles.css) contains only shared typography, keyboard focus outlines, the SVG icon utility, and the cloud animation. Tailwind also scans browser JavaScript and the complete status classes in `internal/web/templates.go`, so dynamically created controls and status colors are included in builds.
 
+## Firmware updates
+
+Click a firmware icon in the inventory Status column to review one device, or
+choose **Update devices…** to review devices in the current filtered view. Stable
+releases are selected by default; beta releases require explicit selection. The
+confirmation names every selected device and version and warns about restarts.
+
+Updates run one at a time. The app rechecks identity and the offered version,
+captures current settings, sends one update command, then verifies the running
+version for two minutes before capturing settings again. Approved baselines stay
+unchanged. Closing the dialog or browser does not stop an accepted update.
+
+Status icons show queued/running updates and persistent success or failure details.
+An unchanged version after restart is a failure even if the device reported OTA
+success. A lost response is verified without repeating the write. After an app
+restart, interrupted attempts are marked unconfirmed; check the installed version
+before retrying. An after-update capture failure is reported separately from a
+verified firmware installation.
+
 ## Docker
 
 The [README example](../README.md#docker-on-linux) passes `.env` through `--env-file`. Use unquoted `KEY=value` entries without `export`, or omit the option if there is no file. For full dotenv syntax and `.env.local` overrides, mount the files read-only under `/data`.

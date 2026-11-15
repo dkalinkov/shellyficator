@@ -5,14 +5,13 @@
 - Embedded PocketBase/SQLite, migrations, dashboard login, first-run setup, and data admin.
 - Optional Authelia/OIDC login linked to existing operators; password recovery and separate data-admin access remain available.
 - Responsive inventory, input disclosures, device details, rooms/tags, and device/channel notes.
-- Firmware availability on inventory and device details, with stable/beta release tooltips and manual device-side checks.
-- Firmware installation worker with identity/offer checks, serial execution, configuration captures, baseline preservation, and persisted reboot-verification results.
+- Firmware availability and installation from inventory or device details. Confirmation supports one device or a selected batch in the current view; stable updates are selected by default and beta installs require explicit selection. Updates run serially, capture settings before/after, verify the installed version after reboot, and preserve baselines. Progress/results persist, including unchanged versions, rejected requests and interrupted verification; writes are never automatically retried.
 - Gen2+ discovery via IPv4 mDNS and cached LAN neighbors; explicit host/subnet scans under Advanced discovery. MAC identity and offline entries persist.
 - Shared completed status polling every 30 seconds, one transient retry, and a persisted offline grace period (three failed checks and 90 seconds without contact). Stale inventory values remain visible and muted. Configuration reads on recovery/every five minutes/manual Refresh, pause, manual configuration captures, baseline approval, and differences. Failed configuration reads retain saved settings with a separate warning; automatic reads preserve snapshots and approved baselines.
 - Environment and dotenv configuration, embedded assets, automatic development restarts, and a non-root container with persistent data.
 - Consistent Shellyficator naming and semantic app versions, with Git release tags, CLI/UI version display, and commit/build-time metadata.
 
-Switch/input configuration editing and firmware confirmation controls are pending.
+Switch/input configuration editing is pending; firmware installation is available.
 
 ## Next
 

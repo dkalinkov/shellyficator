@@ -1,4 +1,16 @@
 {{ define "inventory" }}
+  <div
+    hidden
+    data-firmware-watch
+    hx-get="/inventory"
+    hx-trigger="firmware-progress from:body{{ if .FirmwareRunning }}
+      , every 2s [!document.hidden]
+    {{ end }}"
+    hx-include="#filters"
+    hx-target="#inventory"
+    hx-swap="innerHTML"
+    hx-sync="#inventory:drop"
+  ></div>
   <div class="inventory-panel card card-border overflow-hidden bg-base-200/50">
     <section
       class="inventory-summary grid grid-cols-2 gap-x-6 gap-y-2 border-b border-base-content/10
@@ -34,6 +46,20 @@
           {{ end }}
         </span>
       {{ end }}
+      <a
+        id="firmware-open-all"
+        href="/firmware"
+        hx-get="/firmware"
+        hx-include="#filters"
+        hx-target="#firmware-dialog-content"
+        data-firmware-open
+        aria-haspopup="dialog"
+        aria-controls="firmware-dialog"
+        class="btn btn-xs btn-outline col-span-2 pointer-coarse:min-h-10 sm:ml-auto"
+      >
+        <svg class="icon" aria-hidden="true"><use href="#icon-update"></use></svg>
+        Update devices…
+      </a>
       {{ if or .Query .Room .SelectedTags }}
         <span class="summary-filtered col-span-2 sm:ml-auto">{{ len .Devices }} shown</span>
       {{ end }}
