@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -33,7 +34,15 @@ func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*testServer, str
 	if err := app.RunAllMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	device := httptest.NewServer(handler)
+	device := httptest.NewUnstartedServer(handler)
+	// Keep workstation readiness probes on 127.0.0.1 away from fake devices.
+	_ = device.Listener.Close()
+	listener, err := net.Listen("tcp", "127.0.0.2:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	device.Listener = listener
+	device.Start()
 	t.Cleanup(device.Close)
 	store := inventory.New(app)
 	record, err := store.ApproveReading(domain.Reading{

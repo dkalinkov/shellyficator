@@ -3,6 +3,7 @@ package devices
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -27,7 +28,15 @@ func testService(t *testing.T, handler http.HandlerFunc) (*Service, *httptest.Se
 	if err := app.RunAllMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	device := httptest.NewServer(handler)
+	device := httptest.NewUnstartedServer(handler)
+	// Keep workstation readiness probes on 127.0.0.1 away from fake devices.
+	_ = device.Listener.Close()
+	listener, err := net.Listen("tcp", "127.0.0.2:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	device.Listener = listener
+	device.Start()
 	t.Cleanup(device.Close)
 	s := New(inventory.New(app), shelly.NewClient(""), Options{Discovery: shelly.NetworkDiscovery{}})
 	t.Cleanup(s.Close)
