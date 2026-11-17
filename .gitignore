@@ -6,6 +6,9 @@
 !/.env.example
 /.superdesign/
 /test-results/
+/.tmp/security/
+/.scannerwork/
+/.sonar/
 /node_modules/
 /.playwright-mcp/
 /internal/web/static/app.css

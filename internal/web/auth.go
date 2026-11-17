@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/hook"
 	"shellyficator/internal/domain"
 )
 
@@ -92,22 +93,8 @@ func (s *Server) requireLogin(e *core.RequestEvent) error {
 }
 
 func (s *Server) login(e *core.RequestEvent) error {
-	ip := e.RemoteIP()
-	s.authMu.Lock()
-	for key, attempt := range s.loginAttempts {
-		if time.Since(attempt.since) > 15*time.Minute {
-			delete(s.loginAttempts, key)
-		}
-	}
-	attempt := s.loginAttempts[ip]
-	if attempt.since.IsZero() {
-		attempt.since = time.Now()
-	}
-	attempt.count++
-	s.loginAttempts[ip] = attempt
-	s.authMu.Unlock()
-	if attempt.count > 10 {
-		return e.TooManyRequestsError("Too many sign in attempts. Try again in 15 minutes.", nil)
+	if err := s.passwordAttempt(e); err != nil {
+		return err
 	}
 	session, err := s.accounts.Authenticate(strings.TrimSpace(e.Request.FormValue("email")), e.Request.FormValue("password"))
 	if err != nil {
@@ -117,11 +104,54 @@ func (s *Server) login(e *core.RequestEvent) error {
 		e.Response.Header().Set("Cache-Control", "no-store")
 		return s.renderLogin(e, "Email or password is incorrect.")
 	}
-	s.authMu.Lock()
-	delete(s.loginAttempts, ip)
-	s.authMu.Unlock()
+	s.resetPasswordAttempts(e)
 	s.setSession(e, session.Token)
 	return e.Redirect(http.StatusSeeOther, "/")
+}
+
+// Password APIs stay available to native clients and the data admin, but share
+// the dashboard's limit so switching endpoints cannot bypass it.
+func (s *Server) registerPasswordLimiter(app core.App) {
+	app.OnRecordAuthWithPasswordRequest().Bind(&hook.Handler[*core.RecordAuthWithPasswordRequestEvent]{
+		Id: "shellyficator_password_limit",
+		Func: func(e *core.RecordAuthWithPasswordRequestEvent) error {
+			if err := s.passwordAttempt(e.RequestEvent); err != nil {
+				return err
+			}
+			if err := e.Next(); err != nil {
+				return err
+			}
+			s.resetPasswordAttempts(e.RequestEvent)
+			return nil
+		},
+	})
+}
+
+func (s *Server) passwordAttempt(e *core.RequestEvent) error {
+	s.authMu.Lock()
+	defer s.authMu.Unlock()
+	for key, attempt := range s.loginAttempts {
+		if time.Since(attempt.since) > 15*time.Minute {
+			delete(s.loginAttempts, key)
+		}
+	}
+	ip := e.RemoteIP()
+	attempt := s.loginAttempts[ip]
+	if attempt.since.IsZero() {
+		attempt.since = time.Now()
+	}
+	attempt.count++
+	s.loginAttempts[ip] = attempt
+	if attempt.count > 10 {
+		return e.TooManyRequestsError("Too many sign in attempts. Try again in 15 minutes.", nil)
+	}
+	return nil
+}
+
+func (s *Server) resetPasswordAttempts(e *core.RequestEvent) {
+	s.authMu.Lock()
+	delete(s.loginAttempts, e.RemoteIP())
+	s.authMu.Unlock()
 }
 
 func (s *Server) setSession(e *core.RequestEvent, token string) {

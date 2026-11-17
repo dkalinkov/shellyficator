@@ -86,13 +86,19 @@ func (s *Store) Authenticate(email, password string) (domain.Session, error) {
 	if err != nil {
 		return domain.Session{}, err
 	}
-	if !record.ValidatePassword(password) {
+	if !record.Collection().PasswordAuth.Enabled || !record.ValidatePassword(password) {
 		return domain.Session{}, domain.ErrInvalidCredentials
 	}
 	return newSession(record)
 }
 
 func newSession(record *core.Record) (domain.Session, error) {
+	collection := record.Collection()
+	// The dashboard has no PocketBase MFA flow or HTTP request-rule context.
+	// Refuse unsupported policies instead of minting a token that bypasses them.
+	if collection.MFA.Enabled || collection.AuthRule == nil || *collection.AuthRule != "" {
+		return domain.Session{}, domain.ErrInvalidCredentials
+	}
 	token, err := record.NewAuthToken()
 	if err != nil {
 		return domain.Session{}, err

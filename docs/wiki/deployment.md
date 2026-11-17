@@ -29,6 +29,8 @@ The image runs as UID/GID 10001. Bind mounts must be writable by that user.
 The example listens only on loopback. The image's default command instead listens
 on `0.0.0.0:8090`; choose exposure deliberately, especially with host networking.
 For bridge networking, publish port 8090 and use explicit LAN discovery targets.
+The Docker healthcheck polls `http://127.0.0.1:8090/healthz`. If you change the
+listen address or port, set Docker's `--health-cmd` to the matching health URL.
 
 Docker `--env-file` expects unquoted `KEY=value` entries without `export`. To use
 the app's full dotenv parser and `.env.local` precedence, mount the files read-only
@@ -40,6 +42,10 @@ Complete first-run setup locally. Place the service behind an HTTPS reverse prox
 for remote browser access and set `SHELLY_COOKIE_SECURE=true`. Restrict access to
 trusted operators, including the powerful `/_/` data-admin interface. Each operator
 can manage the shared inventory; per-user device permissions are not implemented.
+Password sign-ins share a limit of ten attempts per client IP over fifteen
+minutes across the dashboard and PocketBase authentication APIs, including the
+data admin. A successful sign-in clears that client's attempts. Connections
+through a reverse proxy share its IP for this limit.
 
 ## Backups and upgrades
 

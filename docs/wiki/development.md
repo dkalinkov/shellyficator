@@ -33,6 +33,64 @@ Run `gofmt` on changed Go files, relevant tests, and `git diff --check`. For ser
 or concurrency changes, include the race detector. Broaden tests when the scope
 warrants it; use fake clients and temporary databases, not live device writes.
 
+## Security scans
+
+Use a disposable checkout for scans so local dotenv files, databases, backups,
+and credentials are never included. Keep reports in `test-results/`, which is
+ignored by Git. Generate Go coverage before SonarQube analysis:
+
+```sh
+make css
+mkdir -p test-results
+go test -coverprofile=test-results/coverage.out ./...
+```
+
+Start a local SonarQube Community Build server, bound to loopback (port 19000
+avoids common local services). Its embedded database is suitable for local scans:
+
+```sh
+docker run -d --name shellyficator-sonarqube \
+  -p 127.0.0.1:19000:9000 \
+  -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true sonarqube:community
+```
+
+Open `http://127.0.0.1:19000`, change the initial admin password, create the
+`shellyficator` project, and generate an analysis token. Supply it through the
+`SONAR_TOKEN` environment variable, then run the scanner using the repository's
+`sonar-project.properties`:
+
+```sh
+docker run --rm --network host --user "$(id -u):$(id -g)" \
+  -e SONAR_TOKEN -e SONAR_HOST_URL=http://127.0.0.1:19000 \
+  -v "$PWD:/usr/src" sonarsource/sonar-scanner-cli:latest
+```
+
+Trivy checks dependencies (including development tools), Dockerfile settings,
+and accidental secrets. Scan the built image separately to include its Go
+toolchain and Alpine packages:
+
+```sh
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/src:ro" -v "$PWD/test-results:/reports" \
+  aquasec/trivy:0.76.2 --cache-dir /reports/trivy-cache fs \
+  --scanners vuln,misconfig,secret --include-dev-deps --no-progress \
+  --skip-dirs /src/.git --skip-dirs /src/node_modules \
+  --skip-dirs /src/test-results --skip-dirs /src/.scannerwork \
+  --format json --output /reports/trivy-filesystem.json /src
+make docker
+docker save -o test-results/shellyficator.tar shellyficator:local
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD/test-results:/reports" \
+  aquasec/trivy:0.76.2 --cache-dir /reports/trivy-cache image \
+  --input /reports/shellyficator.tar --scanners vuln,secret --no-progress \
+  --format json --output /reports/trivy-image.json
+docker rm -f shellyficator-sonarqube
+```
+
+Record scanner versions, image digests, database update timestamps, and remaining
+findings with the results. A dependency with no published fix stays visible;
+review its exposure rather than suppressing the advisory to make a scan pass.
+
 ## Making changes
 
 Follow the [architecture boundaries](architecture.md). Put pure policy in the

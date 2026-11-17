@@ -35,6 +35,13 @@ func TestDiscoveryRetriesInterruptedIdentityButDoesNotRetryInvalidDevices(t *tes
 		t.Run(mode, func(t *testing.T) {
 			var requests atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Count device traffic, excluding unrelated local HTTP probes.
+				switch r.URL.Path {
+				case "/shelly", "/rpc/Shelly.GetStatus", "/rpc/Shelly.GetConfig":
+				default:
+					http.NotFound(w, r)
+					return
+				}
 				count := requests.Add(1)
 				if r.URL.Path != "/shelly" {
 					_, _ = w.Write([]byte(`{}`))

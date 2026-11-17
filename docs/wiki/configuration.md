@@ -52,6 +52,14 @@ subject or issuer cannot replace an existing link. Unknown users and data-admin-
 accounts cannot sign in or create operators through SSO. Password login and the
 separate PocketBase data-admin account remain available.
 
+The dashboard honors disabled password authentication on the `operators`
+collection; OIDC can still be used. Locked/custom PocketBase authentication rules
+and PocketBase MFA are unsupported by the dashboard's sign-in flow, so dashboard
+password and OIDC sign-ins fail closed when either is configured. Keep the
+collection's authentication rule empty and PocketBase MFA disabled for dashboard
+access; enforce additional sign-in requirements through the OIDC provider.
+PocketBase's own authentication APIs retain their native rule and MFA support.
+
 To deliberately relink an account after changing identity provider, clear both
 `oidc_issuer` and `oidc_subject` on the operator through the data admin, then sign
 in with the new identity's matching verified email. These fields are hidden from

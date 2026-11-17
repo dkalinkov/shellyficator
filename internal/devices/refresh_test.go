@@ -112,7 +112,8 @@ func TestManualRefreshDuringStatusPollQueuesConfigurationRead(t *testing.T) {
 	})
 	done := s.Refresh(false)
 	waitForJob(t, started)
-	if s.Refresh(true) != done || s.Refresh(true) != done {
+	firstManual, secondManual := s.Refresh(true), s.Refresh(true)
+	if firstManual != done || secondManual != done {
 		t.Fatal("concurrent requests did not share refresh completion")
 	}
 	close(release)

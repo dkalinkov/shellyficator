@@ -85,6 +85,7 @@ func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Op
 		return err
 	}
 	s := &Server{watchStore: options.WatchStore, devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}, oidc: options.OIDC, oidcPending: map[string]oidcAttempt{}}
+	s.registerPasswordLimiter(e.App)
 	s.registerRoutes(e.Router, static)
 	return nil
 }

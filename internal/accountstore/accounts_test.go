@@ -91,3 +91,50 @@ func TestBootstrapRollsBackOnDuplicateAdmin(t *testing.T) {
 		t.Fatalf("partial bootstrap persisted: %d %v", count, err)
 	}
 }
+
+func TestDashboardSignInDoesNotBypassOperatorAuthenticationPolicies(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		configure func(*core.Collection)
+		oidc      bool
+	}{
+		{"password disabled", func(c *core.Collection) { c.PasswordAuth.Enabled = false }, true},
+		{"authentication locked", func(c *core.Collection) { c.AuthRule = nil }, false},
+		{"custom authentication rule", func(c *core.Collection) { rule := "verified = true"; c.AuthRule = &rule }, false},
+		{"MFA required", func(c *core.Collection) { c.OTP.Enabled = true; c.MFA.Enabled = true }, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service, app := testAccounts(t)
+			const email, password = "operator@example.com", "account-test-password"
+			if err := service.Setup(email, password); err != nil {
+				t.Fatal(err)
+			}
+			collection, err := app.FindCollectionByNameOrId("operators")
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.configure(collection)
+			if err := app.Save(collection); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Authenticate(email, password); !errors.Is(err, domain.ErrInvalidCredentials) {
+				t.Fatalf("password login bypassed authentication policy: %v", err)
+			}
+			identity := domain.ExternalIdentity{Issuer: "https://auth.example.com", Subject: "test-subject", Email: email, EmailVerified: true}
+			session, err := service.AuthenticateIdentity(identity)
+			if test.oidc {
+				if err != nil || session.Token == "" {
+					t.Fatalf("disabling password authentication blocked OIDC: %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, domain.ErrInvalidCredentials) {
+				t.Fatalf("OIDC bypassed authentication policy: %v", err)
+			}
+			operator, err := app.FindAuthRecordByEmail("operators", email)
+			if err != nil || operator.GetString("oidc_subject") != "" {
+				t.Fatal("rejected OIDC login persisted an identity link")
+			}
+		})
+	}
+}

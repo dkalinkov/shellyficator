@@ -3,12 +3,16 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
+const magickBinary = process.env.IMAGEMAGICK_BINARY || '/usr/bin/magick';
+if (!isAbsolute(magickBinary)) {
+  throw new Error('IMAGEMAGICK_BINARY must be an absolute path to ImageMagick 7.');
+}
 const work = mkdtempSync(join(tmpdir(), 'shellyficator-mascot-'));
-const magick = (...args) => execFileSync('magick', args.map(String));
+const magick = (...args) => execFileSync(magickBinary, args.map(String));
 const geometry = ([x, y, w, h]) => `${w}x${h}+${x}+${y}`;
 const lerp = (a, b, t) => Math.round(a + (b - a) * t);
 

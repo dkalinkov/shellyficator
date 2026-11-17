@@ -51,7 +51,7 @@ function showToast(message, level = 'info') {
     element.inert = true;
     element.classList.remove('is-open');
     const delay = immediate || window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 0 : parseFloat(getComputedStyle(element).getPropertyValue('--toast-close'));
+      ? 0 : Number.parseFloat(getComputedStyle(element).getPropertyValue('--toast-close'));
     if (delay) setTimeout(() => element.remove(), delay);
     else element.remove();
   };

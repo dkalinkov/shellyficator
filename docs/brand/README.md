@@ -65,5 +65,6 @@ To rebuild both sheets and GIFs from the checked-in masters and eye edits:
 npm run build:mascot
 ```
 
-This optional asset-authoring step requires ImageMagick 7 (`magick`). Ordinary
+This optional asset-authoring step requires ImageMagick 7 at `/usr/bin/magick`;
+set `IMAGEMAGICK_BINARY` to another absolute path when needed. Ordinary
 app builds use the checked-in assets and do not need ImageMagick or an image API.
