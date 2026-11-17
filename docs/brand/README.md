@@ -2,8 +2,8 @@
 
 A cheeky relay robot with screw-terminal ears, a wink, and a crooked smile.
 The full character is for larger artwork; its compact face is the app mark.
-Keep Archivo 900, the readable upright 9000 stamp, and the existing tagline.
-
+Use Archivo 900 for the wordmark, Plex for application text, and readable upright
+9000 numerals. The tagline is “Keeping your Shellys in line. Allegedly.”
 
 ## Assets
 
@@ -36,11 +36,6 @@ and edit prompts are in [generation.md](generation.md). Archivo and Plex
 letterforms use the existing locally vendored fonts and their
 [Archivo](../../internal/web/static/archivo.LICENSE) and
 [Plex](../../internal/web/static/fonts.LICENSE) licenses.
-
-Verified in the running dashboard, device detail, and sign-in screens down to
-320px: the mark loads, the wordmark fits, and header height stays 65px on desktop
-and 61px on phones. PNG icon endpoints return successfully. The app build,
-web tests, template formatting, and whitespace checks pass.
 
 ## Motion
 
