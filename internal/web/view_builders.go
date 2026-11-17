@@ -47,7 +47,7 @@ func settingValue(value domain.SettingValue) string {
 	return string(encoded)
 }
 
-func devicePage(meta PageMeta, details domain.DeviceDetails) DevicePage {
+func devicePage(meta PageMeta, details domain.DeviceDetails, policies ...domain.WatchPolicy) DevicePage {
 	device := details.Device
 	page := DevicePage{
 		PageMeta: meta, Device: deviceView(device), Name: deviceName(device),
@@ -56,7 +56,13 @@ func devicePage(meta PageMeta, details domain.DeviceDetails) DevicePage {
 	}
 	var differences []domain.Difference
 	if page.HasBaseline && device.Config != nil {
-		differences = domain.Differences(details.Baseline, device.Config)
+		comparison := domain.CompareConfiguration(details.Baseline, device.Config, policies...)
+		differences = comparison.Settings
+		for _, difference := range comparison.Informational {
+			page.InformationalDifferences = append(page.InformationalDifferences, DifferenceView{
+				Path: difference.Path, Before: settingValue(difference.Before), After: settingValue(difference.After),
+			})
+		}
 		for _, difference := range differences {
 			page.Differences = append(page.Differences, DifferenceView{
 				Path: difference.Path, Before: settingValue(difference.Before), After: settingValue(difference.After),
@@ -69,7 +75,7 @@ func devicePage(meta PageMeta, details domain.DeviceDetails) DevicePage {
 			Captured: formatTime(snapshot.Captured), CapturedISO: snapshot.Captured.Format(time.RFC3339Nano),
 		})
 	}
-	page.Detail = detailDevice(device, details.Baseline, differences, details.ChannelNotes)
+	page.Detail = detailDevice(device, details.Baseline, differences, details.ChannelNotes, policies...)
 	for _, group := range [][]DetailChannel{page.Detail.Outputs, page.Detail.Inputs, page.Detail.Other} {
 		for _, channel := range group {
 			page.Detail.Notes = append(page.Detail.Notes, ChannelNoteEditor{Channel: channel, DeviceID: device.ID, CSRF: page.CSRF})

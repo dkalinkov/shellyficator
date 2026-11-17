@@ -31,9 +31,11 @@ func (s *Server) registerRoutes(r *router.Router[*core.RequestEvent], static fs.
 	protected.GET("/inventory/refresh", s.refreshInventory)
 	protected.GET("/discovery/progress", s.progress)
 	protected.GET("/firmware", s.firmwarePlan)
+	protected.GET("/settings", s.settingsPage)
 
 	writes := protected.Group("").BindFunc(checkCSRF)
 	writes.POST("/logout", s.logout)
+	writes.POST("/settings", s.saveSettings)
 	writes.POST("/discover", s.discover)
 	writes.POST("/firmware/update", s.updateFirmware)
 

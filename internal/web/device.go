@@ -20,7 +20,11 @@ func (s *Server) detail(e *core.RequestEvent) error {
 	if e.Request.Header.Get("HX-Request") == "true" {
 		s.notify(e, meta.Notice, meta.NoticeLevel)
 	}
-	page := devicePage(meta, details)
+	preferences, err := s.watchPreferences()
+	if err != nil {
+		return err
+	}
+	page := devicePage(meta, details, preferences.ForDevice(details.Device.ID))
 	page.FirmwareRunning = details.Device.FirmwareUpdate.Active() || s.devices.FirmwareRunning()
 	return s.render(e, "detail", page)
 }

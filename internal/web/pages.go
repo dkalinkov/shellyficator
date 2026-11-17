@@ -29,14 +29,15 @@ type InventoryPage struct {
 
 type DevicePage struct {
 	PageMeta
-	Device          DeviceView
-	Name            string
-	Rooms, Tags     []string
-	Detail          DeviceDetail
-	Differences     []DifferenceView
-	HasBaseline     bool
-	FirmwareRunning bool
-	Snapshots       []SnapshotView
+	Device                   DeviceView
+	Name                     string
+	Rooms, Tags              []string
+	Detail                   DeviceDetail
+	Differences              []DifferenceView
+	InformationalDifferences []DifferenceView
+	HasBaseline              bool
+	FirmwareRunning          bool
+	Snapshots                []SnapshotView
 }
 
 type DiscoveryPage struct {

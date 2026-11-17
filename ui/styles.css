@@ -248,6 +248,12 @@
   .project-action svg { width: 18px; height: 18px; }
 }
 
+/* Keep all navigation actions reachable on narrow phones. */
+@media (max-width: 359px) {
+  .project-header-inner { flex-wrap: wrap; row-gap: 4px; }
+  .project-utilities { margin-left: auto; }
+}
+
 /* A character-led entrance, using the same locally served brand and fonts. */
 .login-page {
   --login-ink: #061b22;

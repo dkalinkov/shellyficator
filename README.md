@@ -24,6 +24,21 @@ make test
 
 [VERSION](VERSION) holds the app version. See [configuration and releases](docs/operations.md) for dotenv precedence and the release workflow.
 
+Configure **Settings → Changes to watch** to choose which differences from each
+approved baseline deserve warnings. Button behavior and behavior after power loss
+are watched by default. Timers, script component settings, connectivity/access,
+other settings (including unknown fields), and device metadata default to Record
+only. Full configuration snapshots and informational differences remain available.
+Device pages link to optional overrides; clearing an override restores app-wide
+preferences. Preferences persist across restarts and never approve a baseline or
+change a device's settings.
+
+Monitoring currently covers configuration returned by `Shelly.GetConfig`. Webhook
+action definitions, schedules, script source, and external automations are not
+captured. Password values are redacted. A matching watched configuration does not
+prove that every button action works. Approve a new baseline after intentional
+configuration changes; reads cannot determine who changed a setting or why.
+
 ## Docker on Linux
 
 ```sh

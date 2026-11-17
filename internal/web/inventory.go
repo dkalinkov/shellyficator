@@ -20,12 +20,20 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 	if err != nil {
 		return InventoryPage{}, err
 	}
-	page := inventoryPage(s.pageMeta(e, "Devices"), entries, query, roomFilter, tagFilter, groupBy)
+	preferences, err := s.watchPreferences()
+	if err != nil {
+		return InventoryPage{}, err
+	}
+	page := inventoryPage(s.pageMeta(e, "Devices"), entries, query, roomFilter, tagFilter, groupBy, preferences)
 	page.Discovery = s.devices.Discovery()
 	return page, nil
 }
 
-func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFilter, tagFilter, groupBy string) InventoryPage {
+func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFilter, tagFilter, groupBy string, preferences ...domain.WatchPreferences) InventoryPage {
+	var watch domain.WatchPreferences
+	if len(preferences) > 0 {
+		watch = preferences[0]
+	}
 	if groupBy != "room" {
 		groupBy = ""
 	}
@@ -55,7 +63,7 @@ func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFi
 		baseline := entry.Baseline
 		differences := 0
 		if config := model.Config; baseline != nil && config != nil {
-			differences = len(domain.Differences(baseline, config))
+			differences = len(domain.CompareConfiguration(baseline, config, watch.ForDevice(model.ID)).Settings)
 			if differences > 0 {
 				page.Changed++
 			}
@@ -84,7 +92,7 @@ func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFi
 		if !matchesTags {
 			continue
 		}
-		device.Table = tableDevice(model, baseline, differences)
+		device.Table = tableDevice(model, baseline, differences, watch.ForDevice(model.ID))
 		notes := entry.ChannelNotes
 		for i := range device.Table.Inputs {
 			input := &device.Table.Inputs[i]

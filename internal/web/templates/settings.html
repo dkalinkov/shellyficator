@@ -1,0 +1,90 @@
+{{ define "settings" }}
+  <!doctype html>
+  <html lang="en" data-theme="abyss">
+    {{ template "head" . }}
+    <body class="min-h-screen bg-base-100 font-sans text-base-content">
+      {{ template "page-tools" . }}{{ template "header" . }}
+      <main id="main" class="mx-auto my-8 w-[min(768px,calc(100vw-24px))]">
+        <a
+          class="link text-sm"
+          href="{{ if .DeviceID }}
+            /devices/{{ .DeviceID }}
+          {{ else }}
+            /
+          {{ end }}"
+        >
+          {{ if .DeviceID }}
+            Back to device
+          {{ else }}
+            Back to devices
+          {{ end }}
+        </a>
+        <h1 class="mt-6 text-2xl font-semibold">Changes to watch</h1>
+        <p class="mt-2 text-sm leading-relaxed text-base-content/75">
+          {{ if .DeviceID }}
+            Preferences for {{ .DeviceName }}.
+          {{ else }}
+            App-wide preferences for all devices and users. Devices can override these choices.
+          {{ end }}
+          Warn me highlights differences from each device’s approved baseline. Record only keeps
+          differences available without adding to warning counts.
+        </p>
+        <p class="mt-3 text-sm leading-relaxed text-base-content/75">
+          Button actions defined in webhooks, schedules, script code, and external automations are
+          not currently captured. These preferences monitor the configuration reported by devices;
+          they cannot confirm that every button action still works.
+        </p>
+        <form action="/settings" method="post" class="mt-6">
+          <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+          <input type="hidden" name="device" value="{{ .DeviceID }}" />
+          {{ if .DeviceID }}
+            <label class="mb-6 flex items-center gap-3 text-sm">
+              <input
+                class="checkbox checkbox-sm"
+                type="checkbox"
+                name="inherit"
+                value="true"
+                {{ if .Inherit }}checked{{ end }}
+              />
+              Use app-wide preferences
+            </label>
+            <p class="mb-4 text-xs text-base-content/75">
+              Uncheck to save the choices below for this device.
+              <a class="link" href="/settings">Edit app-wide preferences</a>
+              .
+            </p>
+          {{ end }}
+          <div class="divide-y divide-base-content/10 border-y border-base-content/10">
+            {{ range .Groups }}
+              <div
+                class="flex flex-col gap-3 py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
+              >
+                <div class="min-w-0">
+                  <label class="font-medium" for="watch-{{ .ID }}">{{ .Label }}</label>
+                  <p id="help-{{ .ID }}" class="mt-1 text-sm leading-relaxed text-base-content/75">
+                    {{ .Description }}
+                  </p>
+                </div>
+                <select
+                  id="watch-{{ .ID }}"
+                  name="{{ .ID }}"
+                  aria-describedby="help-{{ .ID }}"
+                  class="select w-full shrink-0 sm:w-36"
+                >
+                  <option value="warn" {{ if .Warn }}selected{{ end }}>Warn me</option>
+                  <option value="record" {{ if not .Warn }}selected{{ end }}>Record only</option>
+                </select>
+              </div>
+            {{ end }}
+          </div>
+          <div class="mt-6 flex flex-wrap items-center gap-4">
+            <button class="btn btn-primary" type="submit">Save preferences</button>
+            <span class="text-xs text-base-content/75">
+              Device settings and approved baselines stay unchanged.
+            </span>
+          </div>
+        </form>
+      </main>
+    </body>
+  </html>
+{{ end }}

@@ -34,6 +34,15 @@
         {{ .Detail.ConfigurationLabel }}
       </span>
     </div>
+    <p class="px-4 pb-2.5 text-xs leading-relaxed text-base-content/75">
+      Watched settings are compared with your approved baseline. Review changes you did not expect;
+      approve the current config when they are intentional.
+    </p>
+    <p class="px-4 pb-4 text-xs">
+      <a class="link" href="/settings?device={{ .Device.ID }}">
+        Choose changes to watch for this device
+      </a>
+    </p>
     {{ if .Detail.ShowDifferences }}
       <p class="hidden px-4 pb-2.5 text-right text-[11px] text-info max-[480px]:block">
         Scroll to compare →
@@ -71,6 +80,42 @@
           </tbody>
         </table>
       </div>
+    {{ end }}
+    {{ if and .Detail.ConfigAvailable .InformationalDifferences }}
+      <details class="px-4 pb-4 text-xs text-base-content/75">
+        <summary class="cursor-pointer py-2">
+          Recorded changes ({{ len .InformationalDifferences }})
+        </summary>
+        <p class="py-2">These groups are set to Record only and do not contribute to warnings.</p>
+        <div
+          class="overflow-x-auto"
+          tabindex="0"
+          role="region"
+          aria-label="Recorded configuration changes"
+        >
+          <table class="table table-sm min-w-[480px] table-fixed">
+            <caption class="sr-only">Recorded changes compared with the approved baseline</caption>
+            <thead>
+              <tr>
+                <th scope="col">Field</th>
+                <th scope="col">Baseline</th>
+                <th scope="col">Latest</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{ range .InformationalDifferences }}
+                <tr>
+                  <th scope="row" class="font-mono text-[11px] font-normal wrap-anywhere">
+                    {{ .Path }}
+                  </th>
+                  <td class="wrap-anywhere">{{ .Before }}</td>
+                  <td class="wrap-anywhere">{{ .After }}</td>
+                </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+      </details>
     {{ end }}
     <div
       class="flex flex-wrap items-center justify-between gap-3.5 border-t border-base-content/10

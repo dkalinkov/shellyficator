@@ -48,13 +48,20 @@ type OIDC interface {
 }
 
 // Options contains presentation configuration supplied by the application.
+type WatchStore interface {
+	WatchPreferences() (domain.WatchPreferences, error)
+	SaveWatchPolicy(string, domain.WatchPolicy) error
+}
+
 type Options struct {
+	WatchStore   WatchStore
 	Version      string
 	CookieSecure bool
 	OIDC         OIDC
 }
 
 type Server struct {
+	watchStore    WatchStore
 	devices       Devices
 	accounts      Accounts
 	templates     *template.Template
@@ -77,7 +84,7 @@ func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Op
 	if err != nil {
 		return err
 	}
-	s := &Server{devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}, oidc: options.OIDC, oidcPending: map[string]oidcAttempt{}}
+	s := &Server{watchStore: options.WatchStore, devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}, oidc: options.OIDC, oidcPending: map[string]oidcAttempt{}}
 	s.registerRoutes(e.Router, static)
 	return nil
 }

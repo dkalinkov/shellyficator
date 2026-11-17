@@ -37,7 +37,12 @@ type TableInput struct {
 	StatusInfo                                             string
 }
 
-func tableDevice(device domain.Device, baseline map[string]any, differences int) DeviceTable {
+func tableDevice(device domain.Device, baseline map[string]any, differences int, policies ...domain.WatchPolicy) DeviceTable {
+	var policy domain.WatchPolicy
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
+	watched := domain.CompareConfiguration(baseline, device.Config, policy).Settings
 	status, config := device.Status, device.Config
 	currentStatus, currentConfig := device.StatusCurrent(), device.ConfigCurrent()
 	statusRead := formatTime(device.LastStatusRead)
@@ -133,6 +138,9 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int)
 		view.Configuration, view.ConfigurationTone = "Unavailable", "warning"
 		if config != nil {
 			view.Configuration, view.ConfigurationTone = "Matches", "ok"
+			if differences == 0 && len(domain.Differences(baseline, config)) > 0 {
+				view.Configuration, view.ConfigurationTone = "Recorded changes", "muted"
+			}
 			if differences > 0 {
 				view.Configuration, view.ConfigurationTone = fmt.Sprintf("%d changes", differences), "warning"
 				if differences == 1 {
@@ -145,7 +153,7 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int)
 				view.ConfigurationInfo += "\nLast known comparison · current settings could not be checked"
 			}
 		}
-		view.ConfigurationInfo += "\nCompared with approved baseline"
+		view.ConfigurationInfo += "\nWatched settings compared with approved baseline; other changes recorded only"
 	} else {
 		view.ConfigurationInfo += "\nBaseline not approved"
 	}
@@ -228,8 +236,14 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int)
 				{"Inverted", beforeInput["invert"], input["invert"]},
 			} {
 				if fmt.Sprint(pair.before) != fmt.Sprint(pair.after) {
-					line.Changed = true
 					line.Info += fmt.Sprintf("\n%s: %s → %s", pair.label, display(pair.before), display(pair.after))
+				}
+			}
+		}
+		if baseline != nil && config != nil {
+			for _, difference := range watched {
+				if strings.HasPrefix(difference.Path, key+" / ") || (line.RelayKey != "" && strings.HasPrefix(difference.Path, line.RelayKey+" / ")) {
+					line.Changed = true
 				}
 			}
 		}

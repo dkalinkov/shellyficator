@@ -63,7 +63,7 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 		service := deviceService
 		mu.Unlock()
 		accountService := accounts.New(accountstore.New(app))
-		options := web.Options{Version: build.Version, CookieSecure: config.CookieSecure}
+		options := web.Options{WatchStore: inventory.New(app), Version: build.Version, CookieSecure: config.CookieSecure}
 		if login != nil {
 			options.OIDC = login
 		}

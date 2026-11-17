@@ -63,7 +63,7 @@ func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*testServer, str
 		service.Close()
 		_ = app.OnTerminate().Trigger(&core.TerminateEvent{App: app})
 	})
-	return &testServer{Server: &Server{devices: service, accounts: accounts.New(accountstore.New(app)), templates: templates, loginAttempts: map[string]loginAttempt{}}, store: store, client: client, devices: service}, record.ID
+	return &testServer{Server: &Server{watchStore: store, devices: service, accounts: accounts.New(accountstore.New(app)), templates: templates, loginAttempts: map[string]loginAttempt{}}, store: store, client: client, devices: service}, record.ID
 }
 
 func waitForRefresh(t *testing.T, done <-chan struct{}) {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"shellyficator/internal/domain"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -44,7 +45,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		s.devices.Close()
 		return event.Next()
 	})
-	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.devices, s.accounts, Options{Version: "test"}); err != nil {
+	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.devices, s.accounts, Options{Version: "test", WatchStore: s.store}); err != nil {
 		t.Fatal(err)
 	}
 	mux, err := r.BuildMux()
@@ -96,13 +97,46 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		t.Fatalf("application middleware affected PocketBase authentication: %d", response.Code)
 	}
 	devicePath := "/devices/" + id
-	for _, path := range []string{"/", "/inventory", "/inventory/refresh", "/discovery/progress", "/firmware", devicePath, devicePath + "/organization", devicePath + "/firmware"} {
+	for _, path := range []string{"/settings", "/settings?device=" + id, "/", "/inventory", "/inventory/refresh", "/discovery/progress", "/firmware", devicePath, devicePath + "/organization", devicePath + "/firmware"} {
 		if response := request(http.MethodGet, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("GET %s bypassed authentication: %d", path, response.Code)
 		}
 		if response := request(http.MethodGet, path, nil, session); response.Code != http.StatusOK {
 			t.Fatalf("authenticated GET %s required CSRF or failed: %d", path, response.Code)
 		}
+	}
+
+	preferences := url.Values{"csrf": {csrfCookie.Value}}
+	for _, group := range domain.WatchGroups {
+		preferences.Set(string(group), "record")
+	}
+	if response := request(http.MethodPost, "/settings", preferences, session, csrfCookie); response.Code != http.StatusSeeOther {
+		t.Fatalf("settings save failed: %d %s", response.Code, response.Body.String())
+	}
+	saved, err := s.store.WatchPreferences()
+	if err != nil || saved.ForDevice(id).Warn(domain.WatchButtons) {
+		t.Fatalf("record-only preference lost: %v %v", saved, err)
+	}
+	preferences.Set("buttons", "warn")
+	preferences.Set("device", id)
+	if response := request(http.MethodPost, "/settings", preferences, session, csrfCookie); response.Code != http.StatusSeeOther {
+		t.Fatalf("override save failed: %d", response.Code)
+	}
+	saved, err = s.store.WatchPreferences()
+	if err != nil || !saved.ForDevice(id).Warn(domain.WatchButtons) || saved.ForDevice("").Warn(domain.WatchButtons) {
+		t.Fatalf("override affected global: %v %v", saved, err)
+	}
+	preferences.Set("inherit", "true")
+	if response := request(http.MethodPost, "/settings", preferences, session, csrfCookie); response.Code != http.StatusSeeOther {
+		t.Fatalf("inherit save failed: %d", response.Code)
+	}
+	saved, err = s.store.WatchPreferences()
+	if err != nil || saved.ForDevice(id).Warn(domain.WatchButtons) {
+		t.Fatalf("inheritance failed: %v %v", saved, err)
+	}
+	preferences.Del("timers")
+	if response := request(http.MethodPost, "/settings", preferences, session, csrfCookie); response.Code != http.StatusBadRequest {
+		t.Fatalf("incomplete form accepted: %d", response.Code)
 	}
 	hxRequest := httptest.NewRequest(http.MethodGet, devicePath, nil)
 	hxRequest.Header.Set("HX-Request", "true")
@@ -111,7 +145,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if hxResponse.Code != http.StatusUnauthorized || hxResponse.Header().Get("HX-Redirect") != "/login" {
 		t.Fatalf("HTMX authentication redirect lost: %d %v", hxResponse.Code, hxResponse.Header())
 	}
-	for _, path := range []string{"/logout", "/discover", "/firmware/update", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
+	for _, path := range []string{"/settings", "/logout", "/discover", "/firmware/update", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
 		if response := request(http.MethodPost, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("POST %s lost authentication precedence: %d", path, response.Code)
 		}

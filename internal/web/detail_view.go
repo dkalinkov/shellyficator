@@ -37,17 +37,17 @@ type DeviceDetail struct {
 	ShowDifferences                       bool
 }
 
-func detailDevice(device domain.Device, baseline map[string]any, differences []domain.Difference, notes map[string]string) DeviceDetail {
+func detailDevice(device domain.Device, baseline map[string]any, differences []domain.Difference, notes map[string]string, policies ...domain.WatchPolicy) DeviceDetail {
 	status, config := device.Status, device.Config
 	view := DeviceDetail{
-		Table:           tableDevice(device, baseline, len(differences)),
+		Table:           tableDevice(device, baseline, len(differences), policies...),
 		StatusAvailable: device.StatusCurrent(),
 		ConfigAvailable: device.ConfigCurrent(),
 	}
 	view.ConfigurationLabel = view.Table.Configuration
 	view.ConfigurationIcon = "config"
 	if view.Table.ConfigurationTone == "ok" {
-		view.ConfigurationLabel = "Matches baseline"
+		view.ConfigurationLabel = "Watched settings match baseline"
 		view.ConfigurationIcon = "check"
 	}
 	if baseline != nil && !view.ConfigAvailable {

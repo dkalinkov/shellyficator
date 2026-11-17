@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -153,7 +154,7 @@ func TestServingLifecycleDrainsWorkBeforeStorageCloses(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			started, cancelled := make(chan struct{}), make(chan struct{})
-			device := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			device := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path != "/shelly" {
 					t.Errorf("unexpected device request: %s", r.URL.Path)
 					w.WriteHeader(http.StatusNotFound)
@@ -163,6 +164,15 @@ func TestServingLifecycleDrainsWorkBeforeStorageCloses(t *testing.T) {
 				<-r.Context().Done()
 				close(cancelled)
 			}))
+			// Avoid workstation readiness probes on 127.0.0.1 hitting the fake device.
+			_ = device.Listener.Close()
+			listener, err := net.Listen("tcp", "127.0.0.2:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			device.Listener = listener
+			device.Start()
+
 			t.Cleanup(device.Close)
 			app := testApp(t, nil, Config{}, BuildInfo{Version: "bootstrap-test"})
 			if err := app.Bootstrap(); err != nil {
