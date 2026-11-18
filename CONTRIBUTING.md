@@ -9,6 +9,12 @@ Describe the problem, resulting behavior, and validation in each pull request.
 Keep changes focused and add regression coverage for behavioral fixes. Do not use
 live devices or your regular database in automated tests.
 
+Every pull request runs [CI](.github/workflows/ci.yml): Go formatting, `go vet`,
+tests with the race detector, `govulncheck`, template formatting, a check that
+vendored assets match `package-lock.json`, workflow linting, a container build
+for `amd64` and `arm64`, and a release dry run. The `ci-ok` check must pass
+before merging.
+
 Before submitting:
 
 - Run `make css`, `make test`, and `git diff --check`.

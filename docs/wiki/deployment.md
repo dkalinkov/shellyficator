@@ -2,7 +2,9 @@
 
 ## Native binary
 
-Build with `make build`, then run:
+Download a Linux `amd64` or `arm64` archive from
+[Releases](https://github.com/dkalinkov/shellyficator/releases), or build with
+`make build`, then run:
 
 ```sh
 ./bin/shellyficator serve --http=127.0.0.1:8090 --dir=./pb_data
@@ -14,16 +16,21 @@ local device network. `/healthz` reports HTTP readiness, not device health.
 
 ## Linux container
 
-Build locally with `make docker`. There is no published image assumed by these
-instructions:
+Release images for `linux/amd64` and `linux/arm64` are published to
+`ghcr.io/dkalinkov/shellyficator`. Pin an exact version so upgrades are
+deliberate; see [container image tags](releases.md#container-image-tags):
 
 ```sh
-docker run --rm --name shellyficator \
+docker run -d --name shellyficator --restart unless-stopped \
   --env-file .env \
   --network=host \
   -v shellyficator-data:/data \
-  shellyficator:local serve --http=127.0.0.1:8090 --dir=/data
+  ghcr.io/dkalinkov/shellyficator:0.4.0 serve --http=127.0.0.1:8090 --dir=/data
 ```
+
+To build the image yourself, run `make docker` and use `shellyficator:local`
+instead. You can [verify](releases.md#verifying-a-release) that a published image
+was built by this repository's release workflow.
 
 The image runs as UID/GID 10001. Bind mounts must be writable by that user.
 The example listens only on loopback. The image's default command instead listens
@@ -52,7 +59,7 @@ through a reverse proxy share its IP for this limit.
 1. Stop the running application/container so SQLite files are consistent.
 2. Copy the entire data directory or volume to a protected backup destination.
 3. Back up dotenv files or deployment secrets separately; keep both out of Git.
-4. Build the intended version, then start it using the same data directory/volume.
+4. Pull or build the intended version, then start it using the same data directory/volume.
 5. Check `/healthz`, login, inventory, and capture history before resuming use.
 
 For a restore, stop the app and restore the complete directory with the required

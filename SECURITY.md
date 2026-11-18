@@ -7,14 +7,18 @@ branches or response-time guarantees are currently defined.
 ## Reporting a vulnerability
 
 Do not post credentials, private device data, or exploit details in a public issue.
-If GitHub shows **Security → Report a vulnerability** for this repository, use that
-private reporting channel. Otherwise, open an issue asking the maintainer to
-establish a private channel, without sensitive details. Private vulnerability
-reporting availability depends on repository settings.
+Report vulnerabilities privately through
+[**Security → Report a vulnerability**](https://github.com/dkalinkov/shellyficator/security/advisories/new).
 
 Include the affected version, impact, and a minimal reproduction using synthetic
 data through the private channel. Rotate any exposed credentials independently of
 removing them from Git history.
+
+## Verifying releases
+
+Release tags are signed, and published releases are immutable. Release archives
+and container images carry build provenance attestations from the release
+workflow. See [verifying a release](docs/wiki/releases.md#verifying-a-release).
 
 ## Deployment considerations
 

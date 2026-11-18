@@ -15,3 +15,6 @@ research
 .agents/skills/impeccable
 .codex/hooks.json
 .impeccable
+.github
+dist
+.fallow

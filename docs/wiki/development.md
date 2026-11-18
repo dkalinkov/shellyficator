@@ -33,6 +33,27 @@ Run `gofmt` on changed Go files, relevant tests, and `git diff --check`. For ser
 or concurrency changes, include the race detector. Broaden tests when the scope
 warrants it; use fake clients and temporary databases, not live device writes.
 
+## Continuous integration
+
+[CI](../../.github/workflows/ci.yml) runs on every pull request and on `main`.
+The `ci-ok` job summarizes it and is the required check for merging. Local
+equivalents:
+
+| CI step | Local command |
+| --- | --- |
+| Build assets; vendored files match the lockfile | `npm ci --ignore-scripts && npm run build && git diff --exit-code -- internal/web/static` |
+| Template formatting | `make format-check` |
+| Go formatting, tidy modules, vet | `gofmt -l .`, `go mod tidy -diff`, `go vet ./...` |
+| Tests | `go test -race ./...` |
+| Known vulnerabilities | `go run golang.org/x/vuln/cmd/govulncheck@latest ./...` |
+| Container image | `make docker` |
+| Release dry run | `goreleaser release --snapshot --clean` |
+
+Workflow files are checked with actionlint and zizmor. Actions are pinned to full
+commit SHAs; Dependabot proposes updates for actions, Go modules, npm packages,
+and base images weekly. After CI passes on `main`, the `edge` image is published.
+See [releases](releases.md) for the release workflow.
+
 ## Security scans
 
 Use a disposable checkout for scans so local dotenv files, databases, backups,
