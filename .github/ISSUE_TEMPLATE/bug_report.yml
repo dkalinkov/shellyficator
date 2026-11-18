@@ -1,0 +1,58 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove passwords, tokens, real device identifiers, and private network
+        details from everything you paste. Report security issues privately
+        instead (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Shellyficator version
+      description: Output of `shellyficator --version`, or the version shown in the UI.
+      placeholder: Shellyficator v0.4.0 (commit 0123456789ab, built 2026-01-01T00:00:00Z)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation method
+      options:
+        - Container image (ghcr.io)
+        - Release binary
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device generation and model
+      description: Only if the problem involves a specific device.
+      placeholder: Gen3, Shelly 1PM Mini
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Choose ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Sanitized. Formatted as code automatically.
+      render: text

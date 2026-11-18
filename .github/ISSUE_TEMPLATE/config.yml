@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/dkalinkov/shellyficator/security/advisories/new
+    about: Report vulnerabilities privately. Do not open a public issue.
+  - name: Documentation
+    url: https://github.com/dkalinkov/shellyficator/blob/main/docs/wiki/README.md
+    about: Setup, configuration, discovery, and troubleshooting guides.

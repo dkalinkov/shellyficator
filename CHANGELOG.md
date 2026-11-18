@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Publish releases from signed tags through GitHub Actions: Linux amd64/arm64 archives with checksums, SBOMs, and build provenance, and multi-arch container images at `ghcr.io/dkalinkov/shellyficator`.
+- Publish an `edge` image from `main` after CI passes.
 - Show stable/beta firmware offers as compact Status icons, with detailed tooltips and manual checks.
 - Add confirmed single-device and selected-device firmware installation, serial execution, before/after configuration captures, and version verification after reboot.
 - Keep progress and results across page reloads; detect unchanged firmware and interrupted verification without automatically retrying update commands.

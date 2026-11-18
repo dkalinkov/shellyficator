@@ -1,0 +1,227 @@
+# Publishes a release when a signed vX.Y.Z tag is pushed. See docs/wiki/releases.md.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: "1.27.x"
+  GOTOOLCHAIN: local
+  NODE_VERSION: "24"
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  verify:
+    name: Verify tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      checks: read # confirm CI passed for the tagged commit
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      # The tag name reaches shell commands, so validate it before anything else.
+      - name: Validate tag name
+        id: tag
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::$GITHUB_REF_NAME is not a vMAJOR.MINOR.PATCH[-PRERELEASE] tag"
+            exit 1
+          fi
+          version=${GITHUB_REF_NAME#v}
+          prerelease=false
+          if [[ "$version" == *-* ]]; then prerelease=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag signature
+        run: |
+          # checkout may leave a lightweight copy of the tag; fetch the original object.
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          if [ "$(git cat-file -t "$GITHUB_REF_NAME")" != tag ]; then
+            echo "::error::Release tags must be annotated and signed (git tag -s)"
+            exit 1
+          fi
+          git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag "$GITHUB_REF_NAME"
+
+      - name: Check version, branch, and changelog
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          if [ "$(cat VERSION)" != "$VERSION" ]; then
+            echo "::error::VERSION contains $(cat VERSION), but the tag is $GITHUB_REF_NAME"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME does not point to a commit on main"
+            exit 1
+          fi
+          scripts/release-notes.sh "$VERSION" > /dev/null
+
+      - name: Wait for CI to pass on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 60); do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=ci-ok" --jq '
+              [.check_runs[] | select(.app.slug == "github-actions")]
+              | if any(.conclusion == "success") then "success"
+                elif length > 0 and all(.status == "completed") then "failure"
+                else "pending" end')
+            case "$state" in
+              success) echo "CI passed for $GITHUB_SHA"; exit 0 ;;
+              failure) echo "::error::CI failed for $GITHUB_SHA"; exit 1 ;;
+            esac
+            echo "CI is $state for $GITHUB_SHA; waiting"
+            sleep 30
+          done
+          echo "::error::Timed out waiting for CI on $GITHUB_SHA"
+          exit 1
+
+  binaries:
+    name: Binaries and draft release
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the draft release and upload assets
+      id-token: write # Sigstore certificate for attestations
+      attestations: write # store build provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # No dependency caches in release jobs, to rule out cache poisoning.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache: false
+
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+
+      - name: Write release notes
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.20.2
+          args: release --clean --release-notes=${{ runner.temp }}/release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: dist/checksums.txt
+
+  image:
+    name: Container image
+    needs: [verify, binaries]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write # push images to GHCR
+      id-token: write # Sigstore certificate for attestations
+      attestations: write # store build provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read build metadata
+        id: build
+        run: |
+          echo "commit=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "date=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 1.2.3 and 1.2 for every release, 1 from 1.0.0 on, latest only for
+      # non-prereleases. Prereleases get only their exact version tag.
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+
+      - id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            BUILD_TYPE=release
+            BUILD_COMMIT=${{ steps.build.outputs.commit }}
+            BUILD_DATE=${{ steps.build.outputs.date }}
+
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+  publish:
+    name: Publish release
+    needs: [verify, binaries, image]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # publish the draft release
+    steps:
+      # With immutable releases enabled, publishing locks the tag and assets.
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          args=(--draft=false)
+          if [ "$PRERELEASE" = false ]; then args+=(--latest); fi
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "${args[@]}"

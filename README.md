@@ -6,6 +6,12 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://github.com/dkalinkov/shellyficator/actions/workflows/ci.yml"><img src="https://github.com/dkalinkov/shellyficator/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/dkalinkov/shellyficator/releases"><img src="https://img.shields.io/github/v/release/dkalinkov/shellyficator?sort=semver&amp;include_prereleases" alt="Latest release"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/dkalinkov/shellyficator"><img src="https://api.scorecard.dev/projects/github.com/dkalinkov/shellyficator/badge" alt="OpenSSF Scorecard"></a>
+</p>
+
 # Shellyficator
 
 **Know what changed on your Shelly devices.**
@@ -69,19 +75,23 @@ See [development](docs/wiki/development.md) for checks and project structure.
 
 ## Docker on Linux
 
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to GitHub
+Container Registry with each [release](https://github.com/dkalinkov/shellyficator/releases):
+
 ```sh
-make docker
-docker run --rm --name shellyficator \
+docker run -d --name shellyficator --restart unless-stopped \
   --env-file .env \
   --network=host \
   -v shellyficator-data:/data \
-  shellyficator:local serve --http=127.0.0.1:8090 --dir=/data
+  ghcr.io/dkalinkov/shellyficator:latest serve --http=127.0.0.1:8090 --dir=/data
 ```
 
 This binds to the host's loopback interface. For remote access, configure the
 listen address and HTTPS proxy deliberately. Host networking helps LAN discovery
-on native Linux; use `make run` for Docker Desktop development. Preserve the
-volume across upgrades. See [deployment and backups](docs/wiki/deployment.md).
+on native Linux; use `make run` for Docker Desktop development. Pin an exact
+version tag in long-running deployments, preserve the volume across upgrades,
+and see [deployment and backups](docs/wiki/deployment.md). `make docker` builds
+the image locally as `shellyficator:local`.
 
 ## Monitoring boundaries
 

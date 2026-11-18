@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Builds release binaries and the GitHub Release. Container images are built
+# from the Dockerfile by the release workflow. See docs/wiki/releases.md.
+version: 2
+
+project_name: shellyficator
+
+before:
+  hooks:
+    - npm ci --ignore-scripts
+    - npm run build
+
+builds:
+  - id: shellyficator
+    binary: shellyficator
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    # Same metadata as scripts/build.sh; the version comes from VERSION.
+    ldflags:
+      - -X main.buildType=release -X main.commit={{ slice .FullCommit 0 12 }} -X main.buildDate={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - src: internal/web/static/*.LICENSE
+        dst: licenses
+        strip_parent: true
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+# Release notes come from CHANGELOG.md (scripts/release-notes.sh).
+changelog:
+  disable: true
+
+release:
+  # The workflow publishes the draft after the image and attestations exist.
+  draft: true
+  replace_existing_draft: true
+  prerelease: auto
+  footer: |
+
+    ## Container image
+
+    ```sh
+    docker pull ghcr.io/dkalinkov/shellyficator:{{ .Version }}
+    ```
+
+    Images are built for `linux/amd64` and `linux/arm64`.
+
+    ## Verify this release
+
+    ```sh
+    gh release verify {{ .Tag }} --repo dkalinkov/shellyficator
+    gh attestation verify {{ .ProjectName }}_{{ .Version }}_linux_amd64.tar.gz --repo dkalinkov/shellyficator
+    gh attestation verify oci://ghcr.io/dkalinkov/shellyficator:{{ .Version }} --repo dkalinkov/shellyficator
+    ```
