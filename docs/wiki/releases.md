@@ -40,8 +40,9 @@ matching `vX.Y.Z`:
    `arm64` archives, `checksums.txt`, and SBOMs, then creates a draft release
    with the changelog section as notes. The checksums are attested, and the
    attestation is attached to the release as a Sigstore bundle.
-3. **Image:** builds the [Dockerfile](../../Dockerfile) for `linux/amd64` and
-   `linux/arm64`, pushes it to GHCR, and attests the image digest.
+3. **Images:** builds the [Dockerfile](../../Dockerfile) for `linux/amd64` and
+   `linux/arm64`, pushes it to GHCR, and attests the image digest. The same
+   for the Dockerfile's `homeassistant` target, the Home Assistant app image.
 4. **Publish:** publishes the draft. Immutable releases are enabled, so from this
    point the tag and assets cannot be changed or deleted.
 
@@ -59,6 +60,13 @@ Images are published to `ghcr.io/dkalinkov/shellyficator`.
 | `1` | Newest release of that major version, from 1.0.0 on. |
 | `latest` | Newest stable release. |
 | `edge` | Latest `main` after CI passed. A development build that may be unstable. |
+
+The Home Assistant app image, `ghcr.io/dkalinkov/shellyficator-ha`, gets only
+exact version tags such as `0.5.0`, because Home Assistant pulls the tag that
+matches the app's version. It starts as root to take ownership of the `/data`
+mount, then runs as UID 10001, and reads its settings from
+[`/data/options.json`](configuration.md#options-file). Use the main image
+everywhere else.
 
 ## When a release fails
 

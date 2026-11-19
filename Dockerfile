@@ -23,7 +23,7 @@ COPY . .
 COPY --from=styles /src/internal/web/static ./internal/web/static
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH sh scripts/build.sh /shellyficator
 
-FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS runtime
 ARG BUILD_COMMIT=unknown
 ARG BUILD_DATE
 LABEL org.opencontainers.image.title="Shellyficator" \
@@ -39,11 +39,34 @@ RUN apk upgrade --no-cache \
     && mkdir /data \
     && chown shellyficator:shellyficator /data
 COPY --from=build /shellyficator /usr/local/bin/shellyficator
-USER shellyficator
 WORKDIR /data
-VOLUME /data
 EXPOSE 8090
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:8090/healthz || exit 1
 ENTRYPOINT ["shellyficator"]
 CMD ["serve", "--http=0.0.0.0:8090", "--dir=/data"]
+
+# Home Assistant app image: docker build --target homeassistant. It starts as
+# root only to take ownership of the /data mount, then runs as the app user.
+# Settings come from the options.json that Home Assistant writes.
+FROM runtime AS homeassistant-base
+ARG APP_VERSION=dev
+RUN apk add --no-cache su-exec
+COPY --chmod=755 scripts/ha-entrypoint.sh /usr/local/bin/ha-entrypoint
+ENV SHELLY_OPTIONS_FILE=/data/options.json
+LABEL io.hass.type="app" \
+      io.hass.version="$APP_VERSION"
+ENTRYPOINT ["ha-entrypoint"]
+CMD ["serve", "--http=0.0.0.0:8090", "--dir=/data"]
+
+# Home Assistant names arm64 "aarch64".
+FROM homeassistant-base AS homeassistant-amd64
+LABEL io.hass.arch="amd64"
+FROM homeassistant-base AS homeassistant-arm64
+LABEL io.hass.arch="aarch64"
+FROM homeassistant-${TARGETARCH} AS homeassistant
+
+# Default image. It must stay the last stage so plain builds produce it.
+FROM runtime
+USER shellyficator
+VOLUME /data

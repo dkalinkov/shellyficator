@@ -27,6 +27,7 @@ integration checks against a temporary database instead.
 | `make format-check` | Check HTML template formatting |
 | `make format` | Format HTML templates |
 | `make docker` | Build local container images |
+| `docker build --target homeassistant -t shellyficator-ha:local .` | Build the Home Assistant app image |
 
 On a clean checkout, run `make css` before Go tests because static assets are
 embedded by Go. Generated `internal/web/static/app.css` is intentionally ignored.

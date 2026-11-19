@@ -221,6 +221,44 @@ jobs:
           push-to-registry: true
           create-storage-record: false
 
+      # Home Assistant pulls <image>:<version>, so only the exact version is tagged.
+      - id: meta-ha
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ env.IMAGE }}-ha
+          flavor: latest=false
+          tags: type=semver,pattern={{version}}
+          labels: |
+            org.opencontainers.image.title=Shellyficator for Home Assistant
+            org.opencontainers.image.description=Shellyficator packaged as a Home Assistant app
+
+      - id: push-ha
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: homeassistant
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-ha.outputs.tags }}
+          labels: ${{ steps.meta-ha.outputs.labels }}
+          annotations: ${{ steps.meta-ha.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            BUILD_TYPE=release
+            BUILD_COMMIT=${{ steps.build.outputs.commit }}
+            BUILD_DATE=${{ steps.build.outputs.date }}
+            APP_VERSION=${{ needs.verify.outputs.version }}
+
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}-ha
+          subject-digest: ${{ steps.push-ha.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
   publish:
     name: Publish release
     needs: [verify, binaries, image]
