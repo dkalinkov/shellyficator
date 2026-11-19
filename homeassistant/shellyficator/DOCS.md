@@ -18,7 +18,8 @@ Setup also creates a separate data administrator at `http://<home-assistant-host
 with the same initial credentials. It can edit every record; use it only for
 maintenance.
 
-Then choose **Discover** to find your devices. The
+Turn on **Watchdog** on the Info tab so Home Assistant restarts the app if it
+stops responding. Then choose **Discover** to find your devices. The
 [getting started guide](https://github.com/dkalinkov/shellyficator/blob/main/docs/wiki/getting-started.md#add-and-review-devices)
 explains baselines and change warnings.
 
@@ -35,8 +36,8 @@ neighbor (ARP) cache. It listens on port 8090 on every network interface of the
 Home Assistant host, so that port must be free. Home Assistant's remote access
 does not reach it.
 
-If devices are missing, use **Advanced discovery** with a device address or a
-private subnet such as `192.168.1.0/24`. See
+If your Shelly devices are on another network or VLAN, scan their subnet, such as
+`192.168.1.0/24`, under **Advanced discovery**. See
 [discovery](https://github.com/dkalinkov/shellyficator/blob/main/docs/wiki/discovery.md).
 
 ## Backups

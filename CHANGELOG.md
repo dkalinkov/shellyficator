@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Make this repository a Home Assistant app repository, with an experimental Shellyficator app for `amd64` and `arm64`.
+- Speed up subnet scans by skipping addresses that don't accept connections.
+- **Discover** rescans subnets where a scan found devices; manage them under **Advanced discovery**.
 
 ## 0.5.0 — 2026-11-19
 
