@@ -208,11 +208,49 @@ jobs:
           version: v2.20.2
           args: release --snapshot --clean
 
+  # Home Assistant offers an update as soon as the app's version changes, so
+  # that version's image must already be published. See docs/wiki/home-assistant.md.
+  homeassistant:
+    name: Home Assistant app
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the app version is published
+        run: |
+          app=homeassistant/shellyficator
+          version=$(yq -r .version "$app/config.yaml")
+          image=$(yq -r .image "$app/config.yaml")
+          scripts/release-notes.sh "$version" "$app/CHANGELOG.md" > /dev/null
+          # No registry login, so this also confirms anyone can pull the image.
+          if ! manifest=$(docker buildx imagetools inspect "$image:$version" --format '{{json .Manifest}}'); then
+            echo "::error::$image:$version is not published or not public. Bump the app version only after the release is out."
+            exit 1
+          fi
+          platforms=$(jq -r '[.manifests[].platform | select(.os != "unknown") | "\(.os)/\(.architecture)"] | join(" ")' <<< "$manifest")
+          for arch in $(yq -r '.arch[]' "$app/config.yaml"); do
+            case "$arch" in
+              amd64) platform=linux/amd64 ;;
+              aarch64) platform=linux/arm64 ;;
+              *) echo "::error::Unsupported app architecture $arch"; exit 1 ;;
+            esac
+            if [[ " $platforms " != *" $platform "* ]]; then
+              echo "::error::$image:$version has no $platform image for the $arch app architecture"
+              exit 1
+            fi
+          done
+          echo "$image:$version is published for $platforms"
+
   # Single required status check for the main branch ruleset.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [test, workflows, image, release-config]
+    needs: [test, workflows, image, release-config, homeassistant]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
