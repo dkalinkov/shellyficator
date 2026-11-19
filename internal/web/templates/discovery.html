@@ -13,6 +13,36 @@
     </div>
     <details class="mt-3">
       <summary class="cursor-pointer text-sm text-base-content/65">Advanced discovery</summary>
+      {{ if .RememberedNetworks }}
+        <div class="mt-4">
+          <p class="text-sm text-base-content/65">
+            Discover also checks these networks, where earlier scans found devices.
+          </p>
+          <ul class="mt-2 flex flex-col gap-2">
+            {{ range .RememberedNetworks }}
+              <li class="flex flex-wrap items-center gap-2">
+                <span class="font-mono text-sm">{{ . }}</span>
+                <form action="/discover" method="post">
+                  <input type="hidden" name="csrf" value="{{ $.CSRF }}" />
+                  <input type="hidden" name="target" value="{{ . }}" />
+                  <button class="btn btn-sm btn-outline" type="submit">
+                    Scan now
+                    <span class="sr-only">{{ . }}</span>
+                  </button>
+                </form>
+                <form action="/discovery/networks/forget" method="post">
+                  <input type="hidden" name="csrf" value="{{ $.CSRF }}" />
+                  <input type="hidden" name="network" value="{{ . }}" />
+                  <button class="btn btn-sm btn-ghost" type="submit">
+                    Forget
+                    <span class="sr-only">{{ . }}</span>
+                  </button>
+                </form>
+              </li>
+            {{ end }}
+          </ul>
+        </div>
+      {{ end }}
       {{ if .Networks }}
         <div class="mt-4 flex flex-wrap gap-2">
           {{ range .Networks }}

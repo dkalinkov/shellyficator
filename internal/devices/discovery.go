@@ -11,6 +11,14 @@ import (
 	"shellyficator/internal/domain"
 )
 
+// Connection checks send no request, so many run at once; devices handle few HTTP requests at once.
+const (
+	probeConcurrency  = 24
+	verifyConcurrency = 4
+)
+
+const otherNetworkHint = " If your devices are on another network or VLAN, scan it once under Advanced discovery."
+
 func (s *Service) Discover(target string, automatic bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -48,6 +56,8 @@ func (s *Service) Discover(target string, automatic bool) error {
 
 func (s *Service) runDiscovery(automatic bool, addresses []string) {
 	announcementFailed := false
+	single := !automatic && len(addresses) == 1
+	var networks []string
 	if automatic {
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		type neighborResult struct {
@@ -64,15 +74,22 @@ func (s *Service) runDiscovery(automatic bool, addresses []string) {
 		cancel()
 		announcementFailed = err != nil
 		addresses = s.source.Addresses(append(announced, neighbors.addresses...))
-		if s.logger != nil {
-			s.logger.Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
+		networks = s.rememberedNetworks()
+		open := 0
+		if scan := s.networkAddresses(networks, addresses); len(scan) > 0 {
+			s.setProgress("Scanning remembered networks", len(scan))
+			reachable := s.reachable(scan)
+			open = len(reachable)
+			addresses = s.source.Addresses(append(addresses, reachable...))
 		}
-		s.mu.Lock()
-		s.discovery.Total = len(addresses)
-		s.discovery.Stage = "Verifying devices"
-		s.mu.Unlock()
+		if s.logger != nil {
+			s.logger.Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "remembered_networks", len(networks), "remembered_open", open, "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
+		}
+	} else if !single {
+		addresses = s.reachable(addresses)
 	}
-	limit := make(chan struct{}, 4)
+	s.setProgress("Verifying devices", len(addresses))
+	limit := make(chan struct{}, verifyConcurrency)
 	var group sync.WaitGroup
 	foundMACs := map[string]bool{}
 scan:
@@ -106,7 +123,7 @@ scan:
 				foundMACs[reading.Identity.MAC] = true
 				s.discovery.Found++
 			}
-			if !automatic && len(addresses) == 1 && err != nil {
+			if single && err != nil {
 				s.discovery.Message = s.source.Explain(err)
 			}
 			s.mu.Unlock()
@@ -122,6 +139,7 @@ scan:
 		}
 	}
 	group.Wait()
+	remembered, rememberErr := s.rememberScannedNetwork(automatic)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.discovery.Running = false
@@ -139,9 +157,108 @@ scan:
 					s.discovery.Message = "mDNS query failed. Check multicast access."
 				}
 			}
+			if len(networks) == 0 {
+				s.discovery.Message += otherNetworkHint
+			}
 		}
 		if automatic && announcementFailed && s.discovery.Found > 0 {
 			s.discovery.Message += " Some mDNS queries failed."
 		}
 	}
+	if remembered != "" {
+		s.discovery.Message += fmt.Sprintf(" Discover will check %s again.", remembered)
+	}
+	if errors.Is(rememberErr, domain.ErrNetworkLimit) {
+		s.discovery.Message += fmt.Sprintf(" Not remembered: Discover already checks %d networks; forget one to add this one.", domain.MaxDiscoveryNetworks)
+	}
+}
+
+func (s *Service) setProgress(stage string, total int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.discovery.Stage, s.discovery.Total, s.discovery.Completed = stage, total, 0
+}
+
+func (s *Service) reachable(addresses []string) []string {
+	open := make([]bool, len(addresses))
+	limit := make(chan struct{}, probeConcurrency)
+	var group sync.WaitGroup
+probe:
+	for i, address := range addresses {
+		select {
+		case limit <- struct{}{}:
+		case <-s.ctx.Done():
+			break probe
+		}
+		group.Add(1)
+		go func() {
+			defer func() { <-limit; group.Done() }()
+			open[i] = s.source.Reachable(s.ctx, address)
+			s.mu.Lock()
+			s.discovery.Completed++
+			s.mu.Unlock()
+		}()
+	}
+	group.Wait()
+	var result []string
+	for i, ok := range open {
+		if ok {
+			result = append(result, addresses[i])
+		}
+	}
+	return result
+}
+
+func (s *Service) rememberedNetworks() []string {
+	if s.store == nil {
+		return nil
+	}
+	s.inventoryMu.RLock()
+	defer s.inventoryMu.RUnlock()
+	networks, err := s.store.DiscoveryNetworks()
+	if err != nil {
+		s.logger.Warn("Could not read remembered discovery networks", "error", err)
+		return nil
+	}
+	return networks
+}
+
+func (s *Service) networkAddresses(networks, known []string) []string {
+	seen := map[string]bool{}
+	for _, address := range known {
+		seen[address] = true
+	}
+	var addresses []string
+	for _, network := range networks {
+		targets, err := s.source.Targets(network)
+		if err != nil {
+			continue
+		}
+		for _, address := range targets {
+			if !seen[address] {
+				seen[address] = true
+				addresses = append(addresses, address)
+			}
+		}
+	}
+	return addresses
+}
+
+func (s *Service) rememberScannedNetwork(automatic bool) (string, error) {
+	s.mu.Lock()
+	target, found := s.discovery.Target, s.discovery.Found
+	s.mu.Unlock()
+	prefix := domain.NetworkPrefix(target)
+	if automatic || found == 0 || prefix == "" || s.store == nil || s.ctx.Err() != nil {
+		return "", nil
+	}
+	s.inventoryMu.Lock()
+	defer s.inventoryMu.Unlock()
+	if err := s.store.RememberNetwork(prefix); err != nil {
+		if !errors.Is(err, domain.ErrNetworkLimit) {
+			s.logger.Warn("Could not remember discovery network", "network", prefix, "error", err)
+		}
+		return "", err
+	}
+	return prefix, nil
 }

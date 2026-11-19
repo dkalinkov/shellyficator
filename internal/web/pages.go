@@ -25,6 +25,7 @@ type InventoryPage struct {
 	FirmwareRunning                        bool
 	Discovery                              domain.Discovery
 	Networks                               []domain.Network
+	RememberedNetworks                     []string
 }
 
 type DevicePage struct {

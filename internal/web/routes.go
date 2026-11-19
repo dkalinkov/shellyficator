@@ -37,6 +37,7 @@ func (s *Server) registerRoutes(r *router.Router[*core.RequestEvent], static fs.
 	writes.POST("/logout", s.logout)
 	writes.POST("/settings", s.saveSettings)
 	writes.POST("/discover", s.discover)
+	writes.POST("/discovery/networks/forget", s.forgetNetwork)
 	writes.POST("/firmware/update", s.updateFirmware)
 
 	devices := protected.Group("/devices/{id}")

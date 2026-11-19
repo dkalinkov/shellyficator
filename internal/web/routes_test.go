@@ -145,7 +145,7 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if hxResponse.Code != http.StatusUnauthorized || hxResponse.Header().Get("HX-Redirect") != "/login" {
 		t.Fatalf("HTMX authentication redirect lost: %d %v", hxResponse.Code, hxResponse.Header())
 	}
-	for _, path := range []string{"/settings", "/logout", "/discover", "/firmware/update", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
+	for _, path := range []string{"/settings", "/logout", "/discover", "/discovery/networks/forget", "/firmware/update", devicePath + "/refresh", devicePath + "/firmware/check", devicePath + "/organization", devicePath + "/metadata", devicePath + "/channel-notes", devicePath + "/capture", devicePath + "/baseline"} {
 		if response := request(http.MethodPost, path, nil); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 			t.Fatalf("POST %s lost authentication precedence: %d", path, response.Code)
 		}
@@ -170,6 +170,24 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		if response := request(http.MethodPost, devicePath+action.path, action.form, session, csrfCookie); response.Code != http.StatusSeeOther || response.Header().Get("Location") != location {
 			t.Fatalf("valid POST %s: got %d %s, want 303 %s", action.path, response.Code, response.Header().Get("Location"), location)
 		}
+	}
+	if err := s.store.RememberNetwork("192.168.77.0/24"); err != nil {
+		t.Fatal(err)
+	}
+	if body := request(http.MethodGet, "/", nil, session).Body.String(); !strings.Contains(body, `name="network" value="192.168.77.0/24"`) {
+		t.Fatal("dashboard does not list the remembered network")
+	}
+	forget := url.Values{"csrf": {csrfCookie.Value}, "network": {"192.168.77.9/24"}}
+	forgotten := "/?notice=" + url.QueryEscape("Discover no longer checks 192.168.77.0/24.")
+	if response := request(http.MethodPost, "/discovery/networks/forget", forget, session, csrfCookie); response.Code != http.StatusSeeOther || response.Header().Get("Location") != forgotten {
+		t.Fatalf("forget network: got %d %s, want 303 %s", response.Code, response.Header().Get("Location"), forgotten)
+	}
+	if networks, err := s.store.DiscoveryNetworks(); err != nil || len(networks) != 0 {
+		t.Fatalf("network was not forgotten: %v %v", networks, err)
+	}
+	invalid := url.Values{"csrf": {csrfCookie.Value}, "network": {"8.8.8.0/24"}}
+	if response := request(http.MethodPost, "/discovery/networks/forget", invalid, session, csrfCookie); !strings.Contains(response.Header().Get("Location"), "notice_level=error") {
+		t.Fatalf("invalid network did not report an error: %s", response.Header().Get("Location"))
 	}
 	record, err := s.record(id)
 	if err != nil {

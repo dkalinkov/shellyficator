@@ -29,6 +29,8 @@ type Devices interface {
 	Organization(string, string, string) error
 	SaveChannelNote(string, string, string) error
 	LocalNetworks() ([]domain.Network, error)
+	DiscoveryNetworks() ([]string, error)
+	ForgetNetwork(string) error
 	Discover(string, bool) error
 	Discovery() domain.Discovery
 	Refresh(bool) <-chan struct{}

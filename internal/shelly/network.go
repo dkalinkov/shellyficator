@@ -16,3 +16,6 @@ func (NetworkDiscovery) Targets(target string) ([]string, error)         { retur
 func (NetworkDiscovery) Addresses(addresses []string) []string           { return DiscoveryAddresses(addresses) }
 func (NetworkDiscovery) LocalNetworks() ([]domain.Network, error)        { return LocalNetworks() }
 func (NetworkDiscovery) Explain(err error) string                        { return DiscoveryError(err) }
+func (NetworkDiscovery) Reachable(ctx context.Context, address string) bool {
+	return Reachable(ctx, address)
+}
