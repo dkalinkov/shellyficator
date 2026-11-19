@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Read settings from a JSON options file named by `SHELLY_OPTIONS_FILE`, such as the `options.json` that Home Assistant writes for apps.
 - Attach each release's build provenance as a Sigstore bundle, so archives can be verified without GitHub's attestation API.
 - Keep empty configuration keys from merging their settings into another path when comparing configurations.
 

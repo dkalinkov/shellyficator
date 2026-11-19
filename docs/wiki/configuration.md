@@ -20,11 +20,27 @@ local files or your deployment's secret store.
 | `SHELLY_OIDC_CLIENT_ID` | OIDC confidential client ID | Empty |
 | `SHELLY_OIDC_CLIENT_SECRET` | OIDC client secret | Empty |
 | `SHELLY_OIDC_REDIRECT_URL` | Exact callback URL, ending in `/auth/oidc/callback` | Empty |
+| `SHELLY_OPTIONS_FILE` | JSON options file, read before the dotenv files; see below | Not read |
 | `TZ` | Process/container timezone | Runtime default; example uses UTC |
 
 The shared device password is used for protected device requests. It does not
 change passwords on devices. Individual stored device passwords and dashboard
 credential management are not implemented.
+
+## Options file
+
+`SHELLY_OPTIONS_FILE` names a flat JSON object whose keys are the variable names
+above without the `SHELLY_` prefix, in lowercase. The Home Assistant image sets it
+to `/data/options.json`, which Home Assistant writes from the app's settings:
+
+```json
+{ "device_password": "<shared device password>", "cookie_secure": false }
+```
+
+Strings are used as written; numbers and booleans are converted to text. Empty
+strings and `null` are skipped. Process environment variables take precedence
+over the file, and the file over `.env.local` and `.env`. A missing file is
+allowed; an invalid one stops startup without logging its contents.
 
 ## OpenID Connect
 

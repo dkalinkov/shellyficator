@@ -124,3 +124,94 @@ func TestCookieSecureUsesTheExistingExplicitTrueValue(t *testing.T) {
 		})
 	}
 }
+
+func TestOptionsFileFillsUnsetSettings(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for _, key := range []string{"SHELLY_DEVICE_PASSWORD", "SHELLY_COOKIE_SECURE", "SHELLY_ADMIN_EMAIL", "SHELLY_ADMIN_PASSWORD", "SHELLY_OIDC_ISSUER"} {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	options := filepath.Join(t.TempDir(), "options.json")
+	if err := os.WriteFile(options, []byte(`{"device_password":"from-options","cookie_secure":true,"admin_email":"","admin_password":null,"oidc_issuer":"https://options.example"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(".env", []byte("SHELLY_DEVICE_PASSWORD=from-dotenv\nSHELLY_ADMIN_EMAIL=dotenv@example.com\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHELLY_OIDC_ISSUER", "https://environment.example")
+	t.Setenv("SHELLY_OPTIONS_FILE", options)
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.DevicePassword != "from-options" || !config.CookieSecure {
+		t.Fatal("options did not take precedence over dotenv files")
+	}
+	if config.OIDCIssuer != "https://environment.example" {
+		t.Fatal("options replaced a value from the process environment")
+	}
+	if config.AdminEmail != "dotenv@example.com" || config.AdminPassword != "" {
+		t.Fatal("empty or null options were not skipped")
+	}
+}
+
+func TestOptionsFileFormatsScalars(t *testing.T) {
+	const key = "SHELLY_TEST_OPTION"
+	for _, test := range []struct{ json, want string }{
+		{`"text"`, "text"}, {`false`, "false"}, {`8090`, "8090"}, {`0.5`, "0.5"}, {`1e21`, "1000000000000000000000"},
+	} {
+		t.Run(test.json, func(t *testing.T) {
+			t.Setenv(key, "")
+			if err := os.Unsetenv(key); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "options.json")
+			if err := os.WriteFile(path, []byte(`{"test_option":`+test.json+`}`), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := loadOptions(path); err != nil {
+				t.Fatal(err)
+			}
+			if got := os.Getenv(key); got != test.want {
+				t.Fatalf("got %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestMissingOptionsFileIsAllowed(t *testing.T) {
+	if err := loadOptions(filepath.Join(t.TempDir(), "options.json")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInvalidOptionsAreSafeErrors(t *testing.T) {
+	const secret = "example-secret-do-not-log"
+	for name, contents := range map[string]string{
+		"syntax":       `{"device_password":"` + secret,
+		"not object":   `["` + secret + `"]`,
+		"null":         `null`,
+		"nested value": `{"device_password":{"value":"` + secret + `"}}`,
+		"list value":   `{"device_password":["` + secret + `"]}`,
+		"unsafe name":  `{"device=password":"` + secret + `"}`,
+		"uppercase":    `{"DEVICE_PASSWORD":"` + secret + `"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "options.json")
+			if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := loadOptions(path)
+			if err == nil || !strings.Contains(err.Error(), path) || strings.Contains(err.Error(), secret) {
+				t.Fatalf("got %v; want an error naming the file without its contents", err)
+			}
+		})
+	}
+	t.Run("unreadable", func(t *testing.T) {
+		if err := loadOptions(t.TempDir()); err == nil {
+			t.Fatal("a directory was treated as a missing options file")
+		}
+	})
+}
