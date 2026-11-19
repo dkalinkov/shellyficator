@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-11-19
 
 - Make this repository a Home Assistant app repository, with an experimental Shellyficator app for `amd64` and `arm64`.
 - Speed up subnet scans by skipping addresses that don't accept connections.
