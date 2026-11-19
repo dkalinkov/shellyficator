@@ -1,0 +1,13 @@
+# Vulnerabilities reviewed and accepted. OpenSSF Scorecard and osv-scanner read
+# this file. Each entry expires so it is reviewed again. Newer osv-scanner
+# releases prefer effectiveUntil, but Scorecard v5.6 only reads ignoreUntil.
+
+[[IgnoredVulns]]
+id = "GHSA-q7pp-wcgr-pffx"
+ignoreUntil = 2027-05-19
+reason = """
+disintegration/imaging can crash on a crafted TIFF, and no fixed version exists.
+PocketBase uses it only for file-field thumbnails. Shellyficator defines no file
+fields, so a crafted file can only arrive through the data-admin UI, whose users
+already control the server. Revisit when a fix is released or PocketBase drops it.
+"""
