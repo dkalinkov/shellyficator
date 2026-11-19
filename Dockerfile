@@ -59,7 +59,10 @@ ENV SHELLY_OPTIONS_FILE=/data/options.json \
     SHELLY_HOME_ASSISTANT=true
 LABEL io.hass.type="app" \
       io.hass.version="$APP_VERSION"
-HEALTHCHECK NONE
+# Home Assistant shows the app as started once Docker reports it healthy. The app
+# answers only Home Assistant's proxy, so check that it accepts connections.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --start-interval=2s --retries=3 \
+    CMD nc -z 172.30.32.1 8090 || exit 1
 ENTRYPOINT ["ha-entrypoint"]
 CMD ["serve", "--http=172.30.32.1:8090", "--dir=/data"]
 

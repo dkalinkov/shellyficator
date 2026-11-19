@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix the Home Assistant app staying in "starting" state: its image health check now reaches the app.
+
 ## 0.6.0 — 2026-11-19
 
 - Make this repository a Home Assistant app repository, with an experimental Shellyficator app for `amd64` and `arm64`.

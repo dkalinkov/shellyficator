@@ -145,10 +145,9 @@ jobs:
           load: true
           tags: shellyficator-ha:ci
 
-      # Runs the image the way Home Assistant does: /data owned by root with an
-      # options.json inside, and Docker's init process. The runner has no Home
-      # Assistant network, so the app listens on all interfaces and must refuse
-      # requests that don't come from Home Assistant's proxy.
+      # Runs the image the way Home Assistant does: on Home Assistant's internal
+      # address, /data owned by root with an options.json inside, and Docker's
+      # init process. Requests from the runner must be refused.
       - name: Smoke test the Home Assistant image
         run: |
           data=$(mktemp -d)
@@ -157,12 +156,23 @@ jobs:
             echo "{\"device_password\":\"\"}" > /data/options.json
             chmod 600 /data/options.json
             ln -s /usr/local/bin/shellyficator /data/link-to-binary'
-          docker run -d --init --name ha-smoke -p 127.0.0.1:8091:8090 -v "$data:/data" shellyficator-ha:ci \
-            serve --http=0.0.0.0:8090 --dir=/data
+          docker network create --subnet 172.30.32.0/23 --gateway 172.30.33.254 hassio
+          docker run -d --init --name ha-smoke --network hassio --ip 172.30.32.1 \
+            -p 127.0.0.1:8091:8090 -v "$data:/data" shellyficator-ha:ci
           status=$(curl -sS -o /dev/null -w '%{http_code}' --retry 15 --retry-delay 1 --retry-all-errors http://127.0.0.1:8091/healthz || true)
           if [ "$status" != 403 ]; then
             echo "Expected 403 from outside Home Assistant, got $status"
             docker logs ha-smoke
+            exit 1
+          fi
+          # Home Assistant shows the app as started only once it is healthy.
+          for _ in $(seq 1 15); do
+            health=$(docker inspect -f '{{.State.Health.Status}}' ha-smoke)
+            if [ "$health" = healthy ]; then break; fi
+            sleep 1
+          done
+          if [ "$health" != healthy ]; then
+            echo "Expected a healthy container, got $health"
             exit 1
           fi
           docker exec ha-smoke sh -euc '
@@ -171,6 +181,7 @@ jobs:
             test -z "$(find /data ! -user shellyficator)"
             test "$(stat -c %u /usr/local/bin/shellyficator)" = 0'
           docker rm -f ha-smoke
+          docker network rm hassio
 
       - name: Build the Home Assistant image for linux/arm64
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
