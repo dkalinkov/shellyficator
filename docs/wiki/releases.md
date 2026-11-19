@@ -86,10 +86,10 @@ gh release verify v0.4.0 --repo dkalinkov/shellyficator
 gh attestation verify shellyficator_0.4.0_linux_amd64.tar.gz --repo dkalinkov/shellyficator
 gh attestation verify oci://ghcr.io/dkalinkov/shellyficator:0.4.0 --repo dkalinkov/shellyficator
 
-# The same check using the bundle attached to the release (0.4.1 and later)
+# The same check using the bundle attached to the release (0.5.0 and later)
 # instead of GitHub's attestation API.
-gh attestation verify shellyficator_0.4.1_linux_amd64.tar.gz \
-  --bundle shellyficator_0.4.1_provenance.sigstore.json --repo dkalinkov/shellyficator
+gh attestation verify shellyficator_0.5.0_linux_amd64.tar.gz \
+  --bundle shellyficator_0.5.0_provenance.sigstore.json --repo dkalinkov/shellyficator
 
 # Checksums of downloaded archives.
 sha256sum --check --ignore-missing checksums.txt
