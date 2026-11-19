@@ -233,3 +233,13 @@ func TestTargetsBoundsAndAddresses(t *testing.T) {
 		t.Fatalf("unexpected range: %v, %d", err, len(addresses))
 	}
 }
+
+func TestClientRefusesAddressesOutsideTheLocalNetwork(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, address := range []string{"http://192.0.2.1", "http://[2001:db8::1]"} {
+		if _, err := NewClient("").Discover(ctx, address); err == nil || !strings.Contains(err.Error(), "local network") {
+			t.Errorf("Discover(%q) = %v, want a refusal to leave the local network", address, err)
+		}
+	}
+}
