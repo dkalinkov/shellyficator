@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Attach each release's build provenance as a Sigstore bundle, so archives can be verified without GitHub's attestation API.
 - Keep empty configuration keys from merging their settings into another path when comparing configurations.
 
 ## 0.4.0 — 2026-11-19

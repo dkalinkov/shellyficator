@@ -70,5 +70,7 @@ release:
     ```sh
     gh release verify {{ .Tag }} --repo dkalinkov/shellyficator
     gh attestation verify {{ .ProjectName }}_{{ .Version }}_linux_amd64.tar.gz --repo dkalinkov/shellyficator
+    gh attestation verify {{ .ProjectName }}_{{ .Version }}_linux_amd64.tar.gz --repo dkalinkov/shellyficator \
+      --bundle {{ .ProjectName }}_{{ .Version }}_provenance.sigstore.json
     gh attestation verify oci://ghcr.io/dkalinkov/shellyficator:{{ .Version }} --repo dkalinkov/shellyficator
     ```
