@@ -93,6 +93,16 @@ version tag in long-running deployments, preserve the volume across upgrades,
 and see [deployment and backups](docs/wiki/deployment.md). `make docker` builds
 the image locally as `shellyficator:local`.
 
+## Home Assistant
+
+On Home Assistant OS and Supervised installations, Shellyficator is available as
+an experimental app for `amd64` and `arm64`:
+
+[![Add the Shellyficator repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdkalinkov%2Fshellyficator)
+
+It opens in its own tab on port 8090 with its own login. See
+[Home Assistant](docs/wiki/home-assistant.md) for setup and limitations.
+
 ## Monitoring boundaries
 
 Monitoring covers configuration returned by `Shelly.GetConfig`. Webhook action

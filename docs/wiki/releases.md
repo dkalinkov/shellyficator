@@ -21,6 +21,9 @@ Releases are built and published by GitHub Actions from a signed tag. Nothing is
 4. Follow the **Release** workflow under the repository's Actions tab. When it
    finishes, the release appears under Releases and the image on GHCR.
 
+5. Update the Home Assistant app in a separate pull request; see
+   [maintaining the app](home-assistant.md#maintaining-the-app).
+
 Add a new `## Unreleased` section to the changelog when work continues.
 
 For a prerelease, use a version such as `0.5.0-rc.1` in `VERSION`, the changelog
