@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Make this repository a Home Assistant app repository, with an experimental Shellyficator app for `amd64` and `arm64`.
+
 ## 0.5.0 — 2026-11-19
 
 - Publish a Home Assistant app image, `ghcr.io/dkalinkov/shellyficator-ha`, for `amd64` and `arm64`. It takes ownership of Home Assistant's root-owned `/data` mount, then runs unprivileged.
