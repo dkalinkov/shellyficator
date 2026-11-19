@@ -76,14 +76,13 @@ func Differences(baseline, current map[string]any) []Difference {
 	return result
 }
 
+// flatten joins nested keys with " / ". The prefix already ends with the
+// separator, so an empty key still adds a level instead of acting as the root.
 func flatten(prefix string, object map[string]any, result map[string]any) {
 	for key, value := range object {
-		path := key
-		if prefix != "" {
-			path = prefix + " / " + key
-		}
+		path := prefix + key
 		if nested, ok := value.(map[string]any); ok && len(nested) > 0 {
-			flatten(path, nested, result)
+			flatten(path+" / ", nested, result)
 			continue
 		}
 		result[path] = value
