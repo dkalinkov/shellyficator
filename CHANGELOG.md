@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Keep empty configuration keys from merging their settings into another path when comparing configurations.
+
 ## 0.4.0 — 2026-11-19
 
 - Publish releases from signed tags through GitHub Actions: Linux amd64/arm64 archives with checksums, SBOMs, and build provenance, and multi-arch container images at `ghcr.io/dkalinkov/shellyficator`.
