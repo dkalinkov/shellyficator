@@ -1,4 +1,4 @@
-.PHONY: build run test css dev dev-build docker format format-check
+.PHONY: build run test fuzz css dev dev-build docker format format-check
 
 CSS_INPUTS := ui/styles.css internal/web/templates internal/web/templates.go \
 	$(wildcard internal/web/templates/*.html) \
@@ -44,6 +44,10 @@ dev-build: css
 test:
 	go test ./...
 	go vet ./...
+
+FUZZTIME ?= 30s
+fuzz:
+	sh scripts/fuzz.sh $(FUZZTIME)
 
 format: node_modules/.package-lock.json
 	npm run format:templates

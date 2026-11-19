@@ -23,6 +23,7 @@ integration checks against a temporary database instead.
 | `make build` | Build `bin/shellyficator` with version metadata |
 | `make test` | Go tests and vet |
 | `go test -race ./...` | Check concurrency behavior |
+| `make fuzz` | Run each fuzz target for 30 seconds (`FUZZTIME=2m` to change) |
 | `make format-check` | Check HTML template formatting |
 | `make format` | Format HTML templates |
 | `make docker` | Build local container images |
@@ -53,6 +54,22 @@ Workflow files are checked with actionlint and zizmor. Actions are pinned to ful
 commit SHAs; Dependabot proposes updates for actions, Go modules, npm packages,
 and base images weekly. After CI passes on `main`, the `edge` image is published.
 See [releases](releases.md) for the release workflow.
+
+## Fuzzing
+
+Parsers and comparisons that handle device or network input have Go fuzz tests
+(`func Fuzz…` in `_test.go` files). `go test` runs their saved inputs on every
+pull request; the [Fuzz workflow](../../.github/workflows/fuzz.yml) explores new
+inputs for a few minutes per target each week. To fuzz locally, run `make fuzz`
+or one target:
+
+```sh
+go test ./internal/domain -run='^$' -fuzz='^FuzzDifferences$' -fuzztime=2m
+```
+
+A failure writes the input under `testdata/fuzz/<target>/`. Fix the bug and
+commit that file so it stays a regression test. For a failure in the weekly
+workflow, the log prints each input and its path.
 
 ## Security scans
 
