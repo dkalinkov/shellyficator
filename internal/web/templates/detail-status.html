@@ -82,9 +82,9 @@
     <div class="grid w-full max-w-80 grid-cols-2 items-start gap-2">
       <form
         class="min-w-0"
-        action="/devices/{{ .Device.ID }}/refresh"
+        action="{{ base }}/devices/{{ .Device.ID }}/refresh"
         method="post"
-        hx-post="/devices/{{ .Device.ID }}/refresh"
+        hx-post="{{ base }}/devices/{{ .Device.ID }}/refresh"
         {{ template "detail-action-attributes" }}
       >
         {{ template "detail-action-csrf" .CSRF }}

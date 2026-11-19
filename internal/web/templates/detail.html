@@ -6,7 +6,10 @@
       {{ template "page-tools" . }}
       {{ template "header" . }}
       <main id="main" class="mx-auto max-w-[1440px] px-5 py-7 text-sm lg:px-10">
-        <a href="/" class="btn btn-sm btn-ghost -ml-3 text-base-content/65 pointer-coarse:min-h-10">
+        <a
+          href="{{ base }}/"
+          class="btn btn-sm btn-ghost -ml-3 text-base-content/65 pointer-coarse:min-h-10"
+        >
           <svg class="icon" aria-hidden="true">
             <use href="#icon-arrow-left"></use>
           </svg>
@@ -53,7 +56,7 @@
         </div>
       </main>
       {{ template "firmware-dialog" . }}
-      <script src="/assets/detail.js" defer></script>
+      <script src="{{ base }}/assets/detail.js" defer></script>
     </body>
   </html>
 {{ end }}

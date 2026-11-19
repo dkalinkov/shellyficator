@@ -109,9 +109,9 @@
 
 {{ define "organization-editor" }}
   <form
-    action="/devices/{{ .Device.ID }}/organization"
+    action="{{ base }}/devices/{{ .Device.ID }}/organization"
     method="post"
-    hx-post="/devices/{{ .Device.ID }}/organization"
+    hx-post="{{ base }}/devices/{{ .Device.ID }}/organization"
     hx-target="#inventory"
     hx-swap="innerHTML"
     hx-disabled-elt="find fieldset"

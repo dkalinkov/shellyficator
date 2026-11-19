@@ -16,6 +16,7 @@ func parseTemplates() (*template.Template, error) {
 	functions := template.FuncMap{
 		"toneClass":  toneClass,
 		"badgeClass": badgeClass,
+		"base":       func() string { return "" },
 	}
 	return template.New("app").Funcs(functions).ParseFS(assets, "templates/*.html")
 }
@@ -51,13 +52,37 @@ func (s *Server) pageMeta(e *core.RequestEvent, title string) PageMeta {
 	if level != "error" && level != "warning" {
 		level = "success"
 	}
-	return PageMeta{Title: title, CSRF: s.csrf(e), Notice: query.Get("notice"), NoticeLevel: level, Version: s.version}
+	return PageMeta{Title: title, CSRF: s.csrf(e), Notice: query.Get("notice"), NoticeLevel: level, Version: s.version, HomeAssistant: s.homeAssistant}
 }
 
 func (s *Server) render(e *core.RequestEvent, name string, data any) error {
+	templates, err := s.templatesFor(s.base(e))
+	if err != nil {
+		return err
+	}
 	var buffer bytes.Buffer
-	if err := s.templates.ExecuteTemplate(&buffer, name, data); err != nil {
+	if err := templates.ExecuteTemplate(&buffer, name, data); err != nil {
 		return err
 	}
 	return e.HTML(http.StatusOK, buffer.String())
+}
+
+// Template functions are shared by all executions of a template set, so each
+// base gets its own clone of the master, which therefore must never execute.
+func (s *Server) templatesFor(base string) (*template.Template, error) {
+	s.templatesMu.Lock()
+	defer s.templatesMu.Unlock()
+	if templates, ok := s.baseTemplates[base]; ok {
+		return templates, nil
+	}
+	templates, err := s.templates.Clone()
+	if err != nil {
+		return nil, err
+	}
+	templates.Funcs(template.FuncMap{"base": func() string { return base }})
+	if s.baseTemplates == nil {
+		s.baseTemplates = map[string]*template.Template{}
+	}
+	s.baseTemplates[base] = templates
+	return templates, nil
 }

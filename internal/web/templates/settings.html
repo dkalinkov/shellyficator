@@ -8,9 +8,9 @@
         <a
           class="link text-sm"
           href="{{ if .DeviceID }}
-            /devices/{{ .DeviceID }}
+            {{ base }}/devices/{{ .DeviceID }}
           {{ else }}
-            /
+            {{ base }}/
           {{ end }}"
         >
           {{ if .DeviceID }}
@@ -34,7 +34,7 @@
           not currently captured. These preferences monitor the configuration reported by devices;
           they cannot confirm that every button action still works.
         </p>
-        <form action="/settings" method="post" class="mt-6">
+        <form action="{{ base }}/settings" method="post" class="mt-6">
           <input type="hidden" name="csrf" value="{{ .CSRF }}" />
           <input type="hidden" name="device" value="{{ .DeviceID }}" />
           {{ if .DeviceID }}
@@ -50,7 +50,7 @@
             </label>
             <p class="mb-4 text-xs text-base-content/75">
               Uncheck to save the choices below for this device.
-              <a class="link" href="/settings">Edit app-wide preferences</a>
+              <a class="link" href="{{ base }}/settings">Edit app-wide preferences</a>
               .
             </p>
           {{ end }}

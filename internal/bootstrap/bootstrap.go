@@ -44,9 +44,13 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 		return event.Next()
 	})
 	app.OnServe().BindFunc(func(event *core.ServeEvent) error {
-		login, err := oidc.New(oidc.Config{Issuer: config.OIDCIssuer, ClientID: config.OIDCClientID, ClientSecret: config.OIDCClientSecret, RedirectURL: config.OIDCRedirectURL})
-		if err != nil {
-			return err
+		var login *oidc.Client
+		if !config.HomeAssistant {
+			var err error
+			login, err = oidc.New(oidc.Config{Issuer: config.OIDCIssuer, ClientID: config.OIDCClientID, ClientSecret: config.OIDCClientSecret, RedirectURL: config.OIDCRedirectURL})
+			if err != nil {
+				return err
+			}
 		}
 		mu.Lock()
 		if terminated {
@@ -63,7 +67,7 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 		service := deviceService
 		mu.Unlock()
 		accountService := accounts.New(accountstore.New(app))
-		options := web.Options{WatchStore: inventory.New(app), Version: build.Version, CookieSecure: config.CookieSecure}
+		options := web.Options{WatchStore: inventory.New(app), Version: build.Version, CookieSecure: config.CookieSecure, HomeAssistant: config.HomeAssistant}
 		if login != nil {
 			options.OIDC = login
 		}

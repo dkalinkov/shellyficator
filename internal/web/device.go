@@ -102,7 +102,7 @@ func (s *Server) organization(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	e.Response.Header().Set("HX-Replace-Url", inventoryURL(page))
+	e.Response.Header().Set("HX-Replace-Url", s.base(e)+inventoryURL(page))
 	s.notify(e, "Room & tags saved.", "success")
 	return s.render(e, "organization-saved", page)
 }

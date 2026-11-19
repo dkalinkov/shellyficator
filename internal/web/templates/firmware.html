@@ -30,9 +30,9 @@
 
 {{ define "firmware-plan" }}
   <form
-    action="/firmware/update"
+    action="{{ base }}/firmware/update"
     method="post"
-    hx-post="/firmware/update"
+    hx-post="{{ base }}/firmware/update"
     hx-swap="none"
     hx-disabled-elt="find fieldset"
     data-firmware-form
@@ -44,7 +44,7 @@
       <div
         hidden
         data-firmware-watch
-        hx-get="{{ .URL }}"
+        hx-get="{{ base }}{{ .URL }}"
         hx-trigger="every 2s [!document.hidden]"
         hx-target="#firmware-dialog-content"
         hx-swap="innerHTML"
@@ -175,7 +175,7 @@
         </span>
         <a
           id="firmware-dialog-cancel"
-          href="/"
+          href="{{ base }}/"
           class="btn btn-sm btn-ghost pointer-coarse:min-h-10"
           data-firmware-close
         >

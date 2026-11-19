@@ -11,10 +11,10 @@
     const rest = full ? 12000 : 2300;
     const sprite = element.querySelector('.mascot-frames');
     const still = element.querySelector('.mascot-still');
-    const sources = full ? ['/assets/mascot-full-frames.webp'] : [
-      '/assets/logo-mascot-base.png',
-      '/assets/logo-mascot-eye-open.png',
-      '/assets/logo-mascot-eye-closed.png',
+    const sources = full ? [`${basePath}/assets/mascot-full-frames.webp`] : [
+      `${basePath}/assets/logo-mascot-base.png`,
+      `${basePath}/assets/logo-mascot-eye-open.png`,
+      `${basePath}/assets/logo-mascot-eye-closed.png`,
     ];
     let visible = false;
     let loaded = false;

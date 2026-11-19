@@ -9,9 +9,9 @@
     >
       <h2 id="config-title" class="card-title">Configuration</h2>
       <form
-        action="/devices/{{ .Device.ID }}/capture"
+        action="{{ base }}/devices/{{ .Device.ID }}/capture"
         method="post"
-        hx-post="/devices/{{ .Device.ID }}/capture"
+        hx-post="{{ base }}/devices/{{ .Device.ID }}/capture"
         {{ template "detail-action-attributes" }}
       >
         {{ template "detail-action-csrf" .CSRF }}
@@ -39,7 +39,7 @@
       approve the current config when they are intentional.
     </p>
     <p class="px-4 pb-4 text-xs">
-      <a class="link" href="/settings?device={{ .Device.ID }}">
+      <a class="link" href="{{ base }}/settings?device={{ .Device.ID }}">
         Choose changes to watch for this device
       </a>
     </p>
@@ -125,9 +125,9 @@
         Saves a comparison baseline. Device settings stay unchanged.
       </p>
       <form
-        action="/devices/{{ .Device.ID }}/baseline"
+        action="{{ base }}/devices/{{ .Device.ID }}/baseline"
         method="post"
-        hx-post="/devices/{{ .Device.ID }}/baseline"
+        hx-post="{{ base }}/devices/{{ .Device.ID }}/baseline"
         {{ template "detail-action-attributes" }}
       >
         {{ template "detail-action-csrf" .CSRF }}
