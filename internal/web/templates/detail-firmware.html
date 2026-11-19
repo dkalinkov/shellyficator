@@ -8,7 +8,7 @@
       id="firmware-detail-watch"
       hidden
       data-firmware-watch
-      hx-get="/devices/{{ .Device.ID }}"
+      hx-get="{{ base }}/devices/{{ .Device.ID }}"
       hx-trigger="firmware-progress from:body{{ if .FirmwareRunning }}
         , every 2s [!document.hidden]
       {{ end }}"
@@ -26,8 +26,8 @@
         {{ if or .Detail.Table.Firmware.Available .Detail.Table.Firmware.HasResult }}
           <a
             id="firmware-update-open-{{ .Device.ID }}"
-            href="/devices/{{ .Device.ID }}/firmware"
-            hx-get="/devices/{{ .Device.ID }}/firmware"
+            href="{{ base }}/devices/{{ .Device.ID }}/firmware"
+            hx-get="{{ base }}/devices/{{ .Device.ID }}/firmware"
             hx-target="#firmware-dialog-content"
             data-firmware-open
             aria-haspopup="dialog"
@@ -44,9 +44,9 @@
           </a>
         {{ end }}
         <form
-          action="/devices/{{ .Device.ID }}/firmware/check"
+          action="{{ base }}/devices/{{ .Device.ID }}/firmware/check"
           method="post"
-          hx-post="/devices/{{ .Device.ID }}/firmware/check"
+          hx-post="{{ base }}/devices/{{ .Device.ID }}/firmware/check"
           {{ template "detail-action-attributes" }}
         >
           {{ template "detail-action-csrf" .CSRF }}

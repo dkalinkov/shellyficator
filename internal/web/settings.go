@@ -92,5 +92,5 @@ func (s *Server) saveSettings(e *core.RequestEvent) error {
 	if id != "" {
 		query.Set("device", id)
 	}
-	return e.Redirect(303, "/settings?"+query.Encode())
+	return s.redirect(e, "/settings?"+query.Encode(), "")
 }

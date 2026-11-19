@@ -30,7 +30,7 @@
               <span class="login-mascot mascot" data-mascot="full">
                 <img
                   class="mascot-still"
-                  src="/assets/mascot-full.png"
+                  src="{{ base }}/assets/mascot-full.png"
                   width="1254"
                   height="1254"
                   alt="Shellyficator's lime relay robot with screw-terminal ears and little boots."
@@ -53,7 +53,7 @@
                 </div>
               {{ end }}
               {{ if .OIDCEnabled }}
-                <form action="/login/authelia" method="post" class="login-form">
+                <form action="{{ base }}/login/authelia" method="post" class="login-form">
                   <input type="hidden" name="csrf" value="{{ .CSRF }}" />
                   <button type="submit" class="login-submit">
                     <span>Sign in with Authelia</span>
@@ -64,7 +64,7 @@
                 </form>
                 <p class="login-description mt-6">Or sign in with your password.</p>
               {{ end }}
-              <form action="/login" method="post" class="login-form">
+              <form action="{{ base }}/login" method="post" class="login-form">
                 <input type="hidden" name="csrf" value="{{ .CSRF }}" />
                 <div class="login-field">
                   <label for="email">Email</label>
@@ -119,7 +119,7 @@
           </section>
         </div>
       </main>
-      <script src="/assets/auth.js" defer></script>
+      <script src="{{ base }}/assets/auth.js" defer></script>
     </body>
   </html>
 {{ end }}
@@ -144,7 +144,7 @@
               {{ .Error }}
             </div>
           {{ end }}
-          <form action="/setup" method="post" class="mt-7 flex flex-col gap-5">
+          <form action="{{ base }}/setup" method="post" class="mt-7 flex flex-col gap-5">
             <input type="hidden" name="csrf" value="{{ .CSRF }}" />
             <div class="flex flex-col gap-2">
               <label for="email">Email</label>

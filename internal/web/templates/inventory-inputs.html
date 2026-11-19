@@ -61,7 +61,7 @@
       <a
         class="input-identity group/input flex min-h-7 max-w-60 items-center gap-2
           pointer-coarse:min-h-10"
-        href="/devices/{{ .DeviceID }}#note-{{ .Key }}"
+        href="{{ base }}/devices/{{ .DeviceID }}#note-{{ .Key }}"
         data-tooltip="Input {{ .ID }} · {{ .Type }}{{ if .Name }}&#10;{{ .Name }}{{ end }}"
       >
         <span class="input-title shrink-0 font-medium text-info group-hover/input:underline">
@@ -149,7 +149,7 @@
           <a
             class="input-note-link btn btn-ghost btn-square btn-xs relative text-secondary
               pointer-coarse:size-10"
-            href="/devices/{{ .DeviceID }}#note-{{ .Key }}"
+            href="{{ base }}/devices/{{ .DeviceID }}#note-{{ .Key }}"
             aria-label="Input {{ .ID }} note"
             data-tooltip="Input {{ .ID }} note&#10;{{ .Note }}"
           >
@@ -168,7 +168,7 @@
           <a
             class="input-note-link btn btn-ghost btn-square btn-xs relative text-secondary
               pointer-coarse:size-10"
-            href="/devices/{{ .DeviceID }}#note-{{ .RelayKey }}"
+            href="{{ base }}/devices/{{ .DeviceID }}#note-{{ .RelayKey }}"
             aria-label="Relay {{ .RelayID }} note"
             data-tooltip="Relay {{ .RelayID }} note&#10;{{ .RelayNote }}"
           >

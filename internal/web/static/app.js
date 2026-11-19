@@ -1,3 +1,4 @@
+const basePath = document.querySelector('meta[name="base-path"]').content;
 const toastStack = document.getElementById('toast-stack');
 const toastTemplate = document.getElementById('toast-template');
 const toasts = new Set();

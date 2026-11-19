@@ -10,7 +10,7 @@
         {{ template "filters" . }}
         <div
           id="inventory"
-          hx-get="/inventory/refresh"
+          hx-get="{{ base }}/inventory/refresh"
           hx-trigger="every 30s"
           hx-include="#filters"
           hx-swap="innerHTML"

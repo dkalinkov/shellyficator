@@ -23,6 +23,7 @@ type Config struct {
 	OIDCClientID     string
 	OIDCClientSecret string
 	OIDCRedirectURL  string
+	HomeAssistant    bool
 }
 
 // LoadConfig reads the optional SHELLY_OPTIONS_FILE, then optional dotenv files
@@ -46,6 +47,7 @@ func LoadConfig() (Config, error) {
 		OIDCClientID:     os.Getenv("SHELLY_OIDC_CLIENT_ID"),
 		OIDCClientSecret: os.Getenv("SHELLY_OIDC_CLIENT_SECRET"),
 		OIDCRedirectURL:  os.Getenv("SHELLY_OIDC_REDIRECT_URL"),
+		HomeAssistant:    os.Getenv("SHELLY_HOME_ASSISTANT") == "true",
 	}, nil
 }
 

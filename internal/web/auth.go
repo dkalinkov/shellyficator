@@ -26,7 +26,7 @@ func (s *Server) loginPage(e *core.RequestEvent) error {
 		return err
 	}
 	if needsSetup {
-		return e.Redirect(http.StatusSeeOther, "/setup")
+		return s.redirect(e, "/setup", "")
 	}
 	message := ""
 	if e.Request.URL.Query().Get("oidc_error") != "" {
@@ -47,7 +47,7 @@ func (s *Server) csrf(e *core.RequestEvent) string {
 	var token [32]byte
 	_, _ = rand.Read(token[:])
 	value := hex.EncodeToString(token[:])
-	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_csrf", Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: s.secureCookie(e), MaxAge: 86400})
+	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_csrf", Value: value, Path: s.base(e) + "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: s.secureCookie(e), MaxAge: 86400})
 	return value
 }
 
@@ -78,6 +78,10 @@ func (s *Server) requireLogin(e *core.RequestEvent) error {
 	e.Response.Header().Set("Cache-Control", "no-store")
 	e.Response.Header().Set("Referrer-Policy", "same-origin")
 	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
+	// Home Assistant signs users in before its proxy forwards their requests.
+	if s.homeAssistant {
+		return e.Next()
+	}
 	cookie, err := e.Request.Cookie("shelly_session")
 	if err == nil {
 		_, err := s.accounts.ValidateSession(cookie.Value)
@@ -86,10 +90,10 @@ func (s *Server) requireLogin(e *core.RequestEvent) error {
 		}
 	}
 	if e.Request.Header.Get("HX-Request") == "true" {
-		e.Response.Header().Set("HX-Redirect", "/login")
+		e.Response.Header().Set("HX-Redirect", s.base(e)+"/login")
 		return e.NoContent(401)
 	}
-	return e.Redirect(http.StatusSeeOther, "/login")
+	return s.redirect(e, "/login", "")
 }
 
 func (s *Server) login(e *core.RequestEvent) error {
@@ -106,7 +110,7 @@ func (s *Server) login(e *core.RequestEvent) error {
 	}
 	s.resetPasswordAttempts(e)
 	s.setSession(e, session.Token)
-	return e.Redirect(http.StatusSeeOther, "/")
+	return s.redirect(e, "/", "")
 }
 
 // Password APIs stay available to native clients and the data admin, but share
@@ -164,7 +168,7 @@ func (s *Server) setupPage(e *core.RequestEvent) error {
 		return err
 	}
 	if !needsSetup {
-		return e.Redirect(http.StatusSeeOther, "/login")
+		return s.redirect(e, "/login", "")
 	}
 	return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account")})
 }
@@ -183,5 +187,5 @@ func (s *Server) setup(e *core.RequestEvent) error {
 
 func (s *Server) logout(e *core.RequestEvent) error {
 	http.SetCookie(e.Response, &http.Cookie{Name: "shelly_session", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: s.secureCookie(e), MaxAge: -1})
-	return e.Redirect(http.StatusSeeOther, "/login")
+	return s.redirect(e, "/login", "")
 }

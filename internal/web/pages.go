@@ -6,6 +6,7 @@ import (
 
 type PageMeta struct {
 	Title, CSRF, Notice, NoticeLevel, Version string
+	HomeAssistant                             bool
 }
 
 type AuthPage struct {

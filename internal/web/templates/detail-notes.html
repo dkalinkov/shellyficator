@@ -31,7 +31,7 @@
     </div>
     <form
       class="grid gap-4 p-4"
-      action="/devices/{{ .Device.ID }}/metadata"
+      action="{{ base }}/devices/{{ .Device.ID }}/metadata"
       method="post"
       data-metadata-form
     >
@@ -100,7 +100,7 @@
     <form
       class="collapse-content grid gap-2.5"
       method="post"
-      action="/devices/{{ .DeviceID }}/channel-notes"
+      action="{{ base }}/devices/{{ .DeviceID }}/channel-notes"
     >
       <input type="hidden" name="csrf" value="{{ .CSRF }}" />
       <input type="hidden" name="component" value="{{ .Channel.Key }}" />

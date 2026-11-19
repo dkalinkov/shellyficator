@@ -9,7 +9,7 @@
       {{ if .Table.Note }}has-note{{ end }}
       {{ if .Table.InputsChanged }}device-row-changed{{ end }}
       {{ if eq .Table.ConnectivityTone "error" }}device-row-error{{ end }}"
-      data-row-href="/devices/{{ .Info.ID }}"
+      data-row-href="{{ base }}/devices/{{ .Info.ID }}"
     >
       <th
         scope="row"
@@ -26,7 +26,7 @@
           <a
             class="device-name min-w-0 truncate font-medium hover:text-info
             inventory-card:wrap-anywhere inventory-card:whitespace-normal"
-            href="/devices/{{ .Info.ID }}"
+            href="{{ base }}/devices/{{ .Info.ID }}"
             data-tooltip="{{ .Name }}&#10;{{ .Table.Identity }}"
           >
             {{ .Name }}
@@ -99,7 +99,7 @@
           {{ else }}
             room-empty btn-ghost border-dashed border-base-content/25 text-base-content/55
           {{ end }}"
-          hx-get="/devices/{{ .Info.ID }}/organization"
+          hx-get="{{ base }}/devices/{{ .Info.ID }}/organization"
           hx-target="#organization-content"
           data-organization-open
           data-room-label="{{ .Info.Room }}"
@@ -124,7 +124,7 @@
           class="device-status inline-flex max-w-full flex-nowrap items-center inventory-card:flex-wrap [&>a]:shrink-0"
         >
           <a
-            href="/devices/{{ .Info.ID }}"
+            href="{{ base }}/devices/{{ .Info.ID }}"
             class="status-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
             {{ toneClass .Table.ConnectivityTone }}"
             aria-label="{{ .Table.Connectivity }}: {{ .Name }}"
@@ -136,7 +136,7 @@
           </a>
           {{ if eq .Table.Cloud.Value "Connected" }}
             <a
-              href="/devices/{{ .Info.ID }}#detail-connection"
+              href="{{ base }}/devices/{{ .Info.ID }}#detail-connection"
               class="cloud-indicator btn btn-ghost btn-square btn-xs pointer-coarse:size-10
               {{ toneClass .Table.Cloud.Tone }}
               {{ if eq .Table.Cloud.Tone "muted" }}
@@ -171,8 +171,8 @@
           {{ if .Table.Firmware.Visible }}
             <a
               id="firmware-open-{{ .Info.ID }}"
-              href="/devices/{{ .Info.ID }}/firmware"
-              hx-get="/devices/{{ .Info.ID }}/firmware"
+              href="{{ base }}/devices/{{ .Info.ID }}/firmware"
+              hx-get="{{ base }}/devices/{{ .Info.ID }}/firmware"
               hx-target="#firmware-dialog-content"
               data-firmware-open
               aria-haspopup="dialog"
@@ -196,7 +196,7 @@
           {{ end }}
           {{ if .Table.RestartRequired }}
             <a
-              href="/devices/{{ .Info.ID }}#detail-connection"
+              href="{{ base }}/devices/{{ .Info.ID }}#detail-connection"
               class="restart-indicator btn btn-ghost btn-square btn-xs text-warning
                 pointer-coarse:size-10"
               aria-label="Restart required for {{ .Name }}"
@@ -230,7 +230,7 @@
       </td>
       <td class="device-config inventory-card:col-start-2 inventory-card:row-start-4">
         <a
-          href="/devices/{{ .Info.ID }}"
+          href="{{ base }}/devices/{{ .Info.ID }}"
           class="config-value badge badge-soft badge-sm max-w-full gap-1 text-[11px]
           pointer-coarse:min-h-10 {{ badgeClass .Table.ConfigurationTone }}"
           aria-label="Saved config: {{ .Table.Configuration }}{{ if .Table.ConfigurationStale -}}
@@ -257,7 +257,7 @@
             type="button"
             class="tag-editor btn btn-ghost btn-xs w-10 gap-0.5 px-0.5 text-secondary
               pointer-coarse:h-10"
-            hx-get="/devices/{{ .Info.ID }}/organization"
+            hx-get="{{ base }}/devices/{{ .Info.ID }}/organization"
             hx-target="#organization-content"
             data-organization-open
             aria-haspopup="dialog"
@@ -309,7 +309,7 @@
           </button>
           {{ if .Table.Note }}
             <a
-              href="/devices/{{ .Info.ID }}#device-notes"
+              href="{{ base }}/devices/{{ .Info.ID }}#device-notes"
               class="note-indicator btn btn-ghost btn-square btn-xs text-secondary
                 pointer-coarse:size-10"
               aria-label="Note for {{ .Name }}"

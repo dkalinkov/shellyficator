@@ -146,6 +146,32 @@ func TestServingUsesPresentationConfiguration(t *testing.T) {
 	t.Fatal("setup did not issue a CSRF cookie")
 }
 
+func TestHomeAssistantServingSkipsOIDC(t *testing.T) {
+	app := testApp(t, nil, Config{HomeAssistant: true, OIDCIssuer: "https://auth.example.com"}, BuildInfo{})
+	if err := app.Bootstrap(); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.RunAllMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.OnServe().Trigger(&core.ServeEvent{App: app, Router: router}); err != nil {
+		t.Fatalf("incomplete OIDC settings blocked Home Assistant serving: %v", err)
+	}
+	mux, err := router.BuildMux()
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Home Assistant mode did not reach the web server: %d", response.Code)
+	}
+}
+
 func TestServingLifecycleDrainsWorkBeforeStorageCloses(t *testing.T) {
 	for _, failStartup := range []bool{false, true} {
 		name := "termination"

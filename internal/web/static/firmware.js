@@ -28,7 +28,7 @@
     }
     if (event.target.closest('[data-firmware-close]')) {
       if (dialog?.open) closeDialog(event);
-      else if (event.target.closest('button')) window.location.assign('/');
+      else if (event.target.closest('button')) window.location.assign(basePath + '/');
     }
     if (event.target.closest('[data-firmware-select-stable]')) {
       const form = event.target.closest('form');

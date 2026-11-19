@@ -4,16 +4,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <meta name="htmx-config" content='{"historyCacheSize":0}' />
+    <meta name="base-path" content="{{ base }}" />
     <title>{{ .Title }} · Shellyficator</title>
-    <link rel="icon" href="/assets/logo-mascot-32.png" type="image/png" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/assets/logo-mascot-180.png" sizes="180x180" />
-    <link rel="preload" href="/assets/archivo-900.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/app.css?v=wink-rest" />
-    <script src="/assets/htmx.min.js" defer></script>
-    <script src="/assets/app.js" defer></script>
-    <script src="/assets/mascot.js?v=wink-900ms" defer></script>
-    <script src="/assets/organization.js" defer></script>
-    <script src="/assets/firmware.js" defer></script>
+    <link rel="icon" href="{{ base }}/assets/logo-mascot-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="{{ base }}/assets/logo-mascot-180.png" sizes="180x180" />
+    <link
+      rel="preload"
+      href="{{ base }}/assets/archivo-900.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="{{ base }}/assets/app.css?v=wink-rest" />
+    <script src="{{ base }}/assets/htmx.min.js" defer></script>
+    <script src="{{ base }}/assets/app.js" defer></script>
+    <script src="{{ base }}/assets/mascot.js?v=wink-900ms" defer></script>
+    <script src="{{ base }}/assets/organization.js" defer></script>
+    <script src="{{ base }}/assets/firmware.js" defer></script>
   </head>
 {{ end }}
 
@@ -39,7 +46,13 @@
 {{ define "brand" }}
   <span class="brand" role="img" aria-label="Shellyficator 9000">
     <span class="brand-symbol mascot" data-mascot="head" aria-hidden="true">
-      <img class="mascot-still" src="/assets/logo-mascot.png" width="128" height="128" alt="" />
+      <img
+        class="mascot-still"
+        src="{{ base }}/assets/logo-mascot.png"
+        width="128"
+        height="128"
+        alt=""
+      />
       <span class="mascot-frames"></span>
     </span>
     <span class="brand-wordmark" aria-hidden="true">
@@ -58,7 +71,7 @@
 {{ define "header" }}
   <header class="project-header">
     <div class="project-header-inner">
-      <a class="project-home" href="/" aria-label="Shellyficator home">
+      <a class="project-home" href="{{ base }}/" aria-label="Shellyficator home">
         {{ template "brand" . }}
       </a>
       <nav aria-label="Main navigation" class="project-utilities">
@@ -66,36 +79,43 @@
           v{{ .Version }}
         </p>
         <div class="project-actions">
-          <a href="/settings" class="project-action" aria-label="Settings" title="Settings">
+          <a
+            href="{{ base }}/settings"
+            class="project-action"
+            aria-label="Settings"
+            title="Settings"
+          >
             <svg class="icon" aria-hidden="true"><use href="#icon-config"></use></svg>
             <span>Settings</span>
           </a>
-          <a
-            href="/_/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="project-action"
-            aria-label="Data admin (opens in a new tab)"
-            title="Data admin (opens in a new tab)"
-          >
-            <svg class="icon" aria-hidden="true">
-              <use href="#icon-database"></use>
-            </svg>
-            <span>Data admin</span>
-            <svg class="icon external-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 17 17 7M7 7h10v10" />
-            </svg>
-          </a>
-          <span class="project-action-divider" aria-hidden="true"></span>
-          <form action="/logout" method="post">
-            <input type="hidden" name="csrf" value="{{ .CSRF }}" />
-            <button class="project-action" type="submit" aria-label="Sign out" title="Sign out">
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 5H4v14h5M14 8l4 4-4 4M8 12h10" />
+          {{ if not .HomeAssistant }}
+            <a
+              href="{{ base }}/_/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="project-action"
+              aria-label="Data admin (opens in a new tab)"
+              title="Data admin (opens in a new tab)"
+            >
+              <svg class="icon" aria-hidden="true">
+                <use href="#icon-database"></use>
               </svg>
-              <span>Sign out</span>
-            </button>
-          </form>
+              <span>Data admin</span>
+              <svg class="icon external-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 17 17 7M7 7h10v10" />
+              </svg>
+            </a>
+            <span class="project-action-divider" aria-hidden="true"></span>
+            <form action="{{ base }}/logout" method="post">
+              <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+              <button class="project-action" type="submit" aria-label="Sign out" title="Sign out">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 5H4v14h5M14 8l4 4-4 4M8 12h10" />
+                </svg>
+                <span>Sign out</span>
+              </button>
+            </form>
+          {{ end }}
         </div>
       </nav>
     </div>

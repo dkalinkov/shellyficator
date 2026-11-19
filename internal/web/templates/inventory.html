@@ -2,7 +2,7 @@
   <div
     hidden
     data-firmware-watch
-    hx-get="/inventory"
+    hx-get="{{ base }}/inventory"
     hx-trigger="firmware-progress from:body{{ if .FirmwareRunning }}
       , every 2s [!document.hidden]
     {{ end }}"
@@ -48,8 +48,8 @@
       {{ end }}
       <a
         id="firmware-open-all"
-        href="/firmware"
-        hx-get="/firmware"
+        href="{{ base }}/firmware"
+        hx-get="{{ base }}/firmware"
         hx-include="#filters"
         hx-target="#firmware-dialog-content"
         data-firmware-open

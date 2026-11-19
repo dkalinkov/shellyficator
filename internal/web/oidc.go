@@ -57,7 +57,7 @@ func (s *Server) oidcLogin(e *core.RequestEvent) error {
 func (s *Server) oidcCallback(e *core.RequestEvent) error {
 	e.Response.Header().Set("Cache-Control", "no-store")
 	e.Response.Header().Set("Referrer-Policy", "no-referrer")
-	fail := func() error { return e.Redirect(http.StatusSeeOther, "/login?oidc_error=failed") }
+	fail := func() error { return s.redirect(e, "/login?oidc_error=failed", "") }
 	query := e.Request.URL.Query()
 	state := query.Get("state")
 	cookie, err := e.Request.Cookie("shelly_oidc")
@@ -83,5 +83,5 @@ func (s *Server) oidcCallback(e *core.RequestEvent) error {
 		return fail()
 	}
 	s.setSession(e, session.Token)
-	return e.Redirect(http.StatusSeeOther, "/")
+	return s.redirect(e, "/", "")
 }

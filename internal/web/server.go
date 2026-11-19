@@ -56,10 +56,11 @@ type WatchStore interface {
 }
 
 type Options struct {
-	WatchStore   WatchStore
-	Version      string
-	CookieSecure bool
-	OIDC         OIDC
+	WatchStore    WatchStore
+	Version       string
+	CookieSecure  bool
+	OIDC          OIDC
+	HomeAssistant bool
 }
 
 type Server struct {
@@ -67,8 +68,11 @@ type Server struct {
 	devices       Devices
 	accounts      Accounts
 	templates     *template.Template
+	templatesMu   sync.Mutex
+	baseTemplates map[string]*template.Template
 	version       string
 	cookieSecure  bool
+	homeAssistant bool
 	authMu        sync.Mutex
 	loginAttempts map[string]loginAttempt
 	oidc          OIDC
@@ -86,7 +90,7 @@ func Register(e *core.ServeEvent, devices Devices, accounts Accounts, options Op
 	if err != nil {
 		return err
 	}
-	s := &Server{watchStore: options.WatchStore, devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, loginAttempts: map[string]loginAttempt{}, oidc: options.OIDC, oidcPending: map[string]oidcAttempt{}}
+	s := &Server{watchStore: options.WatchStore, devices: devices, accounts: accounts, templates: templates, version: options.Version, cookieSecure: options.CookieSecure, homeAssistant: options.HomeAssistant, loginAttempts: map[string]loginAttempt{}, oidc: options.OIDC, oidcPending: map[string]oidcAttempt{}}
 	s.registerPasswordLimiter(e.App)
 	s.registerRoutes(e.Router, static)
 	return nil
@@ -99,7 +103,7 @@ func (s *Server) redirect(e *core.RequestEvent, path, notice string, level ...st
 			path += "&notice_level=" + url.QueryEscape(level[0])
 		}
 	}
-	return e.Redirect(http.StatusSeeOther, path)
+	return e.Redirect(http.StatusSeeOther, s.base(e)+path)
 }
 
 func (s *Server) notify(e *core.RequestEvent, message, level string) {

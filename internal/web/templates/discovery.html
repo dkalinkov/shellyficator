@@ -2,13 +2,18 @@
   <section aria-labelledby="devices-title" class="mb-6">
     <div class="flex flex-wrap items-center justify-between gap-5">
       <h1 id="devices-title" class="text-2xl font-semibold tracking-tight">Devices</h1>
-      <form action="/discover" method="post">
+      <form action="{{ base }}/discover" method="post">
         <input type="hidden" name="csrf" value="{{ .CSRF }}" />
         <input type="hidden" name="mode" value="auto" />
         <button class="btn btn-primary" type="submit">Discover</button>
       </form>
     </div>
-    <div hx-get="/discovery/progress" hx-trigger="every 2s" hx-swap="innerHTML" aria-live="polite">
+    <div
+      hx-get="{{ base }}/discovery/progress"
+      hx-trigger="every 2s"
+      hx-swap="innerHTML"
+      aria-live="polite"
+    >
       {{ template "discovery" . }}
     </div>
     <details class="mt-3">
@@ -22,7 +27,7 @@
             {{ range .RememberedNetworks }}
               <li class="flex flex-wrap items-center gap-2">
                 <span class="font-mono text-sm">{{ . }}</span>
-                <form action="/discover" method="post">
+                <form action="{{ base }}/discover" method="post">
                   <input type="hidden" name="csrf" value="{{ $.CSRF }}" />
                   <input type="hidden" name="target" value="{{ . }}" />
                   <button class="btn btn-sm btn-outline" type="submit">
@@ -30,7 +35,7 @@
                     <span class="sr-only">{{ . }}</span>
                   </button>
                 </form>
-                <form action="/discovery/networks/forget" method="post">
+                <form action="{{ base }}/discovery/networks/forget" method="post">
                   <input type="hidden" name="csrf" value="{{ $.CSRF }}" />
                   <input type="hidden" name="network" value="{{ . }}" />
                   <button class="btn btn-sm btn-ghost" type="submit">
@@ -46,7 +51,7 @@
       {{ if .Networks }}
         <div class="mt-4 flex flex-wrap gap-2">
           {{ range .Networks }}
-            <form action="/discover" method="post">
+            <form action="{{ base }}/discover" method="post">
               <input type="hidden" name="csrf" value="{{ $.CSRF }}" />
               <input type="hidden" name="target" value="{{ .Prefix }}" />
               <button class="btn btn-sm btn-outline" type="submit">
@@ -58,7 +63,7 @@
         </div>
       {{ end }}
       <form
-        action="/discover"
+        action="{{ base }}/discover"
         method="post"
         class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
       >

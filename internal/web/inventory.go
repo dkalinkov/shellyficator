@@ -233,6 +233,6 @@ func (s *Server) table(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	e.Response.Header().Set("HX-Replace-Url", inventoryURL(page))
+	e.Response.Header().Set("HX-Replace-Url", s.base(e)+inventoryURL(page))
 	return s.render(e, "inventory-updated", page)
 }

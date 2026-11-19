@@ -17,28 +17,28 @@
 /* Local font files; components and layout use DaisyUI and Tailwind classes. */
 @font-face {
   font-family: "Plex";
-  src: url("/assets/plex-400.woff2") format("woff2");
+  src: url("plex-400.woff2") format("woff2");
   font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Plex";
-  src: url("/assets/plex-500.woff2") format("woff2");
+  src: url("plex-500.woff2") format("woff2");
   font-weight: 500;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Plex";
-  src: url("/assets/plex-600.woff2") format("woff2");
+  src: url("plex-600.woff2") format("woff2");
   font-weight: 600;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Archivo";
-  src: url("/assets/archivo-900.woff2") format("woff2");
+  src: url("archivo-900.woff2") format("woff2");
   font-style: normal;
   font-weight: 900;
   font-display: swap;
