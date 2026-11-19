@@ -38,6 +38,12 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    # 4.3.5 drops daisyUI's .join focus and hover rules ("Invalid empty selector").
+    ignore:
+      - dependency-name: "tailwindcss"
+        versions: ["4.3.5"]
+      - dependency-name: "@tailwindcss/cli"
+        versions: ["4.3.5"]
     commit-message:
       prefix: chore
       include: scope
