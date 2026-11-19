@@ -1,0 +1,7 @@
+configuration:
+  device_password:
+    name: Shared device password
+    description: >-
+      Password for Shelly devices that have authentication enabled, sent with
+      the device username admin. Shellyficator only uses it to read devices and
+      never changes device passwords. Leave empty if your devices have none.

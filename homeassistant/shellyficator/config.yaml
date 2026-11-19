@@ -1,0 +1,23 @@
+# Home Assistant offers an update as soon as `version` changes, so change it
+# only after that release is published. CI checks the image exists. See
+# docs/wiki/home-assistant.md#maintaining-the-app.
+name: Shellyficator
+version: "0.5.0"
+slug: shellyficator
+description: Know what changed on your Shelly devices.
+url: https://github.com/dkalinkov/shellyficator
+arch:
+  - aarch64
+  - amd64
+image: ghcr.io/dkalinkov/shellyficator-ha
+stage: experimental
+# mDNS and the ARP cache need the host's network to discover devices.
+host_network: true
+webui: "http://[HOST]:[PORT:8090]/"
+watchdog: "http://[HOST]:[PORT:8090]/healthz"
+# Stop the app during backups so its SQLite databases are copied consistently.
+backup: cold
+options:
+  device_password: ""
+schema:
+  device_password: password?
