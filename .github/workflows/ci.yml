@@ -136,6 +136,44 @@ jobs:
           context: .
           platforms: linux/arm64
 
+      - name: Build the Home Assistant image for linux/amd64
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: homeassistant
+          platforms: linux/amd64
+          load: true
+          tags: shellyficator-ha:ci
+
+      # Runs the image the way Home Assistant does: /data owned by root with an
+      # options.json inside, and Docker's init process.
+      - name: Smoke test the Home Assistant image
+        run: |
+          data=$(mktemp -d)
+          docker run --rm --entrypoint sh -v "$data:/data" shellyficator-ha:ci -c '
+            chown 0:0 /data
+            echo "{\"device_password\":\"\"}" > /data/options.json
+            chmod 600 /data/options.json
+            ln -s /usr/local/bin/shellyficator /data/link-to-binary'
+          docker run -d --init --name ha-smoke -p 127.0.0.1:8091:8090 -v "$data:/data" shellyficator-ha:ci
+          if ! curl -fsS --retry 15 --retry-delay 1 --retry-all-errors http://127.0.0.1:8091/healthz; then
+            docker logs ha-smoke
+            exit 1
+          fi
+          docker exec ha-smoke sh -euc '
+            pid=$(pidof shellyficator)
+            test "$(awk "/^Uid:/ {print \$2}" "/proc/$pid/status")" = 10001
+            test -z "$(find /data ! -user shellyficator)"
+            test "$(stat -c %u /usr/local/bin/shellyficator)" = 0'
+          docker rm -f ha-smoke
+
+      - name: Build the Home Assistant image for linux/arm64
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: homeassistant
+          platforms: linux/arm64
+
   release-config:
     name: Release dry run
     runs-on: ubuntu-24.04
