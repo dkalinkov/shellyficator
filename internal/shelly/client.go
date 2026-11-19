@@ -138,6 +138,26 @@ func (c *Client) identify(ctx context.Context, address, expectedMAC string) (dom
 	return reading, nil
 }
 
+func Reachable(ctx context.Context, address string) bool {
+	u, err := url.Parse(address)
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
+	}
+	conn, err := dialLocal(ctx, "tcp", net.JoinHostPort(u.Hostname(), port))
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
 // Discovery and refresh use the same bounded retries and identity validation.
 func (c *Client) Discover(ctx context.Context, address string) (domain.Reading, error) {
 	return c.Read(ctx, address, "", true)

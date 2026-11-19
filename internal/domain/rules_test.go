@@ -59,3 +59,21 @@ func TestCanonicalOrganizationPreservesExistingNames(t *testing.T) {
 		t.Fatalf("unexpected organization: %q %v %v", room, tags, err)
 	}
 }
+
+func TestNetworkPrefix(t *testing.T) {
+	for value, want := range map[string]string{
+		"192.168.1.77/24": "192.168.1.0/24",
+		" 10.0.0.0/24 ":   "10.0.0.0/24",
+		"172.16.4.130/25": "172.16.4.128/25",
+		"192.168.1.5/32":  "192.168.1.5/32",
+		"192.168.0.0/16":  "",
+		"8.8.8.0/24":      "",
+		"fd00::/120":      "",
+		"192.168.1.5":     "",
+		"not a network":   "",
+	} {
+		if got := NetworkPrefix(value); got != want {
+			t.Errorf("NetworkPrefix(%q) = %q, want %q", value, got, want)
+		}
+	}
+}

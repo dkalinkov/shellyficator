@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -185,8 +186,22 @@ func (s *Server) dashboard(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	page.Networks, _ = s.devices.LocalNetworks()
+	page.RememberedNetworks, _ = s.devices.DiscoveryNetworks()
+	networks, _ := s.devices.LocalNetworks()
+	for _, network := range networks {
+		if !slices.Contains(page.RememberedNetworks, network.Prefix) {
+			page.Networks = append(page.Networks, network)
+		}
+	}
 	return s.render(e, "dashboard", page)
+}
+
+func (s *Server) forgetNetwork(e *core.RequestEvent) error {
+	network := domain.NetworkPrefix(e.Request.FormValue("network"))
+	if network == "" || s.devices.ForgetNetwork(network) != nil {
+		return s.redirect(e, "/", "Could not forget that network.", "error")
+	}
+	return s.redirect(e, "/", "Discover no longer checks "+network+".")
 }
 
 func (s *Server) progress(e *core.RequestEvent) error {

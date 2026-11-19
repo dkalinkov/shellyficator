@@ -28,6 +28,9 @@ type Repository interface {
 	ChannelNotes(string) (map[string]string, error)
 	SaveChannelNote(id, component, notes string) error
 	SaveFirmwareUpdates(map[string]domain.FirmwareUpdate) error
+	DiscoveryNetworks() ([]string, error)
+	RememberNetwork(string) error
+	ForgetNetwork(string) error
 }
 
 type Client interface {
@@ -44,6 +47,7 @@ type DiscoverySource interface {
 	Addresses([]string) []string
 	LocalNetworks() ([]domain.Network, error)
 	Explain(error) string
+	Reachable(context.Context, string) bool
 }
 
 var errDiscoveryUnavailable = errors.New("device discovery is not configured")
@@ -180,6 +184,20 @@ func (s *Service) LocalNetworks() ([]domain.Network, error) {
 		return nil, errDiscoveryUnavailable
 	}
 	return s.source.LocalNetworks()
+}
+
+func (s *Service) DiscoveryNetworks() ([]string, error) {
+	if err := s.startJob(); err != nil {
+		return nil, err
+	}
+	defer s.jobs.Done()
+	s.inventoryMu.RLock()
+	defer s.inventoryMu.RUnlock()
+	return s.store.DiscoveryNetworks()
+}
+
+func (s *Service) ForgetNetwork(prefix string) error {
+	return s.change(func() error { return s.store.ForgetNetwork(prefix) })
 }
 
 func (s *Service) OrganizationOptions() (domain.OrganizationOptions, error) {

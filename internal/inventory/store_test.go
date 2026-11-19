@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -340,4 +341,45 @@ func testChannelNotes(t *testing.T, store *Store, id string) map[string]string {
 		t.Fatal(err)
 	}
 	return notes
+}
+
+func TestDiscoveryNetworks(t *testing.T) {
+	store := testStore(t)
+	for _, network := range []string{"192.168.1.77/24", "192.168.1.0/24", "10.0.5.0/24"} {
+		if err := store.RememberNetwork(network); err != nil {
+			t.Fatalf("RememberNetwork(%q): %v", network, err)
+		}
+	}
+	if err := store.RememberNetwork("8.8.8.0/24"); err == nil {
+		t.Error("RememberNetwork accepted a public network")
+	}
+	networks, err := store.DiscoveryNetworks()
+	if err != nil || strings.Join(networks, " ") != "10.0.5.0/24 192.168.1.0/24" {
+		t.Fatalf("networks were not normalized, deduplicated, and sorted: %v %v", networks, err)
+	}
+	for _, network := range []string{"192.168.10.0/24", "192.168.9.0/24"} {
+		if err := store.RememberNetwork(network); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.RememberNetwork("172.16.1.0/24"); !errors.Is(err, domain.ErrNetworkLimit) {
+		t.Fatalf("fifth network: got %v, want the network limit", err)
+	}
+	if err := store.RememberNetwork("10.0.5.0/24"); err != nil {
+		t.Fatalf("remembering a known network at the limit failed: %v", err)
+	}
+	networks, _ = store.DiscoveryNetworks()
+	if strings.Join(networks, " ") != "10.0.5.0/24 192.168.1.0/24 192.168.9.0/24 192.168.10.0/24" {
+		t.Fatalf("networks are not in address order: %v", networks)
+	}
+	if err := store.ForgetNetwork("192.168.1.9/24"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ForgetNetwork("192.168.77.0/24"); err != nil {
+		t.Fatalf("forgetting an unknown network failed: %v", err)
+	}
+	networks, _ = store.DiscoveryNetworks()
+	if strings.Join(networks, " ") != "10.0.5.0/24 192.168.9.0/24 192.168.10.0/24" {
+		t.Fatalf("network was not forgotten: %v", networks)
+	}
 }

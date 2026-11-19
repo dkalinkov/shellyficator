@@ -4,6 +4,9 @@ package domain
 
 import (
 	"errors"
+	"fmt"
+	"net/netip"
+	"strings"
 	"time"
 )
 
@@ -20,7 +23,10 @@ var (
 	ErrFirmwareBusy       = errors.New("a firmware update is already running")
 	ErrFirmwareSelection  = errors.New("review the selected devices and firmware versions")
 	ErrFirmwareRejected   = errors.New("device rejected the firmware update")
+	ErrNetworkLimit       = fmt.Errorf("at most %d networks can be remembered", MaxDiscoveryNetworks)
 )
+
+const MaxDiscoveryNetworks = 4
 
 type Identity struct {
 	ID, MAC, Name, Model, Version string
@@ -93,6 +99,15 @@ type Discovery struct {
 }
 
 type Network struct{ Interface, Prefix string }
+
+// NetworkPrefix returns "" unless value is a private IPv4 range of /24 or smaller.
+func NetworkPrefix(value string) string {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
+	if err != nil || !prefix.Addr().Is4() || !prefix.Addr().IsPrivate() || prefix.Bits() < 24 {
+		return ""
+	}
+	return prefix.Masked().String()
+}
 
 type RefreshResult struct{ StatusAvailable bool }
 

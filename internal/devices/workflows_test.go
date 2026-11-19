@@ -565,3 +565,7 @@ func TestRefreshDeviceRepositoryLookupFailuresRemainDistinctFromReadFailures(t *
 		})
 	}
 }
+
+func (r *memoryRepository) DiscoveryNetworks() ([]string, error) { return nil, nil }
+func (r *memoryRepository) RememberNetwork(string) error         { return nil }
+func (r *memoryRepository) ForgetNetwork(string) error           { return nil }
