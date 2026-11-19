@@ -11,13 +11,13 @@
     "build": "npm run vendor && npm run build:css"
   },
   "devDependencies": {
-    "prettier": "3.9.9",
+    "prettier": "3.10.1",
     "prettier-plugin-go-template": "0.0.15",
-    "@tailwindcss/cli": "4.3.3",
-    "tailwindcss": "4.3.3",
-    "daisyui": "5.7.47",
+    "@tailwindcss/cli": "4.3.5",
+    "tailwindcss": "4.3.5",
+    "daisyui": "5.7.50",
     "htmx.org": "2.0.11",
-    "@fontsource/ibm-plex-sans": "5.2.7",
+    "@fontsource/ibm-plex-sans": "5.3.0",
     "@fontsource/archivo": "5.3.0"
   }
 }
