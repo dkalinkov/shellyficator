@@ -18,14 +18,16 @@ local device network. `/healthz` reports HTTP readiness, not device health.
 
 Release images for `linux/amd64` and `linux/arm64` are published to
 `ghcr.io/dkalinkov/shellyficator`. Pin an exact version so upgrades are
-deliberate; see [container image tags](releases.md#container-image-tags):
+deliberate; see [container image tags](releases.md#container-image-tags).
+Replace `<version>` with the newest number on the
+[Releases](https://github.com/dkalinkov/shellyficator/releases) page:
 
 ```sh
 docker run -d --name shellyficator --restart unless-stopped \
   --env-file .env \
   --network=host \
   -v shellyficator-data:/data \
-  ghcr.io/dkalinkov/shellyficator:0.4.0 serve --http=127.0.0.1:8090 --dir=/data
+  ghcr.io/dkalinkov/shellyficator:<version> serve --http=127.0.0.1:8090 --dir=/data
 ```
 
 To build the image yourself, run `make docker` and use `shellyficator:local`
