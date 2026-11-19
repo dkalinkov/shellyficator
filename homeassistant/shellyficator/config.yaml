@@ -2,7 +2,7 @@
 # only after that release is published. CI checks the image exists. See
 # docs/wiki/home-assistant.md#maintaining-the-app.
 name: Shellyficator
-version: "0.5.0"
+version: "0.6.1"
 slug: shellyficator
 description: Know what changed on your Shelly devices.
 url: https://github.com/dkalinkov/shellyficator

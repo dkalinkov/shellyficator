@@ -27,7 +27,8 @@ neighbor (ARP) cache. It listens on port 8090 only on Home Assistant's internal
 network, so that port must be free on the host.
 
 If your Shelly devices are on another network or VLAN, scan their subnet, such as
-`192.168.1.0/24`, under **Advanced discovery**. See
+`192.168.1.0/24`, under **Advanced discovery**. If the scan finds devices,
+**Discover** checks that subnet again from then on. See
 [discovery](https://github.com/dkalinkov/shellyficator/blob/main/docs/wiki/discovery.md).
 
 ## Backups
