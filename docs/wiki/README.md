@@ -12,6 +12,7 @@ files, versioned with the application; a separate GitHub Wiki is not required.
 | [Usage and monitoring](usage.md) | Inventory, refreshes, snapshots, and change warnings |
 | [Firmware updates](firmware.md) | Confirmation, verification, and failure recovery |
 | [Deployment and backups](deployment.md) | Containers, proxies, persistent data, and upgrades |
+| [Home Assistant](home-assistant.md) | Installing the app and keeping it in step with releases |
 | [Architecture](architecture.md) | Packages, data flow, storage, and invariants |
 | [Development](development.md) | Builds, tests, migrations, and contributions |
 | [Releases](releases.md) | Versioning, tags, and release builds |
