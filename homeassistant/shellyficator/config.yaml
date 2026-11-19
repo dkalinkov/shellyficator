@@ -13,7 +13,8 @@ image: ghcr.io/dkalinkov/shellyficator-ha
 stage: experimental
 # mDNS and the ARP cache need the host's network to discover devices.
 host_network: true
-webui: "http://[HOST]:[PORT:8090]/"
+ingress: true
+ingress_port: 8090
 watchdog: "http://[HOST]:[PORT:8090]/healthz"
 # Stop the app during backups so its SQLite databases are copied consistently.
 backup: cold

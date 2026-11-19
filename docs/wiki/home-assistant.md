@@ -5,8 +5,9 @@ installations, on `amd64` and `arm64`. Home Assistant Container and Core
 installations cannot run apps; run the [container image](deployment.md#linux-container)
 next to Home Assistant instead.
 
-The app is experimental. It opens in its own browser tab on port 8090 and uses
-Shellyficator's own login; it does not appear in the Home Assistant sidebar yet.
+The app is experimental. It opens inside Home Assistant, from the app page or the
+sidebar, and Home Assistant signs you in. Shellyficator's own login, Authelia
+sign-in and data admin are off in the app.
 
 ## Install
 
@@ -17,9 +18,8 @@ Shellyficator's own login; it does not appear in the Home Assistant sidebar yet.
    Or open **Settings → Apps**, go to the app store, and add
    `https://github.com/dkalinkov/shellyficator` under **⋮ → Repositories**.
 2. Install **Shellyficator** from the store and start it.
-3. Choose **Open Web UI** right away and create your account, as in
-   [first login](getting-started.md#first-login). Until an account exists, anyone
-   who can reach port 8090 on the Home Assistant host can create it.
+3. Choose **Open Web UI**, or turn on **Show in sidebar**. Only Home Assistant
+   administrators can open it.
 
 ## Settings
 
@@ -37,7 +37,9 @@ Restart the app after changing settings. Home Assistant writes them to
   `homeassistant` target with each release. It starts as root to take ownership
   of the `/data` mount, then runs as UID 10001.
 - **Network:** host networking, so discovery can use mDNS and the ARP cache. The
-  app listens on port 8090 on every interface of the Home Assistant host.
+  app listens on port 8090 only on Home Assistant's internal network
+  (`172.30.32.1`) and answers only Home Assistant's proxy (`172.30.32.2`), which
+  signs users in. `SHELLY_HOME_ASSISTANT=true` in the image turns this on.
 - **Data:** the app's `/data` folder holds the database and is included in Home
   Assistant backups. Backups are cold: the app stops while they run.
 - **Health:** Home Assistant's watchdog restarts the app when `/healthz` stops

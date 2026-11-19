@@ -3,21 +3,12 @@
 Shellyficator keeps an inventory of your Shelly Gen2+ devices and warns when a
 device's configuration differs from a baseline you approved.
 
-This app is experimental. It opens in its own browser tab on port 8090 and uses
-its own login; it does not appear in the Home Assistant sidebar yet.
+This app is experimental. It opens inside Home Assistant, which signs you in;
+only Home Assistant administrators can open it.
 
 ## First start
 
-1. Start the app, then choose **Open Web UI**.
-2. Create your account. Passwords need at least 12 characters.
-
-Do this right after the first start: until an account exists, anyone who can
-reach port 8090 on your Home Assistant host can create it.
-
-Setup also creates a separate data administrator at `http://<home-assistant-host>:8090/_/`
-with the same initial credentials. It can edit every record; use it only for
-maintenance.
-
+Start the app, then choose **Open Web UI**, or turn on **Show in sidebar**.
 Turn on **Watchdog** on the Info tab so Home Assistant restarts the app if it
 stops responding. Then choose **Discover** to find your devices. The
 [getting started guide](https://github.com/dkalinkov/shellyficator/blob/main/docs/wiki/getting-started.md#add-and-review-devices)
@@ -32,9 +23,8 @@ reads devices and never changes their passwords. Restart the app after changing 
 ## Network
 
 The app uses the host's network so it can find devices through mDNS and the
-neighbor (ARP) cache. It listens on port 8090 on every network interface of the
-Home Assistant host, so that port must be free. Home Assistant's remote access
-does not reach it.
+neighbor (ARP) cache. It listens on port 8090 only on Home Assistant's internal
+network, so that port must be free on the host.
 
 If your Shelly devices are on another network or VLAN, scan their subnet, such as
 `192.168.1.0/24`, under **Advanced discovery**. See
