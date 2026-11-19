@@ -38,7 +38,8 @@ matching `vX.Y.Z`:
    version; and the `ci-ok` check passed for the commit.
 2. **Binaries:** [GoReleaser](../../.goreleaser.yaml) builds Linux `amd64` and
    `arm64` archives, `checksums.txt`, and SBOMs, then creates a draft release
-   with the changelog section as notes. The checksums are attested.
+   with the changelog section as notes. The checksums are attested, and the
+   attestation is attached to the release as a Sigstore bundle.
 3. **Image:** builds the [Dockerfile](../../Dockerfile) for `linux/amd64` and
    `linux/arm64`, pushes it to GHCR, and attests the image digest.
 4. **Publish:** publishes the draft. Immutable releases are enabled, so from this
@@ -76,6 +77,11 @@ gh release verify v0.4.0 --repo dkalinkov/shellyficator
 # An archive or the image was built by this repository's release workflow.
 gh attestation verify shellyficator_0.4.0_linux_amd64.tar.gz --repo dkalinkov/shellyficator
 gh attestation verify oci://ghcr.io/dkalinkov/shellyficator:0.4.0 --repo dkalinkov/shellyficator
+
+# The same check using the bundle attached to the release (0.4.1 and later)
+# instead of GitHub's attestation API.
+gh attestation verify shellyficator_0.4.1_linux_amd64.tar.gz \
+  --bundle shellyficator_0.4.1_provenance.sigstore.json --repo dkalinkov/shellyficator
 
 # Checksums of downloaded archives.
 sha256sum --check --ignore-missing checksums.txt

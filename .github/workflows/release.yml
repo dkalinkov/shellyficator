@@ -135,9 +135,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
-      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+      - id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-checksums: dist/checksums.txt
+
+      # The same attestation as a release asset, so archives can be verified
+      # without GitHub's attestation API.
+      - name: Attach the provenance bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          asset="$RUNNER_TEMP/shellyficator_${VERSION}_provenance.sigstore.json"
+          cp "$BUNDLE" "$asset"
+          gh release upload "$GITHUB_REF_NAME" "$asset" --clobber --repo "$GITHUB_REPOSITORY"
 
   image:
     name: Container image
