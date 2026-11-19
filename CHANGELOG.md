@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 — 2026-11-19
 
 - Fix the Home Assistant app staying in "starting" state: its image health check now reaches the app.
 
