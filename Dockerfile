@@ -48,16 +48,20 @@ CMD ["serve", "--http=0.0.0.0:8090", "--dir=/data"]
 
 # Home Assistant app image: docker build --target homeassistant. It starts as
 # root only to take ownership of the /data mount, then runs as the app user.
-# Settings come from the options.json that Home Assistant writes.
+# Settings come from the options.json that Home Assistant writes. It listens
+# only on Home Assistant's internal network, where the sidebar proxy and the
+# watchdog reach it.
 FROM runtime AS homeassistant-base
 ARG APP_VERSION=dev
 RUN apk add --no-cache su-exec
 COPY --chmod=755 scripts/ha-entrypoint.sh /usr/local/bin/ha-entrypoint
-ENV SHELLY_OPTIONS_FILE=/data/options.json
+ENV SHELLY_OPTIONS_FILE=/data/options.json \
+    SHELLY_HOME_ASSISTANT=true
 LABEL io.hass.type="app" \
       io.hass.version="$APP_VERSION"
+HEALTHCHECK NONE
 ENTRYPOINT ["ha-entrypoint"]
-CMD ["serve", "--http=0.0.0.0:8090", "--dir=/data"]
+CMD ["serve", "--http=172.30.32.1:8090", "--dir=/data"]
 
 # Home Assistant names arm64 "aarch64".
 FROM homeassistant-base AS homeassistant-amd64
