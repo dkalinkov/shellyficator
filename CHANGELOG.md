@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Reserve snapshots for captures, baseline approvals, and firmware updates.
+  Discard reads from a device's previous address after rediscovery.
+- Retry saving firmware results after a storage failure. Keep the update planner
+  available when watch preferences fail to load.
+- Document both Home Assistant and self-hosted installation.
+
 ## 0.6.1 — 2026-11-19
 
 - Fix the Home Assistant app staying in "starting" state: its image health check now reaches the app.
