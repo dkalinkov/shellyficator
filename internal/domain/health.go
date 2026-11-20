@@ -13,7 +13,6 @@ func (d Device) ConfigCurrent() bool {
 	return d.Reachable && d.ConfigAvailable && d.ConsecutiveFailures == 0 && !d.IdentityMismatch
 }
 
-// FailedCheck updates health while retaining the last validated readings.
 func (d Device) FailedCheck(problem string, identityMismatch bool, now time.Time) Device {
 	d.ConsecutiveFailures++
 	d.IdentityMismatch = d.IdentityMismatch || identityMismatch

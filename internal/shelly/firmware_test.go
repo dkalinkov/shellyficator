@@ -93,7 +93,7 @@ func TestFirmwareCheckAllowsTimeForTheUpstreamResponse(t *testing.T) {
 		case "/rpc/Shelly.GetStatus":
 			_, _ = w.Write([]byte(`{}`))
 		case "/rpc/Shelly.CheckForUpdate":
-			timer := time.NewTimer(3200 * time.Millisecond)
+			timer := time.NewTimer(5200 * time.Millisecond)
 			defer timer.Stop()
 			select {
 			case <-r.Context().Done():

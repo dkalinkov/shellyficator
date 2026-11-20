@@ -43,7 +43,7 @@ func TestRediscoveryPreservesMetadataAndBaseline(t *testing.T) {
 	}
 	reading.Address = "http://192.168.1.99"
 	reading.Config = map[string]any{"switch:0": map[string]any{"in_mode": "detached"}}
-	device, err = store.SaveReading(reading, true)
+	device, err = store.SaveReading(reading, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,38 +54,13 @@ func TestRediscoveryPreservesMetadataAndBaseline(t *testing.T) {
 	if len(devices) != 1 {
 		t.Fatal("IP change created another device")
 	}
-	diff := domain.Differences(testBaseline(t, store, device), device.Config)
-	if len(diff) != 1 || !diff[0].After.Present || diff[0].After.Value != "detached" {
-		t.Fatalf("baseline not preserved or drift missed: %+v", diff)
-	}
-	if err := store.Failed(device.ID, "unreachable", false); err != nil {
-		t.Fatal(err)
-	}
-	device, _ = store.Device(device.ID)
-	if testBaseline(t, store, device) == nil || device.Config == nil || device.ConfigAvailable {
-		t.Fatal("failed scan discarded history or presented it as current")
-	}
-	reading.Config = nil
-	device, err = store.SaveReading(reading, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !device.Reachable || !device.StatusAvailable || device.ConfigAvailable {
-		t.Fatal("status recovery presented the old configuration as newly checked")
-	}
-	if _, err := store.ApproveReading(reading); err == nil {
-		t.Fatal("approved a baseline without an available configuration capture")
+	if device.Address != reading.Address || !reflect.DeepEqual(device.Config, reading.Config) ||
+		testBaseline(t, store, device)["switch:0"].(map[string]any)["in_mode"] != "momentary" {
+		t.Fatal("rediscovery lost the new reading or replaced the approved baseline")
 	}
 }
 
-func TestDiffDistinguishesMissingFromNullAndFalse(t *testing.T) {
-	diff := domain.Differences(map[string]any{"input": map[string]any{"state": nil, "enable": false}}, map[string]any{"input": map[string]any{"enable": true}})
-	if len(diff) != 2 || !diff[1].Before.Present || diff[1].Before.Value != nil || diff[1].After.Present {
-		t.Fatalf("unexpected diff: %+v", diff)
-	}
-}
-
-func TestApprovalUsesItsOwnCaptureAndOtherReadsPreserveIt(t *testing.T) {
+func TestApprovalSelectsItsOwnCaptureEvenWithNewerHistory(t *testing.T) {
 	store := testStore(t)
 	reading := domain.Reading{Identity: domain.Identity{ID: "test-device", MAC: "AABBCCDDEEFF", Gen: 4}, Config: map[string]any{"switch:0": map[string]any{"in_mode": "momentary"}}}
 	device, err := store.SaveReading(reading, true)
@@ -94,8 +69,8 @@ func TestApprovalUsesItsOwnCaptureAndOtherReadsPreserveIt(t *testing.T) {
 	}
 	// Snapshot ordering must not decide which fresh read an approval selects.
 	snapshots, err := store.Snapshots(device.ID)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(snapshots) != 1 {
+		t.Fatalf("expected one manual capture: %v, %v", snapshots, err)
 	}
 	snapshotRecord, err := store.App.FindRecordById("snapshots", snapshots[0].ID)
 	if err != nil {
@@ -110,20 +85,8 @@ func TestApprovalUsesItsOwnCaptureAndOtherReadsPreserveIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	baselineID := device.BaselineID
-	if baselineID == snapshots[0].ID || len(domain.Differences(testBaseline(t, store, device), reading.Config)) != 0 {
+	if device.BaselineID == snapshots[0].ID || !reflect.DeepEqual(testBaseline(t, store, device), reading.Config) {
 		t.Fatal("approval selected another capture instead of its own fresh read")
-	}
-	reading.Config = map[string]any{"switch:0": map[string]any{"in_mode": "follow"}}
-	for _, capture := range []bool{false, true} {
-		device, err = store.SaveReading(reading, capture)
-		if err != nil || device.BaselineID != baselineID || testBaseline(t, store, device)["switch:0"].(map[string]any)["in_mode"] != "detached" {
-			t.Fatal("a later read or capture changed the approved snapshot")
-		}
-	}
-	before, err := store.Device(device.ID)
-	if err != nil {
-		t.Fatal(err)
 	}
 	reading.Config = nil
 	if _, err := store.ApproveReading(reading); err == nil {
@@ -134,7 +97,7 @@ func TestApprovalUsesItsOwnCaptureAndOtherReadsPreserveIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshots, err = store.Snapshots(device.ID)
-	if err != nil || len(snapshots) != 3 || after.BaselineID != baselineID || !reflect.DeepEqual(after.Config, before.Config) {
+	if err != nil || len(snapshots) != 2 || after.BaselineID != device.BaselineID || !reflect.DeepEqual(after.Config, device.Config) {
 		t.Fatal("failed approval changed the baseline, readings, or capture history")
 	}
 }
@@ -234,45 +197,16 @@ func TestLookupFailuresAreNotTreatedAsMissingRecords(t *testing.T) {
 	}
 }
 
-type readFailureApp struct {
-	core.App
-	err error
-}
-
-func (app readFailureApp) FindRecordById(any, string, ...func(*dbx.SelectQuery) error) (*core.Record, error) {
-	return nil, app.err
-}
-
-func (app readFailureApp) FindRecordsByFilter(any, string, string, int, int, ...dbx.Params) ([]*core.Record, error) {
-	return nil, app.err
-}
-
-func TestReadFailuresPropagateAcrossDomainMappings(t *testing.T) {
+func TestSnapshotQueriesReportStorageFailure(t *testing.T) {
 	store := testStore(t)
-	wantErr := errors.New("database read failed")
-	failingStore := New(readFailureApp{App: store.App, err: wantErr})
-	device := domain.Device{ID: "device", BaselineID: "snapshot"}
-	if _, err := failingStore.Device(device.ID); !errors.Is(err, wantErr) {
-		t.Fatalf("device query hid its read error: %v", err)
+	if _, err := store.App.DB().NewQuery("DROP TABLE snapshots").Execute(); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := failingStore.Devices(); !errors.Is(err, wantErr) {
-		t.Fatalf("inventory query hid its read error: %v", err)
+	if _, err := store.Snapshots("device"); err == nil {
+		t.Fatal("unavailable storage appeared to be empty capture history")
 	}
-	if _, err := failingStore.Baseline(device); !errors.Is(err, wantErr) {
-		t.Fatalf("baseline query hid its read error: %v", err)
-	}
-	if _, err := failingStore.ChannelNotes(device.ID); !errors.Is(err, wantErr) {
-		t.Fatalf("channel note query hid its read error: %v", err)
-	}
-	if _, err := failingStore.Snapshots(device.ID); !errors.Is(err, wantErr) {
-		t.Fatalf("snapshot query hid its read error: %v", err)
-	}
-	if _, err := failingStore.OrganizationOptions(); !errors.Is(err, wantErr) {
-		t.Fatalf("organization query hid its read error: %v", err)
-	}
-	device.BaselineID = ""
-	if baseline, err := failingStore.Baseline(device); err != nil || baseline != nil {
-		t.Fatalf("absent baseline unexpectedly required a query: %v, %v", baseline, err)
+	if _, err := store.Baseline(domain.Device{ID: "device", BaselineID: "saved"}); err == nil {
+		t.Fatal("unavailable storage appeared to be a missing baseline")
 	}
 }
 

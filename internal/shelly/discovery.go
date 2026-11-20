@@ -19,7 +19,9 @@ import (
 	"shellyficator/internal/domain"
 )
 
-func LocalNetworks() ([]domain.Network, error) {
+type NetworkDiscovery struct{}
+
+func (NetworkDiscovery) LocalNetworks() ([]domain.Network, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -46,7 +48,6 @@ func LocalNetworks() ([]domain.Network, error) {
 		}
 	}
 	sort.Slice(networks, func(i, j int) bool { return networks[i].Prefix < networks[j].Prefix })
-	// Keep the suggested network list short on hosts with many attached networks.
 	if len(networks) > 4 {
 		networks = networks[:4]
 	}
@@ -74,7 +75,7 @@ func discoveryInterface(iface net.Interface) bool {
 }
 
 // Announcements returns advertised candidates; /shelly still verifies each one.
-func Announcements(ctx context.Context) ([]string, error) {
+func (NetworkDiscovery) Announcements(ctx context.Context) ([]string, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -88,16 +89,14 @@ func Announcements(ctx context.Context) ([]string, error) {
 			continue
 		}
 		for _, service := range []string{"_shelly._tcp", "_http._tcp"} {
-			queries.Add(1)
-			go func(iface net.Interface, service string) {
-				defer queries.Done()
+			queries.Go(func() {
 				err := mdns.QueryContext(ctx, &mdns.QueryParam{Service: service, Domain: "local", Timeout: 3 * time.Second, Interface: &iface, Entries: entries, WantUnicastResponse: true, DisableIPv6: true, Logger: log.New(io.Discard, "", 0)})
 				if err != nil {
 					mu.Lock()
 					failures = append(failures, err)
 					mu.Unlock()
 				}
-			}(iface, service)
+			})
 		}
 	}
 	go func() { queries.Wait(); close(entries) }()
@@ -139,20 +138,4 @@ func announcementAddress(entry *mdns.ServiceEntry) string {
 		address += fmt.Sprintf(":%d", entry.Port)
 	}
 	return address
-}
-
-// DiscoveryAddresses deduplicates advertised and cached candidates. Subnet scans are explicit.
-func DiscoveryAddresses(announced []string) []string {
-	seen := map[string]bool{}
-	var addresses []string
-	add := func(address string) {
-		if !seen[address] {
-			seen[address] = true
-			addresses = append(addresses, address)
-		}
-	}
-	for _, address := range announced {
-		add(address)
-	}
-	return addresses
 }

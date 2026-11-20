@@ -11,7 +11,7 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// Connection checks send no request, so many run at once; devices handle few HTTP requests at once.
+// TCP probes can run faster than device HTTP requests.
 const (
 	probeConcurrency  = 24
 	verifyConcurrency = 4
@@ -22,7 +22,7 @@ const otherNetworkHint = " If your devices are on another network or VLAN, scan 
 func (s *Service) Discover(target string, automatic bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.ctx.Err() != nil {
 		return domain.ErrClosed
 	}
 	if s.discovery.Running {
@@ -46,11 +46,9 @@ func (s *Service) Discover(target string, automatic bool) error {
 	if automatic {
 		s.discovery.Stage = "Finding devices"
 	}
-	s.jobs.Add(1)
-	go func() {
-		defer s.jobs.Done()
+	s.jobs.Go(func() {
 		s.runDiscovery(automatic, addresses)
-	}()
+	})
 	return nil
 }
 
@@ -66,25 +64,29 @@ func (s *Service) runDiscovery(automatic bool, addresses []string) {
 		}
 		neighborCh := make(chan neighborResult, 1)
 		go func() {
-			addresses, err := s.neighbors(ctx)
+			addresses, err := s.source.Neighbors(ctx)
 			neighborCh <- neighborResult{addresses, err}
 		}()
-		announced, err := s.announcements(ctx)
+		announced, err := s.source.Announcements(ctx)
 		neighbors := <-neighborCh
 		cancel()
 		announcementFailed = err != nil
-		addresses = s.source.Addresses(append(announced, neighbors.addresses...))
+		seen := make(map[string]bool, len(announced)+len(neighbors.addresses))
+		for _, address := range append(announced, neighbors.addresses...) {
+			if !seen[address] {
+				seen[address] = true
+				addresses = append(addresses, address)
+			}
+		}
 		networks = s.rememberedNetworks()
 		open := 0
-		if scan := s.networkAddresses(networks, addresses); len(scan) > 0 {
+		if scan := s.networkAddresses(networks, seen); len(scan) > 0 {
 			s.setProgress("Scanning remembered networks", len(scan))
 			reachable := s.reachable(scan)
 			open = len(reachable)
-			addresses = s.source.Addresses(append(addresses, reachable...))
+			addresses = append(addresses, reachable...)
 		}
-		if s.logger != nil {
-			s.logger.Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "remembered_networks", len(networks), "remembered_open", open, "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
-		}
+		s.logger.Info("Discovery candidates", "announced", len(announced), "neighbors", len(neighbors.addresses), "remembered_networks", len(networks), "remembered_open", open, "candidates", len(addresses), "mdns_error", err, "neighbor_error", neighbors.err)
 	} else if !single {
 		addresses = s.reachable(addresses)
 	}
@@ -99,9 +101,8 @@ scan:
 		case <-s.ctx.Done():
 			break scan
 		}
-		group.Add(1)
-		go func(address string) {
-			defer func() { <-limit; group.Done() }()
+		group.Go(func() {
+			defer func() { <-limit }()
 			ctx, cancel := context.WithTimeout(s.ctx, 12*time.Second)
 			defer cancel()
 			reading, err := s.client.Discover(ctx, address)
@@ -112,7 +113,7 @@ scan:
 			if err == nil {
 				s.inventoryMu.Lock()
 				if s.ctx.Err() == nil {
-					_, err = s.store.SaveReading(reading, true)
+					_, err = s.store.SaveReading(reading, false)
 					found = err == nil
 				}
 				s.inventoryMu.Unlock()
@@ -127,7 +128,7 @@ scan:
 				s.discovery.Message = s.source.Explain(err)
 			}
 			s.mu.Unlock()
-		}(address)
+		})
 		if !automatic {
 			timer := time.NewTimer(50 * time.Millisecond)
 			select {
@@ -190,14 +191,13 @@ probe:
 		case <-s.ctx.Done():
 			break probe
 		}
-		group.Add(1)
-		go func() {
-			defer func() { <-limit; group.Done() }()
+		group.Go(func() {
+			defer func() { <-limit }()
 			open[i] = s.source.Reachable(s.ctx, address)
 			s.mu.Lock()
 			s.discovery.Completed++
 			s.mu.Unlock()
-		}()
+		})
 	}
 	group.Wait()
 	var result []string
@@ -223,11 +223,7 @@ func (s *Service) rememberedNetworks() []string {
 	return networks
 }
 
-func (s *Service) networkAddresses(networks, known []string) []string {
-	seen := map[string]bool{}
-	for _, address := range known {
-		seen[address] = true
-	}
+func (s *Service) networkAddresses(networks []string, seen map[string]bool) []string {
 	var addresses []string
 	for _, network := range networks {
 		targets, err := s.source.Targets(network)

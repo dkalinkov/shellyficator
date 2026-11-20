@@ -53,13 +53,13 @@ type Device struct {
 }
 
 type DeviceView struct {
-	ID, Name, DeviceID, Model, MAC, Firmware, Address string
-	Room, TagsText, Notes, Problem, BaselineID        string
-	Tags                                              []string
-	Generation                                        int
-	AuthEnabled                                       bool
-	LastSeen, LastChecked, LastCaptured               string
-	HasCapture                                        bool
+	ID, Model, Address                         string
+	Room, TagsText, Notes, Problem, BaselineID string
+	Tags                                       []string
+	Generation                                 int
+	AuthEnabled                                bool
+	LastChecked, LastCaptured                  string
+	HasCapture                                 bool
 }
 
 type SnapshotView struct {

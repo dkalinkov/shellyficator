@@ -2,14 +2,53 @@ package web
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
+
 	"shellyficator/internal/domain"
 )
+
+func TestFirmwarePlanUsesInventoryFiltersWhenWatchPreferencesAreUnavailable(t *testing.T) {
+	s, id := refreshTestServer(t, http.NotFound)
+	s.watchStore = failingWatchStore{errors.New("preferences unavailable")}
+	record, err := s.record(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Set("name", "Desk lamp")
+	record.Set("firmware", "2.1.0")
+	record.Set("room", "Office")
+	record.Set("tags", "Lighting")
+	record.Set("status", map[string]any{"sys": map[string]any{"available_updates": map[string]any{"stable": map[string]any{"version": "2.2.0"}}}})
+	if err := s.store.App.Save(record); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		query string
+		show  bool
+	}{
+		{"q=lamp&room=Office&tags=lighting", true},
+		{"q=lamp&room=Bedroom&tags=lighting", false},
+	} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest("GET", "/firmware?"+test.query, nil)
+		event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: request, Response: response}}
+		if err := s.firmwarePlan(event); err != nil {
+			t.Fatal(err)
+		}
+		if shown := renderedAttribute(response.Body.String(), "input", "firmware-choice-"+id, "value") == id; shown != test.show {
+			t.Fatalf("firmware plan did not apply %q: device shown=%t", test.query, shown)
+		}
+	}
+}
 
 func TestFirmwareAvailabilityStates(t *testing.T) {
 	now := time.Now().UTC()
@@ -117,7 +156,7 @@ func TestFirmwareManualCheckPrecedenceAndInvalidation(t *testing.T) {
 func TestFirmwareRendersAccessibleIndicatorsAndCheckAction(t *testing.T) {
 	device := domain.Device{ID: "device", DeviceID: "kitchen", Firmware: "2.1.0", Reachable: true, StatusAvailable: true,
 		Status: map[string]any{"sys": map[string]any{"available_updates": map[string]any{"stable": map[string]any{"version": "2.2.0"}}}}}
-	page := devicePage(PageMeta{CSRF: "test-csrf"}, domain.DeviceDetails{InventoryEntry: domain.InventoryEntry{Device: device}})
+	page := devicePage(PageMeta{CSRF: "test-csrf"}, domain.DeviceDetails{InventoryEntry: domain.InventoryEntry{Device: device}}, nil)
 	templates, err := parseTemplates()
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +173,7 @@ func TestFirmwareRendersAccessibleIndicatorsAndCheckAction(t *testing.T) {
 	}
 	output.Reset()
 	entry := domain.InventoryEntry{Device: device}
-	inventory := inventoryPage(PageMeta{}, []domain.InventoryEntry{entry}, "", "", "", "")
+	inventory := inventoryPage(PageMeta{}, []domain.InventoryEntry{entry}, inventoryFilter{}, "", nil)
 	if inventory.Updates != 1 {
 		t.Fatalf("pending updates not counted: %+v", inventory)
 	}
@@ -156,7 +195,7 @@ func TestFirmwareProgressContinuesWhenTheUpdatingDeviceIsFilteredOut(t *testing.
 		if !active {
 			entries[0].Device.FirmwareUpdate.Phase = "succeeded"
 		}
-		page := inventoryPage(PageMeta{}, entries, "other", "", "", "")
+		page := inventoryPage(PageMeta{}, entries, newInventoryFilter("other", "", ""), "", nil)
 		var output bytes.Buffer
 		if err := templates.ExecuteTemplate(&output, "inventory", page); err != nil {
 			t.Fatal(err)

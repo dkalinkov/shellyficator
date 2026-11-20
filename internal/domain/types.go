@@ -14,6 +14,7 @@ var (
 	ErrNotFound           = errors.New("device not found")
 	ErrIdentity           = errors.New("the device at this address has a different identity")
 	ErrDeviceRead         = errors.New("device read failed")
+	ErrDeviceMoved        = errors.New("device address changed during the read")
 	ErrAuthentication     = errors.New("authentication required or shared device password rejected")
 	ErrConfigUnavailable  = errors.New("configuration could not be read; check connectivity and shared device credentials")
 	ErrBaselineSave       = errors.New("could not approve baseline")
@@ -73,9 +74,8 @@ type FirmwareCheck struct {
 }
 
 type Snapshot struct {
-	ID, DeviceID, Firmware, Reason string
-	Captured                       time.Time
-	Config                         map[string]any
+	ID, Firmware, Reason string
+	Captured             time.Time
 }
 
 type InventoryEntry struct {
@@ -100,7 +100,6 @@ type Discovery struct {
 
 type Network struct{ Interface, Prefix string }
 
-// NetworkPrefix returns "" unless value is a private IPv4 range of /24 or smaller.
 func NetworkPrefix(value string) string {
 	prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
 	if err != nil || !prefix.Addr().Is4() || !prefix.Addr().IsPrivate() || prefix.Bits() < 24 {
@@ -108,8 +107,6 @@ func NetworkPrefix(value string) string {
 	}
 	return prefix.Masked().String()
 }
-
-type RefreshResult struct{ StatusAvailable bool }
 
 // SettingValue records presence separately from null, false, and zero.
 type SettingValue struct {

@@ -8,14 +8,17 @@ import (
 )
 
 func (s *Store) OrganizationOptions() (domain.OrganizationOptions, error) {
-	devices, err := s.Devices()
-	if err != nil {
+	var records []*core.Record
+	if err := s.App.RecordQuery("devices").Select("id", "room", "tags").OrderBy("name", "device_id").All(&records); err != nil {
 		return domain.OrganizationOptions{}, err
+	}
+	devices := make([]domain.Device, 0, len(records))
+	for _, record := range records {
+		devices = append(devices, domain.Device{Room: record.GetString("room"), Tags: domain.SplitTags(record.GetString("tags"))})
 	}
 	return domain.Options(devices), nil
 }
 
-// Organization edits local categorization without replacing notes or readings.
 func (s *Store) Organization(id, room, tags string) error {
 	return s.saveMetadata(id, room, tags, nil)
 }

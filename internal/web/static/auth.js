@@ -1,4 +1,3 @@
-// The ordinary password field also works when JavaScript is unavailable.
 const passwordToggle = document.querySelector('[data-password-toggle]');
 if (passwordToggle) {
   const password = document.getElementById(passwordToggle.getAttribute('aria-controls'));

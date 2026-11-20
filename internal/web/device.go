@@ -8,6 +8,8 @@ import (
 	"shellyficator/internal/domain"
 )
 
+const deviceMovedNotice = "The device address changed. Try again using the rediscovered address."
+
 func (s *Server) detail(e *core.RequestEvent) error {
 	details, err := s.devices.Detail(e.Request.PathValue("id"))
 	if errors.Is(err, domain.ErrNotFound) {
@@ -31,7 +33,10 @@ func (s *Server) detail(e *core.RequestEvent) error {
 
 func (s *Server) refreshDevice(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
-	result, err := s.devices.RefreshDevice(e.Request.Context(), id)
+	statusAvailable, err := s.devices.RefreshDevice(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrDeviceMoved) {
+		return s.redirect(e, "/devices/"+id, deviceMovedNotice, "warning")
+	}
 	if errors.Is(err, domain.ErrFirmwareBusy) {
 		return s.redirect(e, "/devices/"+id, "Firmware update in progress. Status is verified automatically.", "warning")
 	}
@@ -44,7 +49,7 @@ func (s *Server) refreshDevice(e *core.RequestEvent) error {
 	if err != nil {
 		return err
 	}
-	if !result.StatusAvailable {
+	if !statusAvailable {
 		return s.redirect(e, "/devices/"+id, "Device reached, but status could not be read.", "warning")
 	}
 	return s.redirect(e, "/devices/"+id, "Status refreshed.")
@@ -53,6 +58,9 @@ func (s *Server) refreshDevice(e *core.RequestEvent) error {
 func (s *Server) checkFirmware(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	device, err := s.devices.CheckFirmware(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrDeviceMoved) {
+		return s.redirect(e, "/devices/"+id, deviceMovedNotice, "warning")
+	}
 	if errors.Is(err, domain.ErrFirmwareBusy) {
 		return s.redirect(e, "/devices/"+id, "Firmware update in progress. Wait for verification to finish.", "warning")
 	}
@@ -80,14 +88,14 @@ func (s *Server) metadata(e *core.RequestEvent) error {
 }
 
 func (s *Server) organizationEditor(e *core.RequestEvent) error {
-	details, err := s.devices.Detail(e.Request.PathValue("id"))
+	device, options, err := s.devices.DeviceOrganization(e.Request.PathValue("id"))
 	if errors.Is(err, domain.ErrNotFound) {
 		return e.NotFoundError("Device not found", nil)
 	}
 	if err != nil {
 		return err
 	}
-	return s.render(e, "organization-editor", devicePage(s.pageMeta(e, "Device"), details))
+	return s.render(e, "organization-editor", organizationPage(s.pageMeta(e, "Device"), device, options))
 }
 
 func (s *Server) organization(e *core.RequestEvent) error {
@@ -98,7 +106,8 @@ func (s *Server) organization(e *core.RequestEvent) error {
 	if e.Request.Header.Get("HX-Request") != "true" {
 		return s.redirect(e, "/", "Room & tags saved.")
 	}
-	page, err := s.listFiltered(e, e.Request.FormValue("filter_q"), e.Request.FormValue("filter_room"), e.Request.FormValue("filter_tags"), e.Request.FormValue("filter_group"))
+	filter := newInventoryFilter(e.Request.FormValue("filter_q"), e.Request.FormValue("filter_room"), e.Request.FormValue("filter_tags"))
+	page, err := s.listFiltered(e, filter, e.Request.FormValue("filter_group"))
 	if err != nil {
 		return err
 	}
@@ -118,6 +127,9 @@ func (s *Server) channelNote(e *core.RequestEvent) error {
 func (s *Server) capture(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	_, err := s.devices.Capture(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrDeviceMoved) {
+		return s.redirect(e, "/devices/"+id, deviceMovedNotice, "warning")
+	}
 	if err != nil {
 		return s.redirect(e, "/devices/"+id, "Capture failed. Check device access.", "error")
 	}
@@ -127,6 +139,9 @@ func (s *Server) capture(e *core.RequestEvent) error {
 func (s *Server) baseline(e *core.RequestEvent) error {
 	id := e.Request.PathValue("id")
 	_, err := s.devices.ApproveBaseline(e.Request.Context(), id)
+	if errors.Is(err, domain.ErrDeviceMoved) {
+		return s.redirect(e, "/devices/"+id, deviceMovedNotice, "warning")
+	}
 	if errors.Is(err, domain.ErrBaselineSave) {
 		return e.BadRequestError("Could not approve baseline", nil)
 	}

@@ -8,14 +8,11 @@ import (
 	"shellyficator/internal/devices"
 	"shellyficator/internal/domain"
 	"shellyficator/internal/inventory"
-	"shellyficator/internal/shelly"
 )
 
-// Database fixtures stay in tests; the production server only knows services.
 type testServer struct {
 	*Server
 	store   *inventory.Store
-	client  *shelly.Client
 	devices *devices.Service
 }
 
@@ -33,14 +30,6 @@ func (s *testServer) channelNotes(id string) map[string]string {
 		panic(err)
 	}
 	return notes
-}
-
-func (s *testServer) baselineConfig(record *core.Record) map[string]any {
-	baseline, err := s.store.Baseline(domainRecord(record))
-	if err != nil {
-		panic(err)
-	}
-	return baseline
 }
 
 func objectField(record *core.Record, name string) map[string]any {

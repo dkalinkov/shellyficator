@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-// Run with: go test ./internal/domain -run=^$ -fuzz=^FuzzDifferences$
-
 func FuzzDifferences(f *testing.F) {
 	f.Add([]byte(`{"sys":{"device":{"name":"Hall"},"cfg_rev":3},"switch:0":{"id":0,"in_mode":"follow"}}`),
 		[]byte(`{"sys":{"device":{"name":"Hallway"},"cfg_rev":4},"switch:0":{"id":0,"in_mode":"flip"},"input:0":{}}`))
@@ -18,9 +16,7 @@ func FuzzDifferences(f *testing.F) {
 		if json.Unmarshal(left, &baseline) != nil || json.Unmarshal(right, &current) != nil {
 			return
 		}
-		// Paths join keys with " / ", so a key containing "/" can make two
-		// settings share a path. Device configuration keys are identifiers such
-		// as "switch:0" and never contain "/", so such inputs are out of scope.
+		// Shelly keys contain no slashes. A literal path separator would collide with a nested path.
 		if keysContain(baseline, "/") || keysContain(current, "/") {
 			return
 		}
@@ -46,7 +42,6 @@ func FuzzDifferences(f *testing.F) {
 	})
 }
 
-// keysContain reports whether a key on a flattened path contains text.
 // Arrays are compared as whole values, so their contents are not paths.
 func keysContain(value any, text string) bool {
 	object, _ := value.(map[string]any)

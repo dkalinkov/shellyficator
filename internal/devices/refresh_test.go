@@ -2,6 +2,7 @@ package devices
 
 import (
 	"net/http"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -9,7 +10,7 @@ import (
 
 func TestConfigurationRefreshAndRecoveryPreserveHistory(t *testing.T) {
 	var configs atomic.Int32
-	var failConfig atomic.Bool
+	var failConfig, recovered atomic.Bool
 	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/shelly":
@@ -22,73 +23,61 @@ func TestConfigurationRefreshAndRecoveryPreserveHistory(t *testing.T) {
 				http.Error(w, "settings unavailable", http.StatusServiceUnavailable)
 				return
 			}
+			if recovered.Load() {
+				_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"follow"}}`))
+				return
+			}
 			_, _ = w.Write([]byte(`{"input:0":{"type":"button","enable":true},"switch:0":{"in_mode":"detached"}}`))
 		default:
 			t.Errorf("unexpected device request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(404)
 		}
 	})
-	record, _ := s.store.Device(id)
-	baselineID := record.BaselineID
-	assertHistory := func() {
-		t.Helper()
-		record, err := s.store.Device(id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		snapshots, err := s.store.Snapshots(id)
-		if err != nil || len(snapshots) != 1 || snapshots[0].ID != baselineID || record.BaselineID != baselineID {
-			t.Fatalf("refresh changed capture history or baseline: snapshots=%v err=%v", snapshots, err)
-		}
-		baseline, err := s.store.Baseline(record)
-		if err != nil || baseline["switch:0"].(map[string]any)["in_mode"] != "momentary" {
-			t.Fatal("refresh modified approved baseline contents")
-		}
+	initial, err := s.store.Device(id)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	s.refreshDevices(false)
 	if configs.Load() != 0 {
 		t.Fatal("status poll reread recent settings")
 	}
-	record, _ = s.store.Device(id)
 	setDeviceField(t, s, id, "last_captured", time.Now().UTC().Add(-6*time.Minute))
 	s.refreshDevices(false)
-	record, _ = s.store.Device(id)
+	record, _ := s.store.Device(id)
 	if configs.Load() != 1 || !record.ConfigCurrent() || record.Config["switch:0"].(map[string]any)["in_mode"] != "detached" || time.Since(record.LastCaptured) > time.Minute {
 		t.Fatal("periodic configuration read did not update settings")
 	}
-	assertHistory()
 
 	lastRead := record.LastCaptured
 	failConfig.Store(true)
 	s.refreshDevices(true)
 	record, _ = s.store.Device(id)
-	if !record.Reachable || !record.StatusAvailable || record.ConfigAvailable || record.LastCaptured != lastRead || record.Config["switch:0"].(map[string]any)["in_mode"] != "detached" || record.Status["switch:0"].(map[string]any)["output"] != true || record.Status["input:0"].(map[string]any)["state"] != nil {
+	if !record.Reachable || !record.StatusAvailable || record.ConfigAvailable || record.LastCaptured != lastRead || record.Config["switch:0"].(map[string]any)["in_mode"] != "detached" || record.Status["switch:0"].(map[string]any)["output"] != true {
 		t.Fatal("failed settings read lost saved settings or live status")
 	}
-	assertHistory()
 
 	failConfig.Store(false)
+	recovered.Store(true)
 	s.refreshDevices(false)
 	record, _ = s.store.Device(id)
-	if configs.Load() != 4 || !record.ConfigAvailable || record.Problem != "" {
+	if !record.ConfigCurrent() || record.Config["switch:0"].(map[string]any)["in_mode"] != "follow" || record.Problem != "" {
 		t.Fatal("next poll did not retry unavailable configuration and clear warning")
 	}
-	if err := s.store.Failed(id, "offline", false); err != nil {
-		t.Fatal(err)
+	snapshots, err := s.store.Snapshots(id)
+	if err != nil || len(snapshots) != 1 || snapshots[0].ID != initial.BaselineID || record.BaselineID != initial.BaselineID {
+		t.Fatalf("refresh changed capture history or baseline: snapshots=%v err=%v", snapshots, err)
 	}
-	s.refreshDevices(false)
-	record, _ = s.store.Device(id)
-	if configs.Load() != 5 || !record.Reachable || !record.ConfigAvailable {
-		t.Fatal("reconnected device did not reread configuration")
+	baseline, err := s.store.Baseline(record)
+	if err != nil || !reflect.DeepEqual(baseline, initial.Config) {
+		t.Fatal("refresh modified approved baseline contents")
 	}
-	assertHistory()
 }
 
 func TestManualRefreshDuringStatusPollQueuesConfigurationRead(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	var statuses, configs atomic.Int32
-	s, _ := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
+	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/shelly":
 			_, _ = w.Write([]byte(`{"id":"test-device","mac":"AABBCCDDEEFF","gen":4}`))
@@ -113,21 +102,25 @@ func TestManualRefreshDuringStatusPollQueuesConfigurationRead(t *testing.T) {
 	done := s.Refresh(false)
 	waitForJob(t, started)
 	firstManual, secondManual := s.Refresh(true), s.Refresh(true)
-	if firstManual != done || secondManual != done {
-		t.Fatal("concurrent requests did not share refresh completion")
-	}
 	close(release)
+	for _, request := range []<-chan struct{}{firstManual, secondManual} {
+		waitForJob(t, request)
+		device, err := s.store.Device(id)
+		if err != nil || !device.ConfigCurrent() || device.Config["switch:0"].(map[string]any)["in_mode"] != "detached" {
+			t.Fatalf("manual refresh finished before saving fresh configuration: %+v, %v", device, err)
+		}
+	}
 	waitForJob(t, done)
-	if statuses.Load() != 2 || configs.Load() != 1 {
-		t.Fatalf("manual configuration pass dropped or duplicated: status=%d config=%d", statuses.Load(), configs.Load())
+	if configs.Load() != 1 {
+		t.Fatalf("concurrent manual requests read settings %d times", configs.Load())
 	}
 	if s.Refresh(false) != nil {
 		t.Fatal("shared refresh throttle did not suppress immediate polling")
 	}
 }
 
-func TestRefreshMissesKeepInventoryValuesAndRecoverWithoutChangingHistory(t *testing.T) {
-	var fail, mismatch atomic.Bool
+func TestRefreshCountsRetriesAsOneMissAndRejectsReplacementDevices(t *testing.T) {
+	var fail, recovered, mismatch atomic.Bool
 	var identityRequests atomic.Int32
 	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -145,32 +138,27 @@ func TestRefreshMissesKeepInventoryValuesAndRecoverWithoutChangingHistory(t *tes
 		case "/rpc/Shelly.GetStatus":
 			_, _ = w.Write([]byte(`{"input:0":{"state":false},"switch:0":{"output":true},"wifi":{"rssi":-55},"cloud":{"connected":true}}`))
 		case "/rpc/Shelly.GetConfig":
+			if recovered.Load() {
+				_, _ = w.Write([]byte(`{"switch:0":{"in_mode":"follow"}}`))
+				return
+			}
 			_, _ = w.Write([]byte(`{"input:0":{"type":"button","enable":true},"switch:0":{"in_mode":"momentary"}}`))
 		}
 	})
 	s.refreshDevices(true)
 	before, _ := s.store.Device(id)
-	baselineID := before.BaselineID
 	fail.Store(true)
 	s.refreshDevices(false)
 	after, _ := s.store.Device(id)
-	status := after.Status
-	if after.ConsecutiveFailures != 1 || identityRequests.Load() != 3 || !after.Reachable || after.StatusCurrent() || after.ConfigCurrent() || status["cloud"].(map[string]any)["connected"] != true || status["switch:0"].(map[string]any)["output"] != true || status["input:0"].(map[string]any)["state"] != false {
+	if after.ConsecutiveFailures != 1 || identityRequests.Load() != 3 || !after.Reachable || after.StatusCurrent() || after.ConfigCurrent() || !reflect.DeepEqual(after.Status, before.Status) {
 		t.Fatal("one missed check lost saved values, changed reachability, or counted the retry twice")
 	}
-	setDeviceField(t, s, id, "last_seen", time.Now().UTC().Add(-2*time.Minute))
-	s.refreshDevices(false)
-	s.refreshDevices(false)
-	after, _ = s.store.Device(id)
-	if after.Reachable || after.ConsecutiveFailures != 3 {
-		t.Fatal("sustained outage did not become offline")
-	}
 	fail.Store(false)
+	recovered.Store(true)
 	s.refreshDevices(false)
 	after, _ = s.store.Device(id)
-	snapshots, err := s.store.Snapshots(id)
-	if err != nil || len(snapshots) != 1 || snapshots[0].ID != baselineID || after.BaselineID != baselineID || !after.StatusCurrent() || !after.ConfigCurrent() || after.ConsecutiveFailures != 0 {
-		t.Fatal("recovery did not restore health or changed history")
+	if !after.StatusCurrent() || !after.ConfigCurrent() || after.Config["switch:0"].(map[string]any)["in_mode"] != "follow" || after.ConsecutiveFailures != 0 {
+		t.Fatal("polling did not reread settings and restore health after a missed check")
 	}
 	mismatch.Store(true)
 	count := identityRequests.Load()

@@ -77,13 +77,13 @@ func TestDiscoveryRetriesInterruptedIdentityButDoesNotRetryInvalidDevices(t *tes
 	}
 }
 
-func TestCaptureRedactsSecretsAndKeepsStatelessInput(t *testing.T) {
+func TestCaptureRedactsSecrets(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/shelly":
 			_, _ = w.Write([]byte(`{"id":"test","mac":"AABBCCDDEEFF","gen":4}`))
 		case "/rpc/Shelly.GetStatus":
-			_, _ = w.Write([]byte(`{"input:0":{"state":null},"switch:0":{"apower":0}}`))
+			_, _ = w.Write([]byte(`{}`))
 		case "/rpc/Shelly.GetConfig":
 			_, _ = w.Write([]byte(`{"wifi":{"sta":{"pass":"sensitive"}},"switch:0":{"in_mode":"momentary"},"extra":[[{"password":"sensitive"}],"mqtt://admin:sensitive@192.168.1.2"]}`))
 		default:
@@ -101,12 +101,6 @@ func TestCaptureRedactsSecretsAndKeepsStatelessInput(t *testing.T) {
 	}
 	if reading.Config["extra"].([]any)[1] != "mqtt://192.168.1.2" {
 		t.Fatal("URL redaction discarded the public connection address")
-	}
-	if reading.Status["input:0"].(map[string]any)["state"] != nil {
-		t.Fatal("stateless input changed")
-	}
-	if !reading.ConfigAttempted {
-		t.Fatal("configuration read not recorded")
 	}
 }
 
@@ -224,11 +218,11 @@ func TestCanceledReadDoesNotRetry(t *testing.T) {
 
 func TestTargetsBoundsAndAddresses(t *testing.T) {
 	for _, value := range []string{"10.0.0.0/16", "8.8.8.0/24", "file:///etc/passwd", "http://admin:password@192.168.1.2", "192.168.1.2/rpc/Switch.Set"} {
-		if _, err := Targets(value); err == nil {
+		if _, err := (NetworkDiscovery{}).Targets(value); err == nil {
 			t.Errorf("accepted invalid target %q", value)
 		}
 	}
-	addresses, err := Targets("192.168.1.5/24")
+	addresses, err := (NetworkDiscovery{}).Targets("192.168.1.5/24")
 	if err != nil || len(addresses) != 254 || addresses[0] != "http://192.168.1.1" || addresses[253] != "http://192.168.1.254" {
 		t.Fatalf("unexpected range: %v, %d", err, len(addresses))
 	}

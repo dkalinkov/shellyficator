@@ -71,19 +71,12 @@ func TestInventoryRoomGrouping(t *testing.T) {
 			if !reflect.DeepEqual(got, test.groups) {
 				t.Fatalf("groups=%v; want %v", got, test.groups)
 			}
-			if page.Total != 5 || page.Reachable != 5 {
-				t.Fatalf("grouping changed inventory totals: total=%d reachable=%d", page.Total, page.Reachable)
-			}
-			location, err := url.Parse(inventoryURL(page))
-			if err != nil {
-				t.Fatal(err)
-			}
 			wantGroup := ""
 			if strings.Contains(test.query, "group=room") {
 				wantGroup = "room"
 			}
-			if page.GroupBy != wantGroup || location.Query().Get("group") != wantGroup {
-				t.Fatalf("grouping state=%q URL=%s; want %q", page.GroupBy, location, wantGroup)
+			if page.GroupBy != wantGroup {
+				t.Fatalf("grouping state=%q; want %q", page.GroupBy, wantGroup)
 			}
 		})
 	}

@@ -11,12 +11,44 @@ import (
 	"shellyficator/internal/domain"
 )
 
-func (s *Server) list(e *core.RequestEvent) (InventoryPage, error) {
-	query := e.Request.URL.Query()
-	return s.listFiltered(e, query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","), query.Get("group"))
+type inventoryFilter struct {
+	query, room string
+	tags        []string
+	tagSet      map[string]bool
 }
 
-func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter, groupBy string) (InventoryPage, error) {
+func newInventoryFilter(query, room, tags string) inventoryFilter {
+	filter := inventoryFilter{query: strings.TrimSpace(query), room: room, tags: domain.SplitTags(tags), tagSet: map[string]bool{}}
+	for _, tag := range filter.tags {
+		filter.tagSet[strings.ToLower(tag)] = true
+	}
+	return filter
+}
+
+func inventoryFilterFromQuery(query url.Values) inventoryFilter {
+	return newInventoryFilter(query.Get("q"), query.Get("room"), strings.Join(query["tags"], ","))
+}
+
+func (f inventoryFilter) matches(device domain.Device) bool {
+	if f.room != "" && f.room != device.Room {
+		return false
+	}
+	if len(f.tagSet) > 0 && !slices.ContainsFunc(device.Tags, func(tag string) bool { return f.tagSet[strings.ToLower(tag)] }) {
+		return false
+	}
+	if f.query == "" {
+		return true
+	}
+	haystack := strings.Join([]string{deviceName(device), device.DeviceID, device.Address, device.Room, strings.Join(device.Tags, ", "), device.Notes}, " ")
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(f.query))
+}
+
+func (s *Server) list(e *core.RequestEvent) (InventoryPage, error) {
+	query := e.Request.URL.Query()
+	return s.listFiltered(e, inventoryFilterFromQuery(query), query.Get("group"))
+}
+
+func (s *Server) listFiltered(e *core.RequestEvent, filter inventoryFilter, groupBy string) (InventoryPage, error) {
 	entries, err := s.devices.Inventory()
 	if err != nil {
 		return InventoryPage{}, err
@@ -25,32 +57,22 @@ func (s *Server) listFiltered(e *core.RequestEvent, query, roomFilter, tagFilter
 	if err != nil {
 		return InventoryPage{}, err
 	}
-	page := inventoryPage(s.pageMeta(e, "Devices"), entries, query, roomFilter, tagFilter, groupBy, preferences)
+	page := inventoryPage(s.pageMeta(e, "Devices"), entries, filter, groupBy, preferences)
 	page.Discovery = s.devices.Discovery()
 	return page, nil
 }
 
-func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFilter, tagFilter, groupBy string, preferences ...domain.WatchPreferences) InventoryPage {
-	var watch domain.WatchPreferences
-	if len(preferences) > 0 {
-		watch = preferences[0]
-	}
+func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, filter inventoryFilter, groupBy string, watch domain.WatchPreferences) InventoryPage {
 	if groupBy != "room" {
 		groupBy = ""
 	}
-	page := InventoryPage{PageMeta: meta, Query: strings.TrimSpace(query), Room: roomFilter, SelectedTags: domain.SplitTags(tagFilter), GroupBy: groupBy}
+	page := InventoryPage{PageMeta: meta, Query: filter.query, Room: filter.room, SelectedTags: slices.Clone(filter.tags), GroupBy: groupBy}
 	rooms := map[string]bool{}
 	tags := map[string]string{}
-	selectedTags := map[string]bool{}
-	for _, tag := range page.SelectedTags {
-		selectedTags[strings.ToLower(tag)] = true
-	}
 	page.Total = len(entries)
 	for _, entry := range entries {
 		model := entry.Device
 		page.FirmwareRunning = page.FirmwareRunning || model.FirmwareUpdate.Active()
-		name := deviceName(model)
-		device := Device{Info: deviceView(model), Name: name}
 		if model.Reachable {
 			page.Reachable++
 		}
@@ -61,39 +83,24 @@ func inventoryPage(meta PageMeta, entries []domain.InventoryEntry, query, roomFi
 		if firmware.Current && firmware.Stable != "" {
 			page.Updates++
 		}
-		baseline := entry.Baseline
-		differences := 0
-		if config := model.Config; baseline != nil && config != nil {
-			differences = len(domain.CompareConfiguration(baseline, config, watch.ForDevice(model.ID)).Settings)
-			if differences > 0 {
-				page.Changed++
-			}
+		comparison := domain.CompareConfiguration(entry.Baseline, model.Config, watch.ForDevice(model.ID))
+		if len(comparison.Settings) > 0 {
+			page.Changed++
 		}
 		room := model.Room
 		if room != "" {
 			rooms[room] = true
 		}
-		matchesTags := len(selectedTags) == 0
 		for _, tag := range model.Tags {
 			key := strings.ToLower(tag)
 			if _, known := tags[key]; !known {
 				tags[key] = tag
 			}
-			if selectedTags[key] {
-				matchesTags = true
-			}
 		}
-		haystack := strings.ToLower(strings.Join([]string{name, model.DeviceID, model.Address, room, strings.Join(model.Tags, ", "), model.Notes}, " "))
-		if page.Query != "" && !strings.Contains(haystack, strings.ToLower(page.Query)) {
+		if !filter.matches(model) {
 			continue
 		}
-		if page.Room != "" && page.Room != room {
-			continue
-		}
-		if !matchesTags {
-			continue
-		}
-		device.Table = tableDevice(model, baseline, differences, watch.ForDevice(model.ID))
+		device := Device{Info: deviceView(model), Name: deviceName(model), Table: tableDevice(model, entry.Baseline, comparison, firmware)}
 		notes := entry.ChannelNotes
 		for i := range device.Table.Inputs {
 			input := &device.Table.Inputs[i]

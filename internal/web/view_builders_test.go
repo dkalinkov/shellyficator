@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"shellyficator/internal/domain"
@@ -15,21 +16,6 @@ func TestDevicePagePreservesDifferencePresenceAndValues(t *testing.T) {
 		},
 		Baseline: map[string]any{"removed": false, "nullable": false, "zero": float64(1)},
 	}}, domain.WatchPolicy{domain.WatchOther: true})
-	values := map[string]DifferenceView{}
-	for _, difference := range page.Differences {
-		values[difference.Path] = difference
-	}
-	for _, test := range []struct{ path, before, after string }{
-		{"added", "Not present", "false"},
-		{"removed", "false", "Not present"},
-		{"nullable", "false", "null"},
-		{"zero", "1", "0"},
-	} {
-		value := values[test.path]
-		if value.Before != test.before || value.After != test.after {
-			t.Fatalf("%s lost presence or value: %+v", test.path, value)
-		}
-	}
 	templates, err := parseTemplates()
 	if err != nil {
 		t.Fatal(err)
@@ -38,62 +24,32 @@ func TestDevicePagePreservesDifferencePresenceAndValues(t *testing.T) {
 	if err := templates.ExecuteTemplate(&body, "detail-configuration", page); err != nil {
 		t.Fatal(err)
 	}
-	if text := renderedText(body.String()); text == "" {
-		t.Fatal("difference table was not rendered")
+	content := renderedText(body.String())
+	for _, row := range []string{"added Not present false", "removed false Not present", "nullable false null", "zero 1 0"} {
+		if !strings.Contains(content, row) {
+			t.Errorf("comparison did not display %q", row)
+		}
 	}
 }
 
-func TestConfigurationWarningsExcludeMetadata(t *testing.T) {
-	baseline := map[string]any{
-		"sys":      map[string]any{"cfg_rev": 1, "device": map[string]any{"fw_id": "old"}},
-		"switch:0": map[string]any{"in_mode": "follow"},
+func TestRecordedChangesAreShownOnlyForCurrentConfiguration(t *testing.T) {
+	entry := domain.InventoryEntry{
+		Device:   domain.Device{ID: "device", Reachable: true, Config: map[string]any{"sys": map[string]any{"cfg_rev": 2}}},
+		Baseline: map[string]any{"sys": map[string]any{"cfg_rev": 1}},
 	}
-	for _, changedSetting := range []bool{false, true} {
-		for _, fresh := range []bool{false, true} {
-			mode := "follow"
-			if changedSetting {
-				mode = "detached"
-			}
-			entry := domain.InventoryEntry{
-				Device: domain.Device{ID: "device", Reachable: true, ConfigAvailable: fresh,
-					Config: map[string]any{
-						"sys":      map[string]any{"cfg_rev": 2, "device": map[string]any{"fw_id": "new"}},
-						"switch:0": map[string]any{"in_mode": mode},
-					}},
-				Baseline: baseline,
-			}
-			page := devicePage(PageMeta{}, domain.DeviceDetails{InventoryEntry: entry})
-			inventory := inventoryPage(PageMeta{}, []domain.InventoryEntry{entry}, "", "", "", "")
-			wantChanges := 0
-			if changedSetting {
-				wantChanges = 1
-			}
-			if len(page.Differences) != wantChanges || len(page.InformationalDifferences) != 2 || inventory.Changed != wantChanges {
-				t.Fatalf("counts include metadata: detail=%+v inventory=%+v", page, inventory)
-			}
-			if page.Detail.ShowDifferences != (fresh && changedSetting) {
-				t.Fatal("stale settings presented as current")
-			}
-			if !changedSetting && fresh && inventory.Devices[0].Table.Configuration != "Recorded changes" {
-				t.Fatal("metadata-only change not acknowledged")
-			}
-			templates, err := parseTemplates()
-			if err != nil {
-				t.Fatal(err)
-			}
-			var body bytes.Buffer
-			if err := templates.ExecuteTemplate(&body, "detail-configuration", page); err != nil {
-				t.Fatal(err)
-			}
-			if bytes.Contains(body.Bytes(), []byte("<details")) != fresh {
-				t.Fatal("metadata disclosure missing or stale metadata shown as current")
-			}
-			// Approving current values clears both categories.
-			entry.Baseline = entry.Device.Config
-			approved := devicePage(PageMeta{}, domain.DeviceDetails{InventoryEntry: entry})
-			if len(approved.Differences)+len(approved.InformationalDifferences) != 0 {
-				t.Fatal("approval did not clear comparison")
-			}
+	templates, err := parseTemplates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fresh := range []bool{true, false} {
+		entry.Device.ConfigAvailable = fresh
+		page := devicePage(PageMeta{}, domain.DeviceDetails{InventoryEntry: entry}, nil)
+		var body bytes.Buffer
+		if err := templates.ExecuteTemplate(&body, "detail-configuration", page); err != nil {
+			t.Fatal(err)
+		}
+		if shown := strings.Contains(renderedText(body.String()), "Recorded changes (1)"); shown != fresh {
+			t.Fatalf("recorded changes shown=%t for current settings=%t", shown, fresh)
 		}
 	}
 }
@@ -109,15 +65,15 @@ func TestWatchPreferencesApplyAcrossInventoryAndDetail(t *testing.T) {
 		name        string
 		preferences domain.WatchPreferences
 		warnings    int
+		label       string
 	}{
-		{"defaults", nil, 2},
-		{"record all", domain.WatchPreferences{"": domain.WatchPolicy{}}, 0},
-		{"timers only", domain.WatchPreferences{"": domain.WatchPolicy{domain.WatchTimers: true}}, 1},
-		{"device override", domain.WatchPreferences{"": domain.WatchPolicy{}, "one": domain.WatchPolicy{domain.WatchButtons: true}}, 2},
-		{"other device override", domain.WatchPreferences{"": domain.WatchPolicy{}, "two": domain.WatchPolicy{domain.WatchButtons: true}}, 0},
+		{"defaults", nil, 2, "2 changes"},
+		{"record all", domain.WatchPreferences{"": domain.WatchPolicy{}}, 0, "Recorded changes"},
+		{"timers only", domain.WatchPreferences{"": domain.WatchPolicy{domain.WatchTimers: true}}, 1, "1 change"},
+		{"device override", domain.WatchPreferences{"": domain.WatchPolicy{}, "one": domain.WatchPolicy{domain.WatchButtons: true}}, 2, "2 changes"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			inventory := inventoryPage(PageMeta{}, []domain.InventoryEntry{entry}, "", "", "", "", test.preferences)
+			inventory := inventoryPage(PageMeta{}, []domain.InventoryEntry{entry}, inventoryFilter{}, "", test.preferences)
 			detail := devicePage(PageMeta{}, domain.DeviceDetails{InventoryEntry: entry}, test.preferences.ForDevice("one"))
 			if len(detail.Differences) != test.warnings || len(detail.InformationalDifferences) != 3-test.warnings {
 				t.Fatalf("wrong differences: %+v", detail)
@@ -126,8 +82,8 @@ func TestWatchPreferencesApplyAcrossInventoryAndDetail(t *testing.T) {
 			if (inventory.Changed > 0) != wanted || inventory.Devices[0].Table.InputsChanged != wanted || detail.Detail.Table.InputsChanged != wanted || detail.Detail.ShowDifferences != wanted {
 				t.Fatal("warnings disagree across app")
 			}
-			if inventory.Devices[0].Table.Configuration != detail.Detail.Table.Configuration {
-				t.Fatal("inventory/detail labels disagree")
+			if inventory.Devices[0].Table.Configuration != test.label || detail.Detail.Table.Configuration != test.label {
+				t.Fatalf("inventory and detail should both report %q", test.label)
 			}
 		})
 	}

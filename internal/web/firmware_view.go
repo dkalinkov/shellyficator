@@ -98,7 +98,6 @@ func firmwareView(device domain.Device) FirmwareView {
 		view.Active, view.HasResult = update.Active(), true
 		view.Phase, view.Message = update.Phase, update.Message
 		if update.Phase == "succeeded" && view.Available {
-			// A completed attempt must not hide a newly offered stable or beta release.
 			view.Info += "\nLast update: " + update.Message
 			view.Visible = true
 			return view

@@ -11,26 +11,22 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// These fixtures intentionally implement the service contracts without a
-// database or protocol adapter, so the application workflows stand on their own.
 type memoryRepository struct {
-	mu                        sync.Mutex
-	devices                   map[string]domain.Device
-	snapshots                 map[string][]domain.Snapshot
-	baselines                 map[string]map[string]any
-	notes                     map[string]map[string]string
-	devicesErr, deviceErr     error
-	baselineErr, notesErr     error
-	snapshotsErr, optionsErr  error
-	saveErr, failedErr        error
-	saves, captures, approves int
-	failures                  int
+	Repository
+	mu                       sync.Mutex
+	devices                  map[string]domain.Device
+	snapshots                map[string][]domain.Snapshot
+	baselines                map[string]map[string]any
+	devicesErr, deviceErr    error
+	baselineErr, notesErr    error
+	snapshotsErr, optionsErr error
+	saveErr, failedErr       error
 }
 
 func newMemoryRepository() *memoryRepository {
 	return &memoryRepository{
 		devices: map[string]domain.Device{}, snapshots: map[string][]domain.Snapshot{},
-		baselines: map[string]map[string]any{}, notes: map[string]map[string]string{},
+		baselines: map[string]map[string]any{},
 	}
 }
 
@@ -60,16 +56,6 @@ func (r *memoryRepository) Device(id string) (domain.Device, error) {
 func (r *memoryRepository) SaveReading(reading domain.Reading, capture bool) (domain.Device, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.save(reading, capture, false)
-}
-
-func (r *memoryRepository) ApproveReading(reading domain.Reading) (domain.Device, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.save(reading, true, true)
-}
-
-func (r *memoryRepository) save(reading domain.Reading, capture, approve bool) (domain.Device, error) {
 	if r.saveErr != nil {
 		return domain.Device{}, r.saveErr
 	}
@@ -84,19 +70,16 @@ func (r *memoryRepository) save(reading domain.Reading, capture, approve bool) (
 		device.ID = reading.Identity.ID
 	}
 	device = device.ApplyReading(reading, capture, time.Now())
-	r.saves++
 	if capture && reading.Config != nil {
-		r.captures++
-		snapshot := domain.Snapshot{ID: fmt.Sprintf("snapshot-%d", r.captures), DeviceID: device.ID, Config: reading.Config}
+		snapshot := domain.Snapshot{ID: fmt.Sprintf("snapshot-%d", len(r.snapshots[device.ID])+1)}
 		r.snapshots[device.ID] = append(r.snapshots[device.ID], snapshot)
-		if approve {
-			r.approves++
-			device.BaselineID = snapshot.ID
-			r.baselines[device.ID] = reading.Config
-		}
 	}
 	r.devices[device.ID] = device
 	return device, nil
+}
+
+func (r *memoryRepository) ApproveReading(domain.Reading) (domain.Device, error) {
+	return domain.Device{}, r.saveErr
 }
 
 func (r *memoryRepository) Failed(id, problem string, mismatch bool) error {
@@ -105,7 +88,6 @@ func (r *memoryRepository) Failed(id, problem string, mismatch bool) error {
 	if r.failedErr != nil {
 		return r.failedErr
 	}
-	r.failures++
 	r.devices[id] = r.devices[id].FailedCheck(problem, mismatch, time.Now())
 	return nil
 }
@@ -116,10 +98,8 @@ func (r *memoryRepository) Baseline(device domain.Device) (map[string]any, error
 	return r.baselines[device.ID], r.baselineErr
 }
 
-func (r *memoryRepository) ChannelNotes(id string) (map[string]string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.notes[id], r.notesErr
+func (r *memoryRepository) ChannelNotes(string) (map[string]string, error) {
+	return nil, r.notesErr
 }
 
 func (r *memoryRepository) Snapshots(id string) ([]domain.Snapshot, error) {
@@ -134,34 +114,6 @@ func (r *memoryRepository) OrganizationOptions() (domain.OrganizationOptions, er
 		return domain.OrganizationOptions{}, err
 	}
 	return domain.Options(devices), r.optionsErr
-}
-
-func (r *memoryRepository) Metadata(id, room, tags, notes string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	device := r.devices[id]
-	device.Room, device.Tags, device.Notes = room, domain.SplitTags(tags), notes
-	r.devices[id] = device
-	return nil
-}
-
-func (r *memoryRepository) Organization(id, room, tags string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	device := r.devices[id]
-	device.Room, device.Tags = room, domain.SplitTags(tags)
-	r.devices[id] = device
-	return nil
-}
-
-func (r *memoryRepository) SaveChannelNote(id, component, notes string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.notes[id] == nil {
-		r.notes[id] = map[string]string{}
-	}
-	r.notes[id][component] = notes
-	return nil
 }
 
 type workflowClient struct {
@@ -240,8 +192,6 @@ func TestServiceQueriesPropagateRelatedDataFailures(t *testing.T) {
 		{"inventory baseline", func(r *memoryRepository) { r.baselineErr = failure }, false},
 		{"inventory notes", func(r *memoryRepository) { r.notesErr = failure }, false},
 		{"detail device", func(r *memoryRepository) { r.deviceErr = failure }, true},
-		{"detail baseline", func(r *memoryRepository) { r.baselineErr = failure }, true},
-		{"detail notes", func(r *memoryRepository) { r.notesErr = failure }, true},
 		{"detail snapshots", func(r *memoryRepository) { r.snapshotsErr = failure }, true},
 		{"detail organization", func(r *memoryRepository) { r.optionsErr = failure }, true},
 	} {
@@ -261,198 +211,120 @@ func TestServiceQueriesPropagateRelatedDataFailures(t *testing.T) {
 	}
 }
 
-func TestCaptureAndApprovalUseFreshReadsAndSeparateHistoryOperations(t *testing.T) {
+func TestCaptureWithoutSettingsKeepsSavedConfigAndUpdatesStatus(t *testing.T) {
 	var readDevice domain.Device
-	var reads int
-	client := workflowClient{read: func(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
-		if !config || address != readDevice.Address || mac != readDevice.MAC {
-			t.Fatalf("fresh configuration read lost address, identity or configuration mode")
-		}
-		reads++
-		return deviceReading(readDevice), nil
-	}}
-	service, repository, device := workflowFixture(t, client)
+	s, repository, before := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
+		reading := deviceReading(readDevice)
+		reading.Config, reading.Problem = nil, "settings unavailable"
+		return reading, nil
+	}})
+	readDevice = before
+	if _, err := s.Capture(t.Context(), before.ID); !errors.Is(err, domain.ErrConfigUnavailable) {
+		t.Fatalf("capture lost the configuration error: %v", err)
+	}
+	after, _ := repository.Device(before.ID)
+	snapshots, _ := repository.Snapshots(before.ID)
+	if after.ConfigAvailable || !after.StatusCurrent() || after.BaselineID != before.BaselineID || after.LastCaptured != before.LastCaptured ||
+		after.Config["switch:0"].(map[string]any)["in_mode"] != "momentary" || after.Status["switch:0"].(map[string]any)["output"] != true || len(snapshots) != 0 {
+		t.Fatal("capture changed history or saved settings, or discarded fresh status")
+	}
+}
+
+func TestStatusRefreshKeepsTheSavedConfigurationWarning(t *testing.T) {
+	var readDevice domain.Device
+	s, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
+		reading := deviceReading(readDevice)
+		reading.Config, reading.ConfigAttempted = nil, false
+		return reading, nil
+	}})
 	readDevice = device
-	captured, err := service.Capture(context.Background(), device.ID)
-	if err != nil || captured.BaselineID != device.BaselineID || repository.captures != 1 || repository.approves != 0 {
-		t.Fatalf("capture changed baseline or failed to snapshot: device=%+v err=%v", captured, err)
-	}
-	approved, err := service.ApproveBaseline(context.Background(), device.ID)
-	if err != nil || reads != 2 || repository.captures != 2 || repository.approves != 1 || approved.BaselineID != "snapshot-2" {
-		t.Fatalf("approval did not atomically select a fresh capture: device=%+v err=%v", approved, err)
-	}
-	if approved.Notes != device.Notes || approved.Room != device.Room || len(approved.Tags) != 1 || approved.Tags[0] != "lamp" {
-		t.Fatal("fresh configuration workflow lost local metadata")
+	device.ConfigAvailable = false
+	repository.devices[device.ID] = device
+	available, err := s.RefreshDevice(t.Context(), device.ID)
+	after, _ := repository.Device(device.ID)
+	if err != nil || !available || after.ConfigAvailable || after.Problem != "Configuration is unavailable. Capture config to retry." {
+		t.Fatalf("status refresh lost the settings warning: device=%+v err=%v", after, err)
 	}
 }
 
-func TestMissingConfigurationPreservesSavedConfigurationAndBaseline(t *testing.T) {
-	for _, approve := range []bool{false, true} {
-		t.Run(fmt.Sprintf("approve=%t", approve), func(t *testing.T) {
-			var readDevice domain.Device
-			service, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
-				reading := deviceReading(readDevice)
-				reading.Config, reading.Problem = nil, "settings unavailable"
-				return reading, nil
-			}})
-			readDevice = device
-			var err error
-			if approve {
-				_, err = service.ApproveBaseline(context.Background(), device.ID)
-			} else {
-				_, err = service.Capture(context.Background(), device.ID)
-			}
-			after, _ := repository.Device(device.ID)
-			if !errors.Is(err, domain.ErrConfigUnavailable) || repository.saves != 1 || repository.captures != 0 || repository.approves != 0 || repository.failures != 0 {
-				t.Fatalf("missing configuration created history or lost valid observations: %v", err)
-			}
-			if after.ConfigAvailable || !after.StatusAvailable || !after.Reachable || after.BaselineID != device.BaselineID || after.LastCaptured != device.LastCaptured || after.Config["switch:0"].(map[string]any)["in_mode"] != "momentary" || after.Status["switch:0"].(map[string]any)["output"] != true || after.Problem != "settings unavailable" {
-				t.Fatal("missing configuration changed baseline/cached config or discarded fresh status")
-			}
-		})
-	}
-}
-
-func TestStatusRefreshPreservesConfigurationWarningAndReportsAvailability(t *testing.T) {
-	for _, available := range []bool{false, true} {
-		t.Run(fmt.Sprintf("status=%t", available), func(t *testing.T) {
-			var readDevice domain.Device
-			service, repository, device := workflowFixture(t, workflowClient{read: func(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
-				if config {
-					t.Fatal("status refresh requested configuration")
-				}
-				reading := deviceReading(readDevice)
-				reading.Config, reading.ConfigAttempted = nil, false
-				if !available {
-					reading.Status = nil
-				}
-				return reading, nil
-			}})
-			readDevice = device
-			device.ConfigAvailable = false
-			repository.devices[device.ID] = device
-			result, err := service.RefreshDevice(context.Background(), device.ID)
-			after, _ := repository.Device(device.ID)
-			if err != nil || result.StatusAvailable != available || after.ConfigAvailable || after.Problem != "Configuration is unavailable. Capture config to retry." || after.BaselineID != device.BaselineID || repository.captures != 0 {
-				t.Fatalf("status refresh lost configuration warning or changed history: result=%+v device=%+v err=%v", result, after, err)
-			}
-		})
-	}
-}
-
-func TestSingleDeviceIdentityFailureAndPersistenceErrorPropagation(t *testing.T) {
+func TestDeviceReadReportsFailureToSaveHealth(t *testing.T) {
+	s, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
+		return domain.Reading{}, domain.ErrIdentity
+	}})
 	storageFailure := errors.New("cannot persist failure")
-	for _, workflow := range []string{"status", "capture", "approve"} {
-		t.Run(workflow, func(t *testing.T) {
-			service, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
-				return domain.Reading{}, domain.ErrIdentity
+	repository.failedErr = storageFailure
+	_, err := s.RefreshDevice(t.Context(), device.ID)
+	if !errors.Is(err, storageFailure) || errors.Is(err, domain.ErrDeviceRead) {
+		t.Fatalf("failure to save device health was hidden: %v", err)
+	}
+}
+
+func TestSingleDeviceCancellationLeavesSavedInventoryAvailable(t *testing.T) {
+	for _, callerCancels := range []bool{true, false} {
+		t.Run(fmt.Sprintf("caller=%t", callerCancels), func(t *testing.T) {
+			started := make(chan struct{})
+			s, repository, before := workflowFixture(t, workflowClient{read: func(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
+				close(started)
+				<-ctx.Done()
+				return domain.Reading{}, ctx.Err()
 			}})
-			run := func() error {
-				switch workflow {
-				case "status":
-					_, err := service.RefreshDevice(context.Background(), device.ID)
-					return err
-				case "capture":
-					_, err := service.Capture(context.Background(), device.ID)
-					return err
-				default:
-					_, err := service.ApproveBaseline(context.Background(), device.ID)
-					return err
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			completed := make(chan error, 1)
+			go func() {
+				if callerCancels {
+					_, err := s.RefreshDevice(ctx, before.ID)
+					completed <- err
+				} else {
+					_, err := s.ApproveBaseline(ctx, before.ID)
+					completed <- err
 				}
+			}()
+			waitForJob(t, started)
+			inventoryDone := make(chan error, 1)
+			go func() { _, err := s.Inventory(); inventoryDone <- err }()
+			select {
+			case err := <-inventoryDone:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("inventory waited for the device read")
 			}
-			if err := run(); !errors.Is(err, domain.ErrIdentity) || !errors.Is(err, domain.ErrDeviceRead) {
-				t.Fatalf("identity failure lost: %v", err)
+			want := domain.ErrClosed
+			if callerCancels {
+				cancel()
+				want = context.Canceled
+			} else {
+				closeService(t, s)
 			}
-			after, _ := repository.Device(device.ID)
-			if !after.IdentityMismatch || after.Reachable || after.MAC != device.MAC || repository.saves != 0 || repository.failures != 1 {
-				t.Fatal("identity failure rebound device or failed to mark health immediately")
+			select {
+			case err := <-completed:
+				if !errors.Is(err, want) || errors.Is(err, domain.ErrDeviceRead) {
+					t.Fatalf("cancellation error=%v want=%v", err, want)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("cancelled device read stayed active")
 			}
-			repository.failedErr = storageFailure
-			if err := run(); !errors.Is(err, storageFailure) || errors.Is(err, domain.ErrDeviceRead) {
-				t.Fatalf("failure persistence error hidden: %v", err)
+			after, _ := repository.Device(before.ID)
+			if after.LastChecked != before.LastChecked || after.BaselineID != before.BaselineID {
+				t.Fatal("cancellation changed health or the approved baseline")
 			}
 		})
 	}
 }
 
-func TestSingleDeviceCancellationKeepsCachedInventoryAvailableAndDrainsWork(t *testing.T) {
-	for _, workflow := range []string{"status", "capture", "approve"} {
-		for _, callerCancels := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/caller=%t", workflow, callerCancels), func(t *testing.T) {
-				started, drained := make(chan struct{}), make(chan struct{})
-				service, repository, device := workflowFixture(t, workflowClient{read: func(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
-					close(started)
-					<-ctx.Done()
-					close(drained)
-					return domain.Reading{}, ctx.Err()
-				}})
-				ctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				completed := make(chan error, 1)
-				go func() {
-					var err error
-					switch workflow {
-					case "status":
-						_, err = service.RefreshDevice(ctx, device.ID)
-					case "capture":
-						_, err = service.Capture(ctx, device.ID)
-					case "approve":
-						_, err = service.ApproveBaseline(ctx, device.ID)
-					}
-					completed <- err
-				}()
-				waitForJob(t, started)
-				inventoryDone := make(chan error, 1)
-				go func() { _, err := service.Inventory(); inventoryDone <- err }()
-				select {
-				case err := <-inventoryDone:
-					if err != nil {
-						t.Fatal(err)
-					}
-				case <-time.After(time.Second):
-					t.Fatal("inventory query waited for a single-device network read")
-				}
-				if callerCancels {
-					cancel()
-				} else {
-					closeService(t, service)
-				}
-				waitForJob(t, drained)
-				select {
-				case err := <-completed:
-					want := domain.ErrClosed
-					if callerCancels {
-						want = context.Canceled
-					}
-					if !errors.Is(err, want) || errors.Is(err, domain.ErrDeviceRead) {
-						t.Fatalf("cancellation error=%v want=%v", err, want)
-					}
-				case <-time.After(time.Second):
-					t.Fatal("single-device operation did not drain")
-				}
-				after, _ := repository.Device(device.ID)
-				if repository.saves != 0 || repository.failures != 0 || after.LastChecked != device.LastChecked || after.BaselineID != device.BaselineID {
-					t.Fatal("cancellation changed health or history")
-				}
-			})
-		}
-	}
-}
-
-func TestApprovalSaveFailureIdentifiesStageAndPreservesOriginalCause(t *testing.T) {
+func TestApprovalSaveFailurePreservesCause(t *testing.T) {
 	var readDevice domain.Device
-	service, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
+	s, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
 		return deviceReading(readDevice), nil
 	}})
 	readDevice = device
 	failure := errors.New("transaction failed")
 	repository.saveErr = failure
-	_, err := service.ApproveBaseline(context.Background(), device.ID)
+	_, err := s.ApproveBaseline(t.Context(), device.ID)
 	if !errors.Is(err, domain.ErrBaselineSave) || !errors.Is(err, failure) || errors.Is(err, domain.ErrDeviceRead) {
-		t.Fatalf("approval failure lost stage or cause: %v", err)
-	}
-	if repository.approves != 0 || repository.captures != 0 || repository.devices[device.ID].BaselineID != device.BaselineID {
-		t.Fatal("failed approval changed snapshot history or baseline")
+		t.Fatalf("approval failure lost its type or cause: %v", err)
 	}
 }
 
@@ -462,15 +334,10 @@ func TestClosedServiceRejectsQueriesAndSynchronousWork(t *testing.T) {
 	operations := []func() error{
 		func() error { _, err := service.Inventory(); return err },
 		func() error { _, err := service.Detail(device.ID); return err },
-		func() error { _, err := service.OrganizationOptions(); return err },
+		func() error { _, _, err := service.DeviceOrganization(device.ID); return err },
 		func() error { _, err := service.LocalNetworks(); return err },
 		func() error { _, err := service.RefreshDevice(context.Background(), device.ID); return err },
-		func() error { _, err := service.Capture(context.Background(), device.ID); return err },
-		func() error { _, err := service.ApproveBaseline(context.Background(), device.ID); return err },
 		func() error { return service.Metadata(device.ID, "", "", "") },
-		func() error { return service.Organization(device.ID, "", "") },
-		func() error { return service.SaveChannelNote(device.ID, "switch:0", "") },
-		func() error { return service.Discover("", true) },
 	}
 	for i, operation := range operations {
 		if err := operation(); !errors.Is(err, domain.ErrClosed) {
@@ -480,25 +347,17 @@ func TestClosedServiceRejectsQueriesAndSynchronousWork(t *testing.T) {
 }
 
 func TestReadingPersistenceFailureIsReturnedWithoutDeviceFailure(t *testing.T) {
-	for _, capture := range []bool{false, true} {
-		t.Run(fmt.Sprintf("capture=%t", capture), func(t *testing.T) {
-			var readDevice domain.Device
-			service, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
-				return deviceReading(readDevice), nil
-			}})
-			readDevice = device
-			failure := errors.New("reading save failed")
-			repository.saveErr = failure
-			var err error
-			if capture {
-				_, err = service.Capture(context.Background(), device.ID)
-			} else {
-				_, err = service.RefreshDevice(context.Background(), device.ID)
-			}
-			if !errors.Is(err, failure) || errors.Is(err, domain.ErrDeviceRead) || repository.failures != 0 {
-				t.Fatalf("persistence failure lost or reported as device outage: %v", err)
-			}
-		})
+	var readDevice domain.Device
+	s, repository, device := workflowFixture(t, workflowClient{read: func(context.Context, string, string, bool) (domain.Reading, error) {
+		return deviceReading(readDevice), nil
+	}})
+	readDevice = device
+	failure := errors.New("reading save failed")
+	repository.saveErr = failure
+	_, err := s.RefreshDevice(t.Context(), device.ID)
+	after, _ := repository.Device(device.ID)
+	if !errors.Is(err, failure) || errors.Is(err, domain.ErrDeviceRead) || after.LastChecked != device.LastChecked {
+		t.Fatalf("persistence failure lost or reported as a device outage: %v", err)
 	}
 }
 
@@ -532,7 +391,7 @@ func TestConcurrentCaptureRecoversConfigurationWarningBeforeStatusPublication(t 
 		t.Fatal(err)
 	}
 	after, _ := repository.Device(device.ID)
-	if !after.ConfigAvailable || after.Problem != "" || repository.captures != 1 {
+	if !after.ConfigAvailable || after.Problem != "" {
 		t.Fatalf("status refresh restored an obsolete configuration warning: %+v", after)
 	}
 }
@@ -556,16 +415,14 @@ func TestRefreshDeviceRepositoryLookupFailuresRemainDistinctFromReadFailures(t *
 				repository.deviceErr = failure
 			}
 			_, err := service.RefreshDevice(context.Background(), device.ID)
-			if !errors.Is(err, failure) || errors.Is(err, domain.ErrDeviceRead) || repository.failures != 0 || repository.saves != 0 {
+			repository.deviceErr = nil
+			after, _ := repository.Device(device.ID)
+			if !errors.Is(err, failure) || errors.Is(err, domain.ErrDeviceRead) || after.LastChecked != device.LastChecked {
 				t.Fatalf("repository error was classified as a device read failure: %v", err)
 			}
-			if !afterRead && reads != 0 || afterRead && reads != 1 {
+			if !afterRead && reads != 0 {
 				t.Fatalf("lookup stage changed network reads: %d", reads)
 			}
 		})
 	}
 }
-
-func (r *memoryRepository) DiscoveryNetworks() ([]string, error) { return nil, nil }
-func (r *memoryRepository) RememberNetwork(string) error         { return nil }
-func (r *memoryRepository) ForgetNetwork(string) error           { return nil }

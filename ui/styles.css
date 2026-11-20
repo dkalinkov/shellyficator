@@ -14,7 +14,6 @@
   }
 }
 
-/* Local font files; components and layout use DaisyUI and Tailwind classes. */
 @font-face {
   font-family: "Plex";
   src: url("plex-400.woff2") format("woff2");
@@ -48,7 +47,6 @@
   --font-sans: "Plex", sans-serif;
 }
 
-/* Compact application masthead; the shared brand also fits narrow auth cards. */
 .project-header {
   border-bottom: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
   background: var(--color-base-200);
@@ -101,7 +99,6 @@
 .mascot.is-ready > .mascot-frames { display: block; }
 .login-mascot.mascot { transform-origin: 50% 91%; }
 
-/* Only this small eye layer changes; the header's head bitmap stays fixed. */
 .mascot-head-base { display: block; width: 100%; height: 100%; }
 .mascot-eye {
   position: absolute;
@@ -254,7 +251,6 @@
   .project-utilities { margin-left: auto; }
 }
 
-/* A character-led entrance, using the same locally served brand and fonts. */
 .login-page {
   --login-ink: #061b22;
   --login-surface: #09272e;
@@ -385,7 +381,7 @@
   .login-form-panel { padding: 26px 20px; }
 }
 
-/* Toast motion from transitions-dev; arriving is slower than dismissing. */
+/* Toast motion adapted from transitions-dev. */
 :root {
   --toast-open: 350ms;
   --toast-close: 250ms;
@@ -425,7 +421,6 @@
   }
 }
 
-/* Shared SVG symbols inherit this stroke style; size utilities may override it. */
 @utility icon {
   @apply size-[18px] shrink-0 fill-none stroke-current;
   stroke-width: 1.7;

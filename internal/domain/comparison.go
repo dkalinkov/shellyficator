@@ -7,18 +7,15 @@ import (
 	"strings"
 )
 
-// ConfigurationComparison separates watched differences from recorded-only
-// differences without discarding either from snapshots or the raw comparison.
 type ConfigurationComparison struct {
 	Settings, Informational []Difference
 }
 
-func CompareConfiguration(baseline, current map[string]any, policies ...WatchPolicy) ConfigurationComparison {
-	var policy WatchPolicy
-	if len(policies) > 0 {
-		policy = policies[0]
-	}
+func CompareConfiguration(baseline, current map[string]any, policy WatchPolicy) ConfigurationComparison {
 	var result ConfigurationComparison
+	if baseline == nil || current == nil {
+		return result
+	}
 	for _, difference := range Differences(baseline, current) {
 		if policy.Warn(ConfigurationGroup(difference.Path)) {
 			result.Settings = append(result.Settings, difference)
@@ -46,7 +43,6 @@ func configurationMetadata(path string) bool {
 			return err == nil && id >= 0
 		}
 	}
-	// New or unknown fields are classified separately by ConfigurationGroup.
 	return false
 }
 
@@ -76,8 +72,7 @@ func Differences(baseline, current map[string]any) []Difference {
 	return result
 }
 
-// flatten joins nested keys with " / ". The prefix already ends with the
-// separator, so an empty key still adds a level instead of acting as the root.
+// A prefix that ends in the separator preserves empty keys as path segments.
 func flatten(prefix string, object map[string]any, result map[string]any) {
 	for key, value := range object {
 		path := prefix + key

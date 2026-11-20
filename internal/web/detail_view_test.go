@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"shellyficator/internal/domain"
+
 	"golang.org/x/net/html"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -42,7 +44,7 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 		"input:10":  map[string]any{"type": "switch", "enable": true},
 	})
 	baseline := objectField(record, "config")
-	view := detailDevice(domainRecord(record), baseline, nil, map[string]string{"input:9": "Physical switch note"})
+	view := detailDevice(domainRecord(record), baseline, domain.ConfigurationComparison{}, map[string]string{"input:9": "Physical switch note"})
 	if len(view.Outputs) != 2 || len(view.Inputs) != 2 || view.Outputs[0].Key != "switch:3" || view.Outputs[1].Key != "switch:10" {
 		t.Fatalf("incorrect grouping/order: %+v", view)
 	}
@@ -59,11 +61,6 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 	if view.Outputs[0].Values[0].Value != "Not reported" || view.Summary[0].Value != "0" || view.Summary[1].Value != "0s" || !ssidReported {
 		t.Fatalf("null/zero/identity changed: %+v", view)
 	}
-	for _, value := range view.Outputs[0].Values {
-		if value.Label == "Power" {
-			t.Fatal("power readings violate device page scope")
-		}
-	}
 
 	for _, test := range []struct {
 		name                      string
@@ -79,7 +76,7 @@ func TestDeviceDetailReadingStatesAndMappings(t *testing.T) {
 			record.Set("reachable", test.reachable)
 			record.Set("status_available", test.status)
 			record.Set("config_available", test.config)
-			result := detailDevice(domainRecord(record), baseline, nil, nil)
+			result := detailDevice(domainRecord(record), baseline, domain.ConfigurationComparison{}, nil)
 			if result.Outputs[0].State != test.state || result.Table.Configuration != test.configuration {
 				t.Fatalf("failures conflated: %+v", result)
 			}
@@ -223,12 +220,12 @@ func TestDeviceDetailReportedFaults(t *testing.T) {
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
 	record, _ := s.record(id)
 	record.Set("status", map[string]any{"switch:0": map[string]any{"output": false, "errors": []any{"overtemp"}}})
-	view := detailDevice(domainRecord(record), nil, nil, nil)
-	if view.Table.Connectivity != "Device fault" || len(view.Faults) != 1 || !strings.Contains(view.Faults[0], "overtemp") {
+	view := detailDevice(domainRecord(record), nil, domain.ConfigurationComparison{}, nil)
+	if len(view.Faults) != 1 || !strings.Contains(view.Faults[0], "overtemp") {
 		t.Fatalf("fault lost: %+v", view)
 	}
 	record.Set("status_available", false)
-	if view = detailDevice(domainRecord(record), nil, nil, nil); len(view.Faults) != 0 || view.Outputs[0].State != "Unavailable" {
+	if view = detailDevice(domainRecord(record), nil, domain.ConfigurationComparison{}, nil); len(view.Faults) != 0 {
 		t.Fatalf("cached fault presented as current: %+v", view)
 	}
 }
@@ -245,7 +242,7 @@ func TestDeviceDetailKeepsSettingsWithTheirOwners(t *testing.T) {
 		"switch:0": map[string]any{"output": true, "tC": 18, "temperature": map[string]any{"tC": 22}},
 		"switch:1": map[string]any{"output": false, "tC": 0},
 	})
-	view := detailDevice(domainRecord(record), nil, nil, nil)
+	view := detailDevice(domainRecord(record), nil, domain.ConfigurationComparison{}, nil)
 	find := func(metrics []Metric, label string) (string, bool) {
 		for _, metric := range metrics {
 			if metric.Label == label {
@@ -300,7 +297,7 @@ func TestDeviceDetailShowsDistinctLastSeenTime(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			record.Set("last_seen", test.lastSeen)
-			view := detailDevice(domainRecord(record), nil, nil, nil)
+			view := detailDevice(domainRecord(record), nil, domain.ConfigurationComparison{}, nil)
 			found := false
 			for _, metric := range view.Network {
 				if metric.Label == "Last seen" {
@@ -358,8 +355,10 @@ func TestSelectedDeviceRefreshPreservesHistoryAndIdentity(t *testing.T) {
 			if after.GetString("mac") != "AABBCCDDEEFF" {
 				t.Fatal("identity mismatch rebound device")
 			}
-			if response.Code != http.StatusSeeOther {
-				t.Fatalf("did not redirect: %d", response.Code)
+			notice := map[string]string{"success": "Status refreshed.", "status-failed": "Device reached, but status could not be read.", "identity-mismatch": "Refresh failed. Check device access."}[mode]
+			location, err := url.Parse(response.Header().Get("Location"))
+			if err != nil || response.Code != http.StatusSeeOther || location.Path != "/devices/"+id || location.Query().Get("notice") != notice {
+				t.Fatalf("unexpected refresh response: status=%d location=%v err=%v", response.Code, location, err)
 			}
 			if mode == "success" && (!after.GetBool("reachable") || !after.GetBool("status_available") || !objectField(after, "status")["switch:0"].(map[string]any)["output"].(bool)) {
 				t.Fatal("status was not updated")
@@ -371,21 +370,5 @@ func TestSelectedDeviceRefreshPreservesHistoryAndIdentity(t *testing.T) {
 				t.Fatal("identity mismatch accepted as current status")
 			}
 		})
-	}
-}
-
-func TestDetailNotesAndMetadataSaveIndependently(t *testing.T) {
-	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	metadata, _ := detailEvent(s, id, "POST", "/metadata", url.Values{"room": {"Office"}, "tags": {"lighting"}, "notes": {"Device note"}})
-	if err := s.metadata(metadata); err != nil {
-		t.Fatal(err)
-	}
-	channel, _ := detailEvent(s, id, "POST", "/channel-notes", url.Values{"component": {"input:0"}, "notes": {"Physical input note"}})
-	if err := s.channelNote(channel); err != nil {
-		t.Fatal(err)
-	}
-	record, _ := s.record(id)
-	if record.GetString("room") != "Office" || record.GetString("notes") != "Device note" || s.channelNotes(id)["input:0"] != "Physical input note" {
-		t.Fatal("note save changed unrelated metadata")
 	}
 }

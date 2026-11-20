@@ -14,17 +14,18 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// Devices describes application operations consumed by the HTML adapter.
 type Devices interface {
+	ListDevices() ([]domain.Device, error)
+	Device(string) (domain.Device, error)
 	Inventory() ([]domain.InventoryEntry, error)
 	Detail(string) (domain.DeviceDetails, error)
-	RefreshDevice(context.Context, string) (domain.RefreshResult, error)
+	RefreshDevice(context.Context, string) (statusAvailable bool, err error)
 	CheckFirmware(context.Context, string) (domain.Device, error)
 	StartFirmwareUpdates(context.Context, []domain.FirmwareSelection) error
 	FirmwareRunning() bool
 	Capture(context.Context, string) (domain.Device, error)
 	ApproveBaseline(context.Context, string) (domain.Device, error)
-	OrganizationOptions() (domain.OrganizationOptions, error)
+	DeviceOrganization(string) (domain.Device, domain.OrganizationOptions, error)
 	Metadata(string, string, string, string) error
 	Organization(string, string, string) error
 	SaveChannelNote(string, string, string) error
@@ -49,7 +50,6 @@ type OIDC interface {
 	Exchange(context.Context, string, string, string) (domain.ExternalIdentity, error)
 }
 
-// Options contains presentation configuration supplied by the application.
 type WatchStore interface {
 	WatchPreferences() (domain.WatchPreferences, error)
 	SaveWatchPolicy(string, domain.WatchPolicy) error

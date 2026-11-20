@@ -91,10 +91,7 @@
         {{ end }}
         <div class="divide-y divide-base-content/10 px-4">
           {{ range .Rows }}
-            <div
-              class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 py-2.5"
-              data-firmware-choice
-            >
+            <div class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 py-2.5">
               <input
                 id="firmware-choice-{{ .ID }}"
                 class="checkbox checkbox-sm mt-1"

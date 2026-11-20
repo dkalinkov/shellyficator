@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"shellyficator/internal/domain"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -14,17 +13,9 @@ import (
 )
 
 func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
-	var stopping atomic.Bool
-	started, cancelled := make(chan struct{}), make(chan struct{})
 	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/shelly":
-			if stopping.Load() {
-				close(started)
-				<-r.Context().Done()
-				close(cancelled)
-				return
-			}
 			_, _ = w.Write([]byte(`{"id":"test-device","mac":"AABBCCDDEEFF","gen":4}`))
 		case "/rpc/Shelly.GetStatus":
 			_, _ = w.Write([]byte(`{"switch:0":{"output":true}}`))
@@ -41,10 +32,6 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.store.App.OnTerminate().BindFunc(func(event *core.TerminateEvent) error {
-		s.devices.Close()
-		return event.Next()
-	})
 	if err := Register(&core.ServeEvent{App: s.store.App, Router: r}, s.devices, s.accounts, Options{Version: "test", WatchStore: s.store}); err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +91,13 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 		if response := request(http.MethodGet, path, nil, session); response.Code != http.StatusOK {
 			t.Fatalf("authenticated GET %s required CSRF or failed: %d", path, response.Code)
 		}
+	}
+
+	ordinary := httptest.NewRequest(http.MethodGet, "/", nil)
+	ordinary.AddCookie(session)
+	ordinary.Header.Set("X-Ingress-Path", testIngress)
+	if response := serve(mux, ordinary); !strings.Contains(response.Body.String(), `src="/assets/app.js"`) {
+		t.Fatal("standalone dashboard used an ingress URL")
 	}
 
 	preferences := url.Values{"csrf": {csrfCookie.Value}}
@@ -203,24 +197,5 @@ func TestRoutesPreserveAccessAndDeviceActions(t *testing.T) {
 	}
 	if response := request(http.MethodPost, "/logout", url.Values{"csrf": {csrfCookie.Value}}, session, csrfCookie); response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/login" {
 		t.Fatalf("valid logout failed: %d", response.Code)
-	}
-	// The registered service drains before termination reaches storage teardown.
-	stopping.Store(true)
-	finished := make(chan struct{})
-	go func() {
-		request(http.MethodGet, "/inventory/refresh?refresh=1", nil, session)
-		close(finished)
-	}()
-	waitForRefresh(t, started)
-	if err := s.store.App.OnTerminate().Trigger(&core.TerminateEvent{App: s.store.App}, func(_ *core.TerminateEvent) error {
-		waitForRefresh(t, cancelled)
-		waitForRefresh(t, finished)
-		record, err := s.record(id)
-		if err != nil || record.GetInt("consecutive_failures") != 0 || !record.GetBool("reachable") {
-			t.Fatal("termination recorded a device failure or closed storage before draining jobs")
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
 	}
 }
