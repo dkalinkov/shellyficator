@@ -1,5 +1,4 @@
-// The login uses four poses. The header has a fixed head and separate eyelids
-// so small-image sampling cannot make the whole mark vibrate during a wink.
+// Separate eyelid layers keep the small header mascot steady while it winks.
 (() => {
   const mascots = document.querySelectorAll('[data-mascot]');
   if (!mascots.length || !Element.prototype.animate || !window.IntersectionObserver) return;
@@ -40,7 +39,6 @@
     function play() {
       if (!allowed() || !loaded) return;
       if (!full && animations.some(animation => animation.playState === 'running')) return;
-      // Let people type without a mascot asking for their attention.
       if (full && document.activeElement?.matches('input')) {
         schedule();
         return;
@@ -53,7 +51,6 @@
         animations.push(sprite.animate(poses.map(([offset, frame]) => ({
           offset, backgroundPosition: `${frame * 100 / 3}% 0%`, easing: 'steps(1, end)',
         })), { duration }));
-        // A curious lean, the wink, then a tiny pleased hop on those little boots.
         animations.push(element.animate([
           { transform: 'rotate(0deg) translateY(0)', offset: 0 },
           { transform: 'rotate(-4deg) translateY(0)', offset: 0.22 },
@@ -62,7 +59,6 @@
           { transform: 'rotate(0deg) translateY(0)', offset: 1 },
         ].map(pose => ({ ...pose, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' })), { duration }));
       } else {
-        // The wink is the resting expression; peek open briefly, then settle.
         animations.push(openEye.animate([
           { clipPath: 'inset(50% 0%)', offset: 0 },
           { clipPath: 'inset(0% 0%)', offset: 0.125 },

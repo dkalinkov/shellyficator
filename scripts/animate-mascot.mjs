@@ -1,5 +1,4 @@
-// Rebuild the animation assets from the approved artwork and generated eye edits.
-// Requires ImageMagick 7 (`magick`). No image-generation API is used at build time.
+// Requires ImageMagick 7.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,15 +22,15 @@ const variants = [
     erase: [670, 635, 280, 214],
     eye: [696, 624, 205, 257], brow: [703, 548, 208, 64],
     closedEye: [683, 759, 258, 88], closedBrow: [693, 656, 231, 77],
-    shift: [0, -24], sprite: 'logo-mascot-frames.webp', gif: 'shellyficator-mascot-head-wink.gif',
+    shift: [0, -24], sprite: 'docs/brand/animation/logo-mascot-frames.webp', gif: 'shellyficator-mascot-head-wink.gif',
   },
   {
-    name: 'full', master: 'docs/brand/shellyficator-mascot.png',
+    name: 'full', master: 'internal/web/static/mascot-full.png',
     source: 'docs/brand/animation/full-eye-open-source.png', size: 640,
     erase: [675, 444, 220, 169],
     eye: [677, 422, 172, 207], brow: [694, 361, 158, 55],
     closedEye: [682, 537, 207, 73], closedBrow: [694, 456, 179, 61],
-    shift: [6, -16], sprite: 'mascot-full-frames.webp', gif: 'shellyficator-mascot-wink.gif',
+    shift: [6, -16], sprite: 'internal/web/static/mascot-full-frames.webp', gif: 'shellyficator-mascot-wink.gif',
   },
 ];
 
@@ -39,8 +38,7 @@ try {
   for (const variant of variants) {
     const file = name => join(work, `${variant.name}-${name}.png`);
     const [ex, ey, ew, eh] = variant.erase;
-    // Lift only cream features from the generated edit. Everything outside this
-    // eye and eyebrow, including the original smile, stays from the master.
+    // Extract the eye and brow from the edited image while preserving the base artwork.
     for (const part of ['eye', 'brow']) {
       magick(variant.source,
         '-crop', geometry(variant[part]), '+repage', '-channel', 'A',
@@ -59,8 +57,7 @@ try {
       '-compose', 'Over', '-composite', file('clean'));
 
     if (variant.name === 'head') {
-      // The header never moves a whole sprite. Its head is one fixed bitmap,
-      // with independent eye layers clipped smoothly in the browser.
+      // Export separate eye layers to keep the header art steady at small sizes.
       const [bx, by] = variant.brow;
       magick(file('clean'), file('brow'), '-geometry',
         `+${bx + variant.shift[0]}+${by + variant.shift[1]}`,
@@ -107,10 +104,8 @@ try {
     const compression = variant.name === 'head' ? ['-define', 'webp:lossless=true'] : [];
     const quality = variant.name === 'head' ? 100 : 94;
     magick(...frames, '+append', '-quality', quality, '-define', 'webp:method=6', ...compression,
-      `internal/web/static/${variant.sprite}`);
+      variant.sprite);
 
-    // GIF exports are self-contained; the app uses the same frames with a
-    // controllable timeline, preserving full alpha and reduced-motion support.
     const timeline = variant.name === 'head'
       ? [[3, 230], [2, 7], [1, 8], [0, 90], [1, 8], [2, 7]]
       : [[0, 150, 0, 0], [0, 9, -2, 1], [0, 9, -4, 2], [0, 9, -3, 2],
