@@ -9,7 +9,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-//go:embed templates/*.html static/*
+//go:embed templates/*.html static/* static/app.css
 var assets embed.FS
 
 func parseTemplates() (*template.Template, error) {

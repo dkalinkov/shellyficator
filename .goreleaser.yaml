@@ -1,6 +1,4 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# Builds release binaries and the GitHub Release. Container images are built
-# from the Dockerfile by the release workflow. See docs/wiki/releases.md.
 version: 2
 
 project_name: shellyficator
@@ -51,7 +49,6 @@ changelog:
   disable: true
 
 release:
-  # The workflow publishes the draft after the image and attestations exist.
   draft: true
   replace_existing_draft: true
   prerelease: auto
