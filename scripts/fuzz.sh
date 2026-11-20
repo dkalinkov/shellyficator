@@ -1,5 +1,4 @@
 #!/bin/sh
-# Run every Go fuzz target in internal/ for a fixed time each.
 # Usage: scripts/fuzz.sh [duration], for example scripts/fuzz.sh 2m
 set -eu
 

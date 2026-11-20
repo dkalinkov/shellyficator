@@ -145,9 +145,7 @@ jobs:
           load: true
           tags: shellyficator-ha:ci
 
-      # Runs the image the way Home Assistant does: on Home Assistant's internal
-      # address, /data owned by root with an options.json inside, and Docker's
-      # init process. Requests from the runner must be refused.
+      # Match the supervisor’s network and root-owned /data mount for the smoke test.
       - name: Smoke test the Home Assistant image
         run: |
           data=$(mktemp -d)
@@ -202,7 +200,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Same setup as the release job, without dependency caches.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -262,7 +259,6 @@ jobs:
           done
           echo "$image:$version is published for $platforms"
 
-  # Single required status check for the main branch ruleset.
   ci-ok:
     name: ci-ok
     if: always()

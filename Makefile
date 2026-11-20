@@ -41,7 +41,7 @@ dev: node_modules/.package-lock.json
 dev-build: css
 	BUILD_TYPE=dev BUILD_DATE="$${BUILD_DATE:-unknown}" sh scripts/build.sh .air/shellyficator
 
-test:
+test: css
 	go test ./...
 	go vet ./...
 

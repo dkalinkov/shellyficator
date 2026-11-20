@@ -1,4 +1,3 @@
-# Base images are pinned by digest; Dependabot proposes updates.
 # Build stages run on the build machine and cross-compile for the target
 # platform, so only the small runtime stage needs emulation.
 FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS styles
@@ -46,11 +45,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 ENTRYPOINT ["shellyficator"]
 CMD ["serve", "--http=0.0.0.0:8090", "--dir=/data"]
 
-# Home Assistant app image: docker build --target homeassistant. It starts as
-# root only to take ownership of the /data mount, then runs as the app user.
-# Settings come from the options.json that Home Assistant writes. It listens
-# only on Home Assistant's internal network, where the sidebar proxy and the
-# watchdog reach it.
+# The Home Assistant image starts as root to take ownership of the /data mount.
 FROM runtime AS homeassistant-base
 ARG APP_VERSION=dev
 RUN apk add --no-cache su-exec
@@ -59,8 +54,7 @@ ENV SHELLY_OPTIONS_FILE=/data/options.json \
     SHELLY_HOME_ASSISTANT=true
 LABEL io.hass.type="app" \
       io.hass.version="$APP_VERSION"
-# Home Assistant shows the app as started once Docker reports it healthy. The app
-# answers only Home Assistant's proxy, so check that it accepts connections.
+# Use a TCP healthcheck because HTTP requests require the Home Assistant proxy.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --start-interval=2s --retries=3 \
     CMD nc -z 172.30.32.1 8090 || exit 1
 ENTRYPOINT ["ha-entrypoint"]

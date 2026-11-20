@@ -1,5 +1,3 @@
-# Runs every fuzz target for a few minutes each week. Pull requests run only
-# the saved inputs, as part of go test. See docs/wiki/development.md.
 name: Fuzz
 
 on:

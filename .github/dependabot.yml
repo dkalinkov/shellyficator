@@ -1,7 +1,6 @@
 version: 2
 
-# Weekly grouped updates. The cooldown skips versions published in the last
-# week, which gives the ecosystem time to catch compromised releases.
+# Delay upgrades by a week to give upstream time to catch compromised releases.
 updates:
   - package-ecosystem: github-actions
     directory: /

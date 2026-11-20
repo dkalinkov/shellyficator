@@ -17,7 +17,6 @@ notes=$(awk -v version="$version" '
   found { print }
 ' "$changelog")
 
-# Strip leading and trailing blank lines.
 notes=$(printf '%s\n' "$notes" | sed -e '/./,$!d')
 if [ -z "$notes" ]; then
   printf 'No "## %s" section with content in %s\n' "$version" "$changelog" >&2
