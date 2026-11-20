@@ -1,71 +1,40 @@
 # Home Assistant
 
-Shellyficator runs as a Home Assistant app on Home Assistant OS and Supervised
-installations, on `amd64` and `arm64`. Home Assistant Container and Core
-installations cannot run apps; run the [container image](deployment.md#linux-container)
-next to Home Assistant instead.
-
-The app is experimental. It opens inside Home Assistant, from the app page or the
-sidebar, and Home Assistant signs you in. Shellyficator's own login, Authelia
-sign-in and data admin are off in the app.
+The experimental app supports Home Assistant OS and Supervised on amd64 and
+arm64. For Container or Core, run the [standalone image](deployment.md#linux-container).
 
 ## Install
 
-1. Add this repository to Home Assistant:
+1. Add `https://github.com/dkalinkov/shellyficator` through the button or under
+   **Settings → Apps → App store → ⋮ → Repositories**.
 
    [![Add the Shellyficator repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdkalinkov%2Fshellyficator)
 
-   Or open **Settings → Apps**, go to the app store, and add
-   `https://github.com/dkalinkov/shellyficator` under **⋮ → Repositories**.
-2. Install **Shellyficator** from the store and start it.
-3. Choose **Open Web UI**, or turn on **Show in sidebar**. Only Home Assistant
-   administrators can open it.
+2. Install and start **Shellyficator**. Choose **Open Web UI** or **Show in sidebar**.
+
+Home Assistant authenticates administrators. The app's standalone login, OIDC,
+and PocketBase data admin are disabled.
 
 ## Settings
 
-| Option | Purpose |
-| --- | --- |
-| Shared device password | Same as [`SHELLY_DEVICE_PASSWORD`](configuration.md) |
-
-Restart the app after changing settings. Home Assistant writes them to
-`/data/options.json`, which the app reads at startup; see
-[options file](configuration.md#options-file).
+Set **Shared device password** for protected devices and restart the app.
+Home Assistant saves it to [`/data/options.json`](configuration.md#options-file).
 
 ## How the app runs
 
-- **Image:** `ghcr.io/dkalinkov/shellyficator-ha`, built from the Dockerfile's
-  `homeassistant` target with each release. It starts as root to take ownership
-  of the `/data` mount, then runs as UID 10001.
-- **Network:** host networking, so discovery can use mDNS and the ARP cache. The
-  app listens on port 8090 only on Home Assistant's internal network
-  (`172.30.32.1`) and answers only Home Assistant's proxy (`172.30.32.2`), which
-  signs users in. `SHELLY_HOME_ASSISTANT=true` in the image turns this on.
-- **Data:** the app's `/data` folder holds the database and is included in Home
-  Assistant backups. Backups are cold: the app stops while they run.
-- **Health:** Home Assistant's watchdog restarts the app when `/healthz` stops
-  answering.
+- Image `ghcr.io/dkalinkov/shellyficator-ha` runs as UID 10001 after taking
+  ownership of the data mount.
+- Host networking supports mDNS and ARP. The app listens at `172.30.32.1:8090`
+  and accepts HTTP from the supervisor at `172.30.32.2`.
+- Backups stop the app to copy `/data` consistently. Enable **Watchdog** to
+  restart an unresponsive app.
 
 ## Maintaining the app
 
-`repository.yaml` at the repository root makes this repository a Home Assistant
-app repository; the app itself is in [`homeassistant/shellyficator/`](../../homeassistant/shellyficator).
-Home Assistant reads `main` and offers an update as soon as `version` in its
-`config.yaml` changes, so the app is updated after each release, never with it:
+After the [release](releases.md#publishing-a-release) publishes the image, open a
+separate PR to bump `homeassistant/shellyficator/config.yaml` and copy its notes to
+the app's `CHANGELOG.md`. Update `DOCS.md` when user-facing behavior changes.
+CI verifies the exact image tag is public and covers every configured architecture.
 
-1. [Release](releases.md#publishing-a-release) as usual. Release pull requests
-   do not change `homeassistant/`.
-2. Once the release is published, open a pull request that sets `version` in
-   `config.yaml` to the new version and adds the release notes to the app's
-   `CHANGELOG.md` under `## <version>`. `scripts/release-notes.sh <version>`
-   prints them.
-3. CI's **Home Assistant app** check fails unless the image for that version is
-   published for every architecture in `arch`, can be pulled without logging in,
-   and the app's changelog has a section for it.
-
-`DOCS.md`, shown in the app's Documentation tab, is also read from `main`, so it
-should describe the released version. Update it in the same pull request.
-
-To try a branch on a Home Assistant install before merging, add the repository
-URL with the branch appended, for example
-`https://github.com/dkalinkov/shellyficator#feat/my-change`. The app's `version`
-must still name a published image.
+To test a branch, append `#branch-name` to the repository URL. The configured
+version still needs a published image.

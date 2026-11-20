@@ -1,6 +1,4 @@
-# Home Assistant offers an update as soon as `version` changes, so change it
-# only after that release is published. CI checks the image exists. See
-# docs/wiki/home-assistant.md#maintaining-the-app.
+# Bump only after publishing the matching image. See docs/wiki/home-assistant.md.
 name: Shellyficator
 version: "0.6.1"
 slug: shellyficator

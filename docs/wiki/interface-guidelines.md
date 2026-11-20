@@ -1,9 +1,5 @@
 # Interface guidelines
 
-These rules preserve useful interaction decisions from the original design work.
-For application behavior, use [usage and monitoring](usage.md); for logos, fonts,
-artwork, and animation assets, use the [brand guide](../brand/README.md).
-
 ## Inventory and device details
 
 - Keep desktop rows compact and use stacked entries on smaller screens. Separate
@@ -27,10 +23,8 @@ artwork, and animation assets, use the [brand guide](../brand/README.md).
 
 ## Editing rooms, tags, and notes
 
-Use the same room/tag editor in inventory and details. Suggest values from the
-whole inventory, including devices hidden by filters. Rooms can be searched,
-selected, created, or cleared. Tags support removable chips, suggestions, inline
-creation, and comma/newline paste while preserving multiword names.
+Share the room/tag editor between inventory and details. Suggest values from the
+whole inventory. Accept comma/newline tag paste and preserve multiword names.
 
 Save includes unfinished tag text; Cancel or Escape discards it. Failed saves
 retain drafts. Pause polling during editing and preserve device/channel-note
@@ -41,8 +35,7 @@ case-insensitively. Room names allow 100 characters; selected tags allow 500 tot
 including their comma-space separators. Validate updates atomically. Keep
 name-based room/tag colors consistent between labels and suggestions.
 
-Tag filters apply immediately and match any selected tag. Keep their summary
-compact rather than expanding the toolbar as more tags are selected.
+Keep the tag-filter summary compact as selections grow.
 
 ## Accessibility and responsive behavior
 

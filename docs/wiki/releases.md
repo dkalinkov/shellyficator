@@ -1,16 +1,14 @@
 # Releases
 
-[VERSION](../../VERSION) is the version source. Increment the patch for fixes and the minor for features; while the app is `0.x`, breaking changes also increment the minor. Record changes in [CHANGELOG.md](../../CHANGELOG.md).
-
-Releases are built and published by GitHub Actions from a signed tag. Nothing is uploaded from a maintainer's machine.
+Update [VERSION](../../VERSION) and [CHANGELOG.md](../../CHANGELOG.md). Use patch
+versions for fixes and minor versions for features or breaking changes while at
+`0.x`.
 
 ## Publishing a release
 
-1. On a branch, set `VERSION` to the new version and rename the `## Unreleased`
-   heading in `CHANGELOG.md` to `## <version> — <date>`, for example
-   `## 0.4.0 — 2026-11-20`. That section becomes the release notes.
-2. Open a pull request and merge it once CI passes.
-3. Tag the merged commit on `main` with a signed tag and push the tag:
+1. Set `VERSION` and rename `## Unreleased` to `## <version> — <date>` in
+   `CHANGELOG.md`. That section becomes the release notes.
+2. Merge the PR once CI passes. Sign and push the tag from `main`.
 
    ```sh
    git switch main && git pull --ff-only
@@ -18,66 +16,38 @@ Releases are built and published by GitHub Actions from a signed tag. Nothing is
    git push origin "v$(cat VERSION)"
    ```
 
-4. Follow the **Release** workflow under the repository's Actions tab. When it
-   finishes, the release appears under Releases and the image on GHCR.
+3. After the **Release** workflow publishes, update the Home Assistant app
+   in a [separate PR](home-assistant.md#maintaining-the-app).
 
-5. Update the Home Assistant app in a separate pull request; see
-   [maintaining the app](home-assistant.md#maintaining-the-app).
-
-Add a new `## Unreleased` section to the changelog when work continues.
-
-For a prerelease, use a version such as `0.5.0-rc.1` in `VERSION`, the changelog
-heading, and the tag. GitHub marks it as a prerelease, and the image gets only
-its exact version tag.
+Use a version like `0.5.0-rc.1` in all three places for prereleases. Their images
+get only the exact tag. Start a new `## Unreleased` section for subsequent work.
 
 ## What the release workflow checks and builds
 
-The [release workflow](../../.github/workflows/release.yml) runs on tags
-matching `vX.Y.Z`:
-
-1. **Verify:** the tag name is valid semver; the tag is annotated and signed by a
-   key in [`.github/allowed_signers`](../../.github/allowed_signers); `VERSION`
-   matches the tag; the commit is on `main`; `CHANGELOG.md` has a section for the
-   version; and the `ci-ok` check passed for the commit.
-2. **Binaries:** [GoReleaser](../../.goreleaser.yaml) builds Linux `amd64` and
-   `arm64` archives, `checksums.txt`, and SBOMs, then creates a draft release
-   with the changelog section as notes. The checksums are attested, and the
-   attestation is attached to the release as a Sigstore bundle.
-3. **Images:** builds the [Dockerfile](../../Dockerfile) for `linux/amd64` and
-   `linux/arm64`, pushes it to GHCR, and attests the image digest. The same
-   for the Dockerfile's `homeassistant` target, the Home Assistant app image.
-4. **Publish:** publishes the draft. Immutable releases are enabled, so from this
-   point the tag and assets cannot be changed or deleted.
-
-Attestations are signed with Sigstore through GitHub and record which workflow,
-commit, and tag produced each artifact.
+The [workflow](../../.github/workflows/release.yml) verifies the signed tag,
+`VERSION`, changelog entry, ancestry on `main`, and passing `ci-ok` check.
+[GoReleaser](../../.goreleaser.yaml) drafts the release with Linux amd64/arm64
+archives, checksums, and SBOMs. CI builds and attests both container images and
+the release archives before publishing the immutable release.
 
 ## Container image tags
 
-Images are published to `ghcr.io/dkalinkov/shellyficator`.
-
 | Tag | Meaning |
 | --- | --- |
-| `0.4.0` | One release. Never moves. Use this in deployments. |
-| `0.4` | Newest patch release of that minor version. |
-| `1` | Newest release of that major version, from 1.0.0 on. |
-| `latest` | Newest stable release. |
-| `edge` | Latest `main` after CI passed. A development build that may be unstable. |
+| `0.4.0` | Exact release. Use for deployments. |
+| `0.4` | Latest patch of that minor version |
+| `1` | Latest release of that major version, starting with 1.0.0 |
+| `latest` | Latest stable release |
+| `edge` | Latest `main` build after CI passed |
 
-The Home Assistant app image, `ghcr.io/dkalinkov/shellyficator-ha`, gets only
-exact version tags such as `0.5.0`, because Home Assistant pulls the tag that
-matches the app's version. It starts as root to take ownership of the `/data`
-mount, then runs as UID 10001, and reads its settings from
-[`/data/options.json`](configuration.md#options-file). Use the main image
-everywhere else.
+`ghcr.io/dkalinkov/shellyficator-ha` gets only exact tags because Home Assistant
+pulls the configured version. Use `ghcr.io/dkalinkov/shellyficator` standalone.
 
 ## When a release fails
 
-- **Before the publish step:** the tag and a draft release exist. If the failure
-  was transient, re-run the failed jobs; GoReleaser replaces the draft.
-- **If the tagged commit is wrong:** release tags cannot be moved or deleted.
-  Delete the draft release, fix the problem, and release the next patch version.
-- **After publishing:** the release is immutable. Publish a new patch release.
+- Rerun failed jobs for a transient error before publishing. GoReleaser replaces the draft.
+- If the tag points to the wrong commit, delete the draft and release a new patch.
+- If a release is already published, release a new patch.
 
 ## Verifying a release
 
@@ -103,23 +73,17 @@ git -c gpg.ssh.allowedSignersFile=.github/allowed_signers verify-tag v0.4.0
 
 ## Local builds
 
-`make build` and `make docker` report the base version for a clean matching tag, otherwise append `-dev`. `--version` also reports the commit, dirty marker, and UTC build time; the UI shows the app version. `make dev`, plain Go builds, and Docker builds without metadata report a development version. Local Docker images use `shellyficator:local` and `shellyficator:<app-version>` tags. Run `goreleaser release --snapshot --clean` to try the release build without publishing.
-
-Database schema changes use separate dated Go migrations. Preserve app data across upgrades.
-
-See [deployment and backups](deployment.md) before upgrading an installation.
+`make build` and `make docker` use the base version on an exact clean tag and
+append `-dev` otherwise. `--version` includes available commit and build metadata.
+Run `goreleaser release --snapshot --clean` for a local release build.
 
 ## Maintainer setup
 
-Repository settings that protect releases:
+Protect `main` with PRs and passing `ci-ok`. Block branch and release-tag
+deletion and force updates. Only admins can create release tags. Enable
+immutable releases and pin Actions to full SHAs.
 
-- **`main` ruleset:** changes arrive through pull requests with a passing `ci-ok`
-  check; force pushes and deletion are blocked. Repository admins can bypass it.
-- **Release tag ruleset:** only repository admins can create `v*` tags, and
-  nobody can move or delete them.
-- **Immutable releases** are enabled, and Actions must be pinned to full commit SHAs.
-
-Release tags are signed with SSH. In a clone, configure signing once:
+Configure SSH signing once per clone.
 
 ```sh
 git config gpg.format ssh
