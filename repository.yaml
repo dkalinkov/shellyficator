@@ -1,5 +1,3 @@
-# Home Assistant app repository. The app is in homeassistant/shellyficator/.
-# See docs/wiki/home-assistant.md.
 name: Shellyficator
 url: https://github.com/dkalinkov/shellyficator
 maintainer: Dimitar Kalinkov

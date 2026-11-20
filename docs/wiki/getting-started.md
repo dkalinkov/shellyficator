@@ -2,50 +2,30 @@
 
 ## Run from source
 
-Use Go 1.27, Node.js 24, and GNU Make 4.3 or newer. Run the server on a machine
-that can reach the devices' local HTTP interfaces.
-
-```sh
-git clone https://github.com/dkalinkov/shellyficator.git
-cd shellyficator
-cp .env.example .env
-make run
-```
-
-Before starting, set `SHELLY_DEVICE_PASSWORD` in `.env` if your devices are protected
-by a shared password. Dependencies and CSS are built by Make. The dashboard binds
-to `127.0.0.1:8090`; data is stored in `pb_data/`.
+Follow the [quick start](../../README.md#quick-start) on a machine that can reach
+your devices. `make run` listens at `127.0.0.1:8090` and stores data in `pb_data/`.
 
 ## First login
 
-Open <http://localhost:8090> and create an operator account. Passwords must contain
-at least 12 characters. When no regular data administrator exists, setup also
-creates a separate PocketBase administrator with the same initial credentials.
-The data admin at `/_/` can edit all records; its account is distinct from the
-ordinary dashboard login. Complete setup locally before exposing the service.
+Create an operator account with a password of at least 12 characters. First-run
+setup also creates a separate PocketBase administrator with the same credentials
+if none exists. Complete setup locally before exposing the app. The data admin
+at `/_/` can edit all records.
 
-For unattended account creation, set `SHELLY_ADMIN_EMAIL` and
-`SHELLY_ADMIN_PASSWORD`, then run this after `make css`:
+For unattended setup, set `SHELLY_ADMIN_EMAIL` and `SHELLY_ADMIN_PASSWORD` first.
 
 ```sh
+make css
 go run . setup --dir=./pb_data
 ```
 
-The CLI creates both accounts and refuses to overwrite an existing account with
-the same email. Those variables do not automatically create accounts on `serve`.
+The setup command creates both accounts and refuses to overwrite existing ones.
 
 ## Add and review devices
 
-1. Choose **Discover**. If no devices appear, use
-   [Advanced discovery](discovery.md) with a host or private subnet.
-2. Open a device and inspect its identity, channels, status, and settings.
-3. Add rooms, tags, or notes to make the inventory easier to navigate.
-4. Check that its configuration and physical controls behave as intended, then
-   approve the current configuration. Approval reads and captures fresh settings.
-5. Review **Settings → Changes to watch** to choose which differences matter.
+1. Choose **Discover**. For devices it misses, try [Advanced discovery](discovery.md).
+2. Open a device, check its settings and physical controls, then approve its
+   current configuration as a baseline.
+3. Choose which differences raise warnings under **Settings → Changes to watch**.
 
-A baseline is a comparison reference, not a restore point. Shellyficator does not
-currently restore saved configuration or edit switch/input settings.
-
-Next: [usage](usage.md), [configuration](configuration.md), and
-[deployment](deployment.md).
+See [usage and monitoring](usage.md) for reads, captures, and baselines.

@@ -1,9 +1,5 @@
 # Shellyficator documentation
 
-These guides cover the current implementation, contributor guidelines, and planned
-work. They are ordinary Markdown
-files, versioned with the application; a separate GitHub Wiki is not required.
-
 | Guide | What you will find |
 | --- | --- |
 | [Getting started](getting-started.md) | Requirements, first login, and your first baseline |

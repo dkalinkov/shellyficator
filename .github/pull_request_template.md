@@ -1,10 +1,6 @@
 ## Problem
 
-<!-- What is wrong or missing? Link the issue if there is one. -->
-
 ## Change
-
-<!-- The resulting behavior. -->
 
 ## Validation
 
