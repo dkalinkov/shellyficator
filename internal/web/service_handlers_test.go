@@ -119,8 +119,8 @@ type failingAccounts struct {
 	err error
 }
 
-func (s failingAccounts) Authenticate(string, string) (domain.Session, error) {
-	return domain.Session{}, s.err
+func (s failingAccounts) Authenticate(string, string) (string, error) {
+	return "", s.err
 }
 
 func TestLoginHandlerSeparatesInvalidCredentialsFromServiceFailure(t *testing.T) {

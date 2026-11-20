@@ -38,7 +38,11 @@ func TestOIDCRoutesProtectAndConsumeBrowserBoundFlow(t *testing.T) {
 	if err := s.accounts.Setup("operator@example.com", "account-test-password"); err != nil {
 		t.Fatal(err)
 	}
-	passwordSession, err := s.accounts.Authenticate("operator@example.com", "account-test-password")
+	passwordToken, err := s.accounts.Authenticate("operator@example.com", "account-test-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	passwordOperator, err := s.accounts.ValidateSession(passwordToken)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +121,7 @@ func TestOIDCRoutesProtectAndConsumeBrowserBoundFlow(t *testing.T) {
 	}
 	session := findCookie(response, "shelly_session")
 	operator, err := s.accounts.ValidateSession(session.Value)
-	if err != nil || operator.ID != passwordSession.Operator.ID {
+	if err != nil || operator != passwordOperator {
 		t.Fatal("OIDC did not retain existing operator")
 	}
 	if callback(provider.state, cookie).Header().Get("Location") != "/login?oidc_error=failed" || provider.exchanges != 1 {

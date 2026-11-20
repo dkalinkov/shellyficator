@@ -1,4 +1,3 @@
-// Package oidc adapts a standards-based identity provider to dashboard login.
 package oidc
 
 import (

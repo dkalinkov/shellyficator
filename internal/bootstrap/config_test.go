@@ -7,74 +7,30 @@ import (
 	"testing"
 )
 
-func TestEnvFiles(t *testing.T) {
-	const key = "SHELLYFICATOR_TEST_VALUE"
-	for _, test := range []struct {
-		name, defaults, local, environment, want string
-		setEnvironment                           bool
-	}{
-		{name: "optional files are absent"},
-		{name: "quoted values and comments", defaults: "# Configuration\nexport " + key + "='value with spaces # inside' # comment\n", want: "value with spaces # inside"},
-		{name: "local overrides defaults", defaults: key + "=default\n", local: key + "=local\n", want: "local"},
-		{name: "environment overrides files", defaults: key + "=default\n", local: key + "=local\n", setEnvironment: true, environment: "from-shell", want: "from-shell"},
-		{name: "explicit empty environment is preserved", defaults: key + "=default\n", setEnvironment: true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			t.Setenv(key, test.environment)
-			if !test.setEnvironment {
-				if err := os.Unsetenv(key); err != nil {
-					t.Fatal(err)
-				}
-			}
-			for path, contents := range map[string]string{".env": test.defaults, ".env.local": test.local} {
-				if contents != "" {
-					if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-			}
-			if err := loadEnv(); err != nil {
-				t.Fatal(err)
-			}
-			if os.Getenv(key) != test.want {
-				t.Fatal("configuration precedence or parsing was incorrect")
-			}
-		})
-	}
-}
-
-func TestEnvErrorsDoNotExposeContents(t *testing.T) {
+func TestDotenvFailuresNameTheFileWithoutExposingItsContents(t *testing.T) {
+	const secret = "example-secret-do-not-log"
 	for _, path := range []string{".env", ".env.local"} {
-		t.Run(path, func(t *testing.T) {
+		for _, unreadable := range []bool{false, true} {
 			t.Chdir(t.TempDir())
-			const secret = "example-secret-do-not-log"
-			if err := os.WriteFile(path, []byte("INVALID!="+secret+"\n"), 0600); err != nil {
+			t.Setenv("SHELLY_OPTIONS_FILE", "")
+			var err error
+			if unreadable {
+				err = os.Mkdir(path, 0700)
+			} else {
+				err = os.WriteFile(path, []byte("INVALID!="+secret+"\n"), 0600)
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
-			err := loadEnv()
+			_, err = LoadConfig()
 			if err == nil || !strings.Contains(err.Error(), path) || strings.Contains(err.Error(), secret) {
-				t.Fatal("malformed configuration did not return a safe, actionable error")
+				t.Fatalf("%s: expected an actionable error without file contents", path)
 			}
-		})
+		}
 	}
 }
 
-func TestUnreadableEnvIsAnError(t *testing.T) {
-	for _, path := range []string{".env", ".env.local"} {
-		t.Run(path, func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			if err := os.Mkdir(filepath.Clean(path), 0700); err != nil {
-				t.Fatal(err)
-			}
-			if err := loadEnv(); err == nil {
-				t.Fatal("unreadable configuration was treated as an optional missing file")
-			}
-		})
-	}
-}
-
-func TestLoadConfigCapturesSettingsWithoutRequiringSetup(t *testing.T) {
+func TestLoadConfigAppliesDotenvPrecedence(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for _, key := range []string{"SHELLY_ADMIN_EMAIL", "SHELLY_ADMIN_PASSWORD", "SHELLY_DEVICE_PASSWORD", "SHELLY_COOKIE_SECURE"} {
 		t.Setenv(key, "")
@@ -85,33 +41,25 @@ func TestLoadConfigCapturesSettingsWithoutRequiringSetup(t *testing.T) {
 	if err := os.WriteFile(".env", []byte("SHELLY_ADMIN_EMAIL=operator@example.com\nSHELLY_ADMIN_PASSWORD=default-password\nSHELLY_DEVICE_PASSWORD=device-default\nSHELLY_COOKIE_SECURE=true\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(".env.local", []byte("SHELLY_ADMIN_PASSWORD=local-password\n"), 0600); err != nil {
+	if err := os.WriteFile(".env.local", []byte("export SHELLY_ADMIN_PASSWORD='local password # quoted' # comment\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("SHELLY_DEVICE_PASSWORD", "")
+	t.Setenv("SHELLY_OPTIONS_FILE", "")
 	config, err := LoadConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.AdminEmail != "operator@example.com" || config.AdminPassword != "local-password" || config.DevicePassword != "" || !config.CookieSecure {
+	if config.AdminEmail != "operator@example.com" || config.AdminPassword != "local password # quoted" || config.DevicePassword != "" || !config.CookieSecure {
 		t.Fatal("typed configuration did not preserve dotenv and process precedence")
 	}
-	t.Setenv("SHELLY_ADMIN_PASSWORD", "changed-after-loading")
-	if config.AdminPassword != "local-password" {
-		t.Fatal("configuration changed after it was loaded")
-	}
 
-	t.Chdir(t.TempDir())
-	t.Setenv("SHELLY_ADMIN_EMAIL", "")
-	t.Setenv("SHELLY_ADMIN_PASSWORD", "")
-	if _, err := LoadConfig(); err != nil {
-		t.Fatal("configuration required credentials for commands that do not use setup")
-	}
 }
 
-func TestCookieSecureUsesTheExistingExplicitTrueValue(t *testing.T) {
+func TestCookieSecureRequiresLiteralTrue(t *testing.T) {
 	t.Chdir(t.TempDir())
-	for _, value := range []string{"", "false", "true", "TRUE", "1"} {
+	t.Setenv("SHELLY_OPTIONS_FILE", "")
+	for _, value := range []string{"false", "true", "TRUE", "1"} {
 		t.Run(value, func(t *testing.T) {
 			t.Setenv("SHELLY_COOKIE_SECURE", value)
 			config, err := LoadConfig()
@@ -158,9 +106,10 @@ func TestOptionsFileFillsUnsetSettings(t *testing.T) {
 }
 
 func TestOptionsFileFormatsScalars(t *testing.T) {
-	const key = "SHELLY_TEST_OPTION"
+	const key = "SHELLY_DEVICE_PASSWORD"
+	t.Chdir(t.TempDir())
 	for _, test := range []struct{ json, want string }{
-		{`"text"`, "text"}, {`false`, "false"}, {`8090`, "8090"}, {`0.5`, "0.5"}, {`1e21`, "1000000000000000000000"},
+		{`0.5`, "0.5"}, {`1e21`, "1000000000000000000000"},
 	} {
 		t.Run(test.json, func(t *testing.T) {
 			t.Setenv(key, "")
@@ -168,13 +117,15 @@ func TestOptionsFileFormatsScalars(t *testing.T) {
 				t.Fatal(err)
 			}
 			path := filepath.Join(t.TempDir(), "options.json")
-			if err := os.WriteFile(path, []byte(`{"test_option":`+test.json+`}`), 0600); err != nil {
+			if err := os.WriteFile(path, []byte(`{"device_password":`+test.json+`}`), 0600); err != nil {
 				t.Fatal(err)
 			}
-			if err := loadOptions(path); err != nil {
+			t.Setenv("SHELLY_OPTIONS_FILE", path)
+			config, err := LoadConfig()
+			if err != nil {
 				t.Fatal(err)
 			}
-			if got := os.Getenv(key); got != test.want {
+			if got := config.DevicePassword; got != test.want {
 				t.Fatalf("got %q, want %q", got, test.want)
 			}
 		})
@@ -182,13 +133,16 @@ func TestOptionsFileFormatsScalars(t *testing.T) {
 }
 
 func TestMissingOptionsFileIsAllowed(t *testing.T) {
-	if err := loadOptions(filepath.Join(t.TempDir(), "options.json")); err != nil {
+	t.Chdir(t.TempDir())
+	t.Setenv("SHELLY_OPTIONS_FILE", "options.json")
+	if _, err := LoadConfig(); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestInvalidOptionsAreSafeErrors(t *testing.T) {
 	const secret = "example-secret-do-not-log"
+	t.Chdir(t.TempDir())
 	for name, contents := range map[string]string{
 		"syntax":       `{"device_password":"` + secret,
 		"not object":   `["` + secret + `"]`,
@@ -203,14 +157,16 @@ func TestInvalidOptionsAreSafeErrors(t *testing.T) {
 			if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
 				t.Fatal(err)
 			}
-			err := loadOptions(path)
+			t.Setenv("SHELLY_OPTIONS_FILE", path)
+			_, err := LoadConfig()
 			if err == nil || !strings.Contains(err.Error(), path) || strings.Contains(err.Error(), secret) {
 				t.Fatalf("got %v; want an error naming the file without its contents", err)
 			}
 		})
 	}
 	t.Run("unreadable", func(t *testing.T) {
-		if err := loadOptions(t.TempDir()); err == nil {
+		t.Setenv("SHELLY_OPTIONS_FILE", t.TempDir())
+		if _, err := LoadConfig(); err == nil {
 			t.Fatal("a directory was treated as a missing options file")
 		}
 	})

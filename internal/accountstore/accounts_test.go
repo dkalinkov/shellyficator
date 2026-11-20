@@ -6,12 +6,11 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"shellyficator/internal/accounts"
 	"shellyficator/internal/domain"
 	_ "shellyficator/migrations"
 )
 
-func testAccounts(t *testing.T) (*accounts.Service, core.App) {
+func testAccounts(t *testing.T) (*Store, core.App) {
 	t.Helper()
 	app := pocketbase.NewWithConfig(pocketbase.Config{DefaultDataDir: t.TempDir()})
 	if err := app.Bootstrap(); err != nil {
@@ -25,7 +24,7 @@ func testAccounts(t *testing.T) (*accounts.Service, core.App) {
 			t.Error(err)
 		}
 	})
-	return accounts.New(New(app)), app
+	return New(app), app
 }
 
 func TestSetupAndSessionUseOperatorAccounts(t *testing.T) {
@@ -33,7 +32,14 @@ func TestSetupAndSessionUseOperatorAccounts(t *testing.T) {
 	if needed, err := service.NeedsSetup(); err != nil || !needed {
 		t.Fatalf("setup unavailable: %v %v", needed, err)
 	}
-	const password = "account-test-password"
+	const password = " account-test-password "
+	for _, create := range []func(string, string) error{service.Setup, service.Bootstrap} {
+		for _, input := range [][2]string{{" ", password}, {"operator@example.com", "too-short!"}} {
+			if err := create(input[0], input[1]); err == nil {
+				t.Fatal("invalid setup credentials were accepted")
+			}
+		}
+	}
 	if err := service.Setup(" operator@example.com ", password); err != nil {
 		t.Fatal(err)
 	}
@@ -43,16 +49,19 @@ func TestSetupAndSessionUseOperatorAccounts(t *testing.T) {
 	if err := service.Setup("second@example.com", password); !errors.Is(err, domain.ErrSetupCompleted) {
 		t.Fatalf("duplicate setup allowed: %v", err)
 	}
-	if _, err := service.Authenticate("operator@example.com", "incorrect"); !errors.Is(err, domain.ErrInvalidCredentials) {
-		t.Fatalf("incorrect password accepted: %v", err)
+	if _, err := service.Authenticate("operator@example.com", "account-test-password"); !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Fatalf("password whitespace was ignored: %v", err)
 	}
 	session, err := service.Authenticate(" operator@example.com ", password)
-	if err != nil || session.Token == "" || session.Operator.Email != "operator@example.com" {
-		t.Fatalf("authentication failed: %+v %v", session, err)
+	if err != nil || session == "" {
+		t.Fatalf("authentication failed: %v", err)
 	}
-	operator, err := service.ValidateSession(session.Token)
-	if err != nil || operator.ID != session.Operator.ID {
-		t.Fatalf("session failed: %+v %v", operator, err)
+	operator, err := app.FindAuthRecordByEmail("operators", "operator@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, err := service.ValidateSession(session); err != nil || id != operator.Id {
+		t.Fatalf("session failed: %v", err)
 	}
 	admin, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, "operator@example.com")
 	if err != nil {
@@ -123,7 +132,7 @@ func TestDashboardSignInDoesNotBypassOperatorAuthenticationPolicies(t *testing.T
 			identity := domain.ExternalIdentity{Issuer: "https://auth.example.com", Subject: "test-subject", Email: email, EmailVerified: true}
 			session, err := service.AuthenticateIdentity(identity)
 			if test.oidc {
-				if err != nil || session.Token == "" {
+				if err != nil || session == "" {
 					t.Fatalf("disabling password authentication blocked OIDC: %v", err)
 				}
 				return

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -78,7 +77,6 @@ func (s *Server) requireLogin(e *core.RequestEvent) error {
 	e.Response.Header().Set("Cache-Control", "no-store")
 	e.Response.Header().Set("Referrer-Policy", "same-origin")
 	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
-	// Home Assistant signs users in before its proxy forwards their requests.
 	if s.homeAssistant {
 		return e.Next()
 	}
@@ -100,7 +98,7 @@ func (s *Server) login(e *core.RequestEvent) error {
 	if err := s.passwordAttempt(e); err != nil {
 		return err
 	}
-	session, err := s.accounts.Authenticate(strings.TrimSpace(e.Request.FormValue("email")), e.Request.FormValue("password"))
+	token, err := s.accounts.Authenticate(e.Request.FormValue("email"), e.Request.FormValue("password"))
 	if err != nil {
 		if !errors.Is(err, domain.ErrInvalidCredentials) {
 			return e.InternalServerError("Could not sign in", nil)
@@ -109,7 +107,7 @@ func (s *Server) login(e *core.RequestEvent) error {
 		return s.renderLogin(e, "Email or password is incorrect.")
 	}
 	s.resetPasswordAttempts(e)
-	s.setSession(e, session.Token)
+	s.setSession(e, token)
 	return s.redirect(e, "/", "")
 }
 
@@ -174,7 +172,7 @@ func (s *Server) setupPage(e *core.RequestEvent) error {
 }
 
 func (s *Server) setup(e *core.RequestEvent) error {
-	email, password := strings.TrimSpace(e.Request.FormValue("email")), e.Request.FormValue("password")
+	email, password := e.Request.FormValue("email"), e.Request.FormValue("password")
 	if len(password) < 12 {
 		return s.render(e, "setup", AuthPage{PageMeta: s.pageMeta(e, "Create your account"), Error: "Choose a password with at least 12 characters."})
 	}

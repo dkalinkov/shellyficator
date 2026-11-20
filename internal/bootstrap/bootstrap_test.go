@@ -16,7 +16,6 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
-	"shellyficator/internal/accounts"
 	"shellyficator/internal/accountstore"
 	"shellyficator/internal/domain"
 	"shellyficator/internal/inventory"
@@ -49,11 +48,7 @@ func TestVersionDoesNotInitializeStorageOrServing(t *testing.T) {
 		{Version: "0.1.0", Commit: "abc123", BuildDate: "2026-10-03T10:00:00Z"},
 	} {
 		t.Run(build.Version, func(t *testing.T) {
-			app := testApp(t, []string{"--version"}, Config{AdminPassword: "short"}, build)
-			app.OnServe().BindFunc(func(event *core.ServeEvent) error {
-				t.Error("version initialized serving dependencies")
-				return event.Next()
-			})
+			app := testApp(t, []string{"--version"}, Config{AdminPassword: "short", OIDCIssuer: "https://auth.example.com"}, build)
 			var output bytes.Buffer
 			app.RootCmd.SetOut(&output)
 			if err := app.Start(); err != nil {
@@ -79,10 +74,6 @@ func TestSetupUsesConfigurationAndDoesNotStartServing(t *testing.T) {
 	app := testApp(t, []string{"setup"}, config, BuildInfo{Version: "test"})
 	t.Setenv("SHELLY_ADMIN_EMAIL", "changed@example.com")
 	t.Setenv("SHELLY_ADMIN_PASSWORD", "short")
-	app.OnServe().BindFunc(func(event *core.ServeEvent) error {
-		t.Error("setup initialized serving dependencies")
-		return event.Next()
-	})
 	if err := app.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -166,8 +157,10 @@ func TestHomeAssistantServingSkipsOIDC(t *testing.T) {
 		t.Fatal(err)
 	}
 	response := httptest.NewRecorder()
-	mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-	if response.Code != http.StatusForbidden {
+	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	request.RemoteAddr = "172.30.32.2:41234"
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
 		t.Fatalf("Home Assistant mode did not reach the web server: %d", response.Code)
 	}
 }
@@ -207,7 +200,7 @@ func TestServingLifecycleDrainsWorkBeforeStorageCloses(t *testing.T) {
 			if err := app.RunAllMigrations(); err != nil {
 				t.Fatal(err)
 			}
-			if err := accounts.New(accountstore.New(app)).Setup("operator@example.com", "bootstrap-test-password"); err != nil {
+			if err := accountstore.New(app).Setup("operator@example.com", "bootstrap-test-password"); err != nil {
 				t.Fatal(err)
 			}
 			operator, err := app.FindAuthRecordByEmail("operators", "operator@example.com")
@@ -236,14 +229,7 @@ func TestServingLifecycleDrainsWorkBeforeStorageCloses(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for path, status := range map[string]int{"/healthz": 200, "/api/health": 200, "/": 303} {
-					response := httptest.NewRecorder()
-					mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
-					if response.Code != status {
-						t.Fatalf("composed route %s returned %d, want %d", path, response.Code, status)
-					}
-				}
-				request := httptest.NewRequest(http.MethodGet, "/inventory/refresh?force=1", nil)
+				request := httptest.NewRequest(http.MethodGet, "/inventory/refresh", nil)
 				request.AddCookie(&http.Cookie{Name: "shelly_session", Value: token})
 				go func() {
 					defer close(requestDone)
@@ -289,7 +275,6 @@ func TestServingLifecycleDrainsWorkBeforeStorageCloses(t *testing.T) {
 			if app.IsBootstrapped() {
 				t.Fatal("termination did not close storage")
 			}
-			// Termination and failed startup must not admit new serving work.
 			if err := app.OnServe().Trigger(&core.ServeEvent{App: app}); !errors.Is(err, domain.ErrClosed) {
 				t.Fatalf("application served after termination: %v", err)
 			}

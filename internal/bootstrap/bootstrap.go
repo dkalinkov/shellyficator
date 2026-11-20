@@ -8,7 +8,6 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
-	"shellyficator/internal/accounts"
 	"shellyficator/internal/accountstore"
 	"shellyficator/internal/devices"
 	"shellyficator/internal/domain"
@@ -25,8 +24,7 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 	app := pocketbase.New()
 	registerCommands(app, config, build)
 
-	// Serving dependencies are created lazily and shared by all serving adapters.
-	// Protect publication against termination, including interrupted startup.
+	// Serialize service creation with termination, including during startup.
 	var mu sync.Mutex
 	var deviceService *devices.Service
 	var terminated bool
@@ -66,12 +64,11 @@ func New(config Config, build BuildInfo) *pocketbase.PocketBase {
 		}
 		service := deviceService
 		mu.Unlock()
-		accountService := accounts.New(accountstore.New(app))
 		options := web.Options{WatchStore: inventory.New(app), Version: build.Version, CookieSecure: config.CookieSecure, HomeAssistant: config.HomeAssistant}
 		if login != nil {
 			options.OIDC = login
 		}
-		if err := web.Register(event, service, accountService, options); err != nil {
+		if err := web.Register(event, service, accountstore.New(app), options); err != nil {
 			closeServices()
 			return err
 		}

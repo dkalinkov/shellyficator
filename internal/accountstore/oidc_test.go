@@ -14,25 +14,24 @@ func TestOIDCLinksExistingOperatorAndPreservesPassword(t *testing.T) {
 	if err := service.Setup(email, password); err != nil {
 		t.Fatal(err)
 	}
-	passwordSession, err := service.Authenticate(email, password)
+	operator, err := app.FindAuthRecordByEmail("operators", email)
 	if err != nil {
 		t.Fatal(err)
 	}
-	identity := domain.ExternalIdentity{Issuer: "https://auth.example.com", Subject: "stable-subject", Email: email, EmailVerified: true}
-	session, err := service.AuthenticateIdentity(identity)
-	if err != nil || session.Operator.ID != passwordSession.Operator.ID {
-		t.Fatalf("OIDC changed operator: %v", err)
+	assertOperator := func(token string, err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if id, err := service.ValidateSession(token); err != nil || id != operator.Id {
+			t.Fatalf("login changed operator: %v", err)
+		}
 	}
-	if operator, err := service.ValidateSession(session.Token); err != nil || operator.ID != passwordSession.Operator.ID {
-		t.Fatalf("invalid OIDC session: %v", err)
-	}
+	identity := domain.ExternalIdentity{Issuer: "https://auth.example.com", Subject: "stable-subject", Email: " " + email + " ", EmailVerified: true}
+	assertOperator(service.AuthenticateIdentity(identity))
 	identity.Email = "changed@example.com"
-	if session, err := service.AuthenticateIdentity(identity); err != nil || session.Operator.ID != passwordSession.Operator.ID {
-		t.Fatalf("stable identity was lost after email change: %v", err)
-	}
-	if session, err := service.Authenticate(email, password); err != nil || session.Operator.ID != passwordSession.Operator.ID {
-		t.Fatal("OIDC changed password authentication")
-	}
+	assertOperator(service.AuthenticateIdentity(identity))
+	assertOperator(service.Authenticate(email, password))
 	if count, err := app.CountRecords("operators"); err != nil || count != 1 {
 		t.Fatal("OIDC created an operator")
 	}

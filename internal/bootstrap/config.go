@@ -12,8 +12,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config contains process configuration passed to concrete adapters and commands.
-// Setup credentials are validated only when the setup command runs.
 type Config struct {
 	DevicePassword   string
 	AdminEmail       string
@@ -52,7 +50,6 @@ func LoadConfig() (Config, error) {
 }
 
 func loadEnv() error {
-	// Load preserves existing variables, so local values take precedence over defaults.
 	for _, path := range []string{".env.local", ".env"} {
 		if err := godotenv.Load(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			// Parser errors can include file contents, which may contain credentials.
@@ -64,9 +61,7 @@ func loadEnv() error {
 
 var optionName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
-// loadOptions applies a flat JSON object, such as the options.json that Home
-// Assistant writes for apps, as SHELLY_<KEY> variables. Like dotenv files, it
-// keeps variables that are already set. Empty and null options are skipped.
+// loadOptions reads flat JSON settings without overriding the environment.
 func loadOptions(path string) error {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -76,7 +71,6 @@ func loadOptions(path string) error {
 		return fmt.Errorf("could not read %s; check its permissions", path)
 	}
 	var options map[string]any
-	// Errors never include the file's contents, which can contain passwords.
 	if err := json.Unmarshal(data, &options); err != nil || options == nil {
 		return fmt.Errorf("could not load %s; it must contain a JSON object", path)
 	}
