@@ -12,16 +12,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
-
-	"github.com/miekg/dns"
 )
 
-// Neighbors offers cached LAN addresses for identity checks, without a subnet sweep.
-// On WSL the Windows cache is also useful: it can contain devices that the guest
-// has not resolved yet. This only reads the cache; it does not change networking.
-func Neighbors(ctx context.Context) ([]string, error) {
+// On WSL, the Windows ARP cache can contain devices the guest has yet to resolve.
+func (NetworkDiscovery) Neighbors(ctx context.Context) ([]string, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -66,38 +60,7 @@ func Neighbors(ctx context.Context) ([]string, error) {
 			failures = append(failures, err)
 		}
 	}
-	addresses = DiscoveryAddresses(addresses)
-	probeNeighbors(ctx, addresses)
 	return addresses, errors.Join(failures...)
-}
-
-// Unicast mDNS reaches hosts when multicast browsing is unavailable and starts
-// neighbor resolution before the HTTP identity request. Replies are hints only;
-// the caller still verifies every candidate through /shelly.
-func probeNeighbors(ctx context.Context, addresses []string) {
-	limit := make(chan struct{}, 8)
-	var group sync.WaitGroup
-	for _, address := range addresses {
-		select {
-		case limit <- struct{}{}:
-		case <-ctx.Done():
-			group.Wait()
-			return
-		}
-		group.Add(1)
-		go func(address string) {
-			defer func() { <-limit; group.Done() }()
-			ip := strings.TrimPrefix(address, "http://")
-			question := new(dns.Msg)
-			question.SetQuestion("_shelly._tcp.local.", dns.TypePTR)
-			question.Id = 0
-			question.RecursionDesired = false
-			question.Question[0].Qclass |= 1 << 15
-			client := dns.Client{Net: "udp", Timeout: 500 * time.Millisecond}
-			_, _, _ = client.ExchangeContext(ctx, question, net.JoinHostPort(ip, "5353"))
-		}(address)
-	}
-	group.Wait()
 }
 
 func cachedNeighbors(reader io.Reader, prefixes map[string][]netip.Prefix, windows bool) []string {

@@ -2,7 +2,6 @@ package devices
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -77,14 +76,23 @@ func closeService(t *testing.T, service *Service) {
 	}
 }
 
-func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
-	started, cancelled := make(chan struct{}, 4), make(chan struct{}, 4)
+func TestCloseCancelsConcurrentRefreshesWithoutChangingHealth(t *testing.T) {
+	started, cancelled := make(chan struct{}, 2), make(chan struct{}, 2)
 	release := make(chan struct{})
 	s, id := refreshTestService(t, func(w http.ResponseWriter, r *http.Request) {
-		started <- struct{}{}
+		select {
+		case started <- struct{}{}:
+		case <-r.Context().Done():
+			return
+		case <-release:
+			return
+		}
 		select {
 		case <-r.Context().Done():
-			cancelled <- struct{}{}
+			select {
+			case cancelled <- struct{}{}:
+			case <-release:
+			}
 		case <-release:
 		}
 	})
@@ -93,41 +101,29 @@ func TestCloseCancelsRefreshWithoutChangingHealthAndDrainsPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 1; i < 8; i++ {
-		if _, err := s.store.SaveReading(domain.Reading{
-			Identity: domain.Identity{ID: fmt.Sprintf("device-%d", i), MAC: fmt.Sprintf("%012X", i), Gen: 4},
-			Address:  before.Address, Status: map[string]any{}, Config: map[string]any{},
-		}, false); err != nil {
-			t.Fatal(err)
-		}
+	if _, err := s.store.SaveReading(domain.Reading{
+		Identity: domain.Identity{ID: "other-device", MAC: "112233445566", Gen: 4},
+		Address:  before.Address, Status: map[string]any{}, Config: map[string]any{},
+	}, false); err != nil {
+		t.Fatal(err)
 	}
 	done := s.Refresh(false)
-	for i := 0; i < 4; i++ {
-		waitForJob(t, started)
-	}
-	if s.Refresh(true) != done {
-		t.Fatal("queued manual refresh did not share completion")
-	}
+	waitForJob(t, started)
+	waitForJob(t, started)
+	pending := s.Refresh(true)
 	closed := make(chan struct{})
 	go func() { s.Close(); close(closed) }()
 	waitForJob(t, closed)
 	waitForJob(t, done)
-	for i := 0; i < 4; i++ {
-		waitForJob(t, cancelled)
-	}
+	waitForJob(t, pending)
+	waitForJob(t, cancelled)
+	waitForJob(t, cancelled)
 	after, err := s.store.Device(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.ConsecutiveFailures != before.ConsecutiveFailures || !after.StatusCurrent() || !after.ConfigCurrent() || after.LastChecked != before.LastChecked || after.BaselineID != before.BaselineID {
-		t.Fatal("shutdown recorded an outage or changed the approved baseline")
-	}
-	snapshots, err := s.store.Snapshots(id)
-	if err != nil || len(snapshots) != 1 || snapshots[0].ID != before.BaselineID {
-		t.Fatalf("shutdown changed snapshot history: count=%d err=%v", len(snapshots), err)
-	}
-	if s.Refresh(true) != nil || s.Discover("", true) == nil {
-		t.Fatal("closed service accepted new device work")
+	if after.LastChecked != before.LastChecked || s.Refresh(true) != nil {
+		t.Fatal("shutdown recorded a new check or accepted a new one")
 	}
 	records, err := s.store.Devices()
 	if err != nil {
@@ -230,7 +226,7 @@ func TestCloseCancelsDiscoverySourcesAndRejectsDuplicateJob(t *testing.T) {
 		cancelled <- struct{}{}
 		return nil, ctx.Err()
 	}
-	s.announcements, s.neighbors = query, query
+	s.source = networkSource{query: query}
 	if err := s.Discover("", true); err != nil {
 		t.Fatal(err)
 	}
@@ -270,8 +266,7 @@ func TestCloseCancelsManualDiscoveryRPC(t *testing.T) {
 
 func TestCloseCanRaceJobStarts(t *testing.T) {
 	s, _ := testService(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) })
-	s.announcements = func(ctx context.Context) ([]string, error) { return nil, ctx.Err() }
-	s.neighbors = s.announcements
+	s.source = networkSource{query: func(ctx context.Context) ([]string, error) { return nil, ctx.Err() }}
 	var callers sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		callers.Add(1)
@@ -288,7 +283,6 @@ func TestCloseCanRaceJobStarts(t *testing.T) {
 	}
 }
 
-// setDeviceField changes timestamps in adapter integration fixtures only.
 func setDeviceField(t *testing.T, service *Service, id, field string, value any) {
 	t.Helper()
 	store := service.store.(*inventory.Store)

@@ -12,7 +12,6 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// Store maps PocketBase records to domain types and keeps related writes atomic.
 type Store struct{ App core.App }
 
 func New(app core.App) *Store { return &Store{App: app} }
@@ -164,15 +163,17 @@ func (s *Store) Metadata(id, room, tags, notes string) error {
 }
 
 func (s *Store) Snapshots(id string) ([]domain.Snapshot, error) {
-	records, err := s.App.FindRecordsByFilter("snapshots", "device = {:id}", "-captured", 50, 0, dbx.Params{"id": id})
+	var records []*core.Record
+	err := s.App.RecordQuery("snapshots").Select("id", "firmware", "reason", "captured").
+		AndWhere(dbx.HashExp{"device": id}).OrderBy("captured DESC").Limit(50).All(&records)
 	if err != nil {
 		return nil, err
 	}
 	snapshots := make([]domain.Snapshot, 0, len(records))
 	for _, record := range records {
 		snapshots = append(snapshots, domain.Snapshot{
-			ID: record.Id, DeviceID: record.GetString("device"), Firmware: record.GetString("firmware"),
-			Reason: record.GetString("reason"), Captured: record.GetDateTime("captured").Time(), Config: object(record, "config"),
+			ID: record.Id, Firmware: record.GetString("firmware"),
+			Reason: record.GetString("reason"), Captured: record.GetDateTime("captured").Time(),
 		})
 	}
 	return snapshots, nil

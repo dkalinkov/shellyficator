@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"shellyficator/internal/domain"
 )
+
+const firmwareSettle = 2 * time.Minute
 
 func (s *Service) recoverFirmwareUpdates() {
 	if s.store == nil {
@@ -36,6 +39,7 @@ func (s *Service) recoverFirmwareUpdates() {
 	}
 	if len(updates) > 0 {
 		if err := s.store.SaveFirmwareUpdates(updates); err != nil {
+			s.pendingFirmwareResults = updates
 			s.logger.Error("Could not recover interrupted firmware updates", "error", err)
 		}
 	}
@@ -46,7 +50,7 @@ func (s *Service) recoverFirmwareUpdates() {
 func (s *Service) StartFirmwareUpdates(caller context.Context, selections []domain.FirmwareSelection) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.ctx.Err() != nil {
 		return domain.ErrClosed
 	}
 	if s.firmwareRunning {
@@ -60,9 +64,10 @@ func (s *Service) StartFirmwareUpdates(caller context.Context, selections []doma
 	}
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
+	s.retryFirmwareResultsLocked()
 	updates := map[string]domain.FirmwareUpdate{}
-	queue := make([]domain.FirmwareSelection, 0, len(selections))
-	for _, selection := range selections {
+	queue := slices.Clone(selections)
+	for _, selection := range queue {
 		if _, duplicate := updates[selection.DeviceID]; duplicate || selection.FromVersion == "" || selection.TargetVersion == "" || selection.FromVersion == selection.TargetVersion || len(selection.TargetVersion) > 100 || len(selection.FromVersion) > 100 || selection.Stage != "stable" && selection.Stage != "beta" {
 			return domain.ErrFirmwareSelection
 		}
@@ -78,7 +83,6 @@ func (s *Service) StartFirmwareUpdates(caller context.Context, selections []doma
 		}
 		now := time.Now().UTC()
 		updates[device.ID] = domain.FirmwareUpdate{ID: rand.Text(), Stage: selection.Stage, FromVersion: selection.FromVersion, TargetVersion: selection.TargetVersion, Phase: "queued", Message: "Queued; updates run one device at a time.", UpdatedAt: now}
-		queue = append(queue, selection)
 	}
 	if err := caller.Err(); err != nil {
 		return err
@@ -87,9 +91,7 @@ func (s *Service) StartFirmwareUpdates(caller context.Context, selections []doma
 		return err
 	}
 	s.firmwareRunning = true
-	s.jobs.Add(1)
-	go func() {
-		defer s.jobs.Done()
+	s.jobs.Go(func() {
 		defer func() { s.mu.Lock(); s.firmwareRunning = false; s.mu.Unlock() }()
 		for _, selection := range queue {
 			u := updates[selection.DeviceID]
@@ -99,7 +101,7 @@ func (s *Service) StartFirmwareUpdates(caller context.Context, selections []doma
 			}
 			s.runFirmwareUpdate(selection, u)
 		}
-	}()
+	})
 	return nil
 }
 
@@ -116,6 +118,12 @@ func (s *Service) publishFirmware(id string, u *domain.FirmwareUpdate, phase, me
 	err := s.store.SaveFirmwareUpdates(map[string]domain.FirmwareUpdate{id: *u})
 	if err != nil {
 		s.logger.Error("Could not save firmware update progress", "device", id, "error", err)
+		if !u.Active() && !errors.Is(err, domain.ErrNotFound) {
+			if s.pendingFirmwareResults == nil {
+				s.pendingFirmwareResults = make(map[string]domain.FirmwareUpdate)
+			}
+			s.pendingFirmwareResults[id] = *u
+		}
 	}
 	return err
 }
@@ -124,17 +132,51 @@ func (s *Service) finishFirmware(id string, u *domain.FirmwareUpdate, phase, mes
 	_ = s.publishFirmware(id, u, phase, message)
 }
 
-func (s *Service) saveFirmwareReading(reading domain.Reading, capture bool) (domain.Device, error) {
+// Retry result writes on subsequent requests. The device command runs only in its original job.
+func (s *Service) retryFirmwareResults() {
+	s.inventoryMu.RLock()
+	pending := len(s.pendingFirmwareResults) > 0
+	s.inventoryMu.RUnlock()
+	if pending {
+		s.inventoryMu.Lock()
+		defer s.inventoryMu.Unlock()
+		s.retryFirmwareResultsLocked()
+	}
+}
+
+func (s *Service) retryFirmwareResultsLocked() {
+	for id, result := range s.pendingFirmwareResults {
+		device, err := s.store.Device(id)
+		if err == nil && device.FirmwareUpdate.Active() && device.FirmwareUpdate.ID == result.ID {
+			err = s.store.SaveFirmwareUpdates(map[string]domain.FirmwareUpdate{id: result})
+		}
+		if err == nil || errors.Is(err, domain.ErrNotFound) {
+			delete(s.pendingFirmwareResults, id)
+		}
+	}
+}
+
+func (s *Service) saveFirmwareReading(device domain.Device, reading domain.Reading, capture bool) error {
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
-	return s.store.SaveReading(reading, capture)
+	latest, err := s.store.Device(device.ID)
+	if err != nil {
+		return err
+	}
+	if deviceMoved(device, latest) {
+		return domain.ErrDeviceMoved
+	}
+	reading.Address = device.Address
+	_, err = s.store.SaveReading(reading, capture)
+	return err
 }
 
 func (s *Service) runFirmwareUpdate(selection domain.FirmwareSelection, u domain.FirmwareUpdate) {
 	id := selection.DeviceID
-	ctx, cancel := context.WithTimeout(s.ctx, s.firmwareDeadline)
+	ctx, cancel := context.WithTimeout(s.ctx, 12*time.Minute)
 	defer cancel()
 	if err := s.publishFirmware(id, &u, "capturing", "Checking the offered release and capturing current settings."); err != nil {
+		s.finishFirmware(id, &u, "failed", "Could not save update progress. No update command was sent.")
 		return
 	}
 	device, err := s.savedDevice(id)
@@ -146,7 +188,7 @@ func (s *Service) runFirmwareUpdate(selection domain.FirmwareSelection, u domain
 	checked, err := s.client.CheckForUpdate(checkCtx, device.Address, device.MAC)
 	stopCheck()
 	if err == nil {
-		if _, saveErr := s.saveFirmwareReading(checked, false); saveErr != nil {
+		if saveErr := s.saveFirmwareReading(device, checked, false); saveErr != nil {
 			s.finishFirmware(id, &u, "failed", "Could not save the fresh firmware check. No update command was sent.")
 			return
 		}
@@ -174,7 +216,7 @@ func (s *Service) runFirmwareUpdate(selection domain.FirmwareSelection, u domain
 	}
 	before.FirmwareCheck = checked.FirmwareCheck
 	before.CaptureReason = "Before firmware update to " + selection.TargetVersion
-	if _, err := s.saveFirmwareReading(before, true); err != nil {
+	if err := s.saveFirmwareReading(device, before, true); err != nil {
 		s.finishFirmware(id, &u, "failed", "Could not save the configuration capture. No update command was sent.")
 		return
 	}
@@ -183,6 +225,7 @@ func (s *Service) runFirmwareUpdate(selection domain.FirmwareSelection, u domain
 		return
 	}
 	if err := s.publishFirmware(id, &u, "starting", "Settings captured. Sending the firmware update request."); err != nil {
+		s.finishFirmware(id, &u, "failed", "Could not save update progress. No update command was sent.")
 		return
 	}
 	writeCtx, stopWrite := context.WithTimeout(ctx, 40*time.Second)
@@ -230,7 +273,10 @@ func (s *Service) verifyFirmware(ctx context.Context, device domain.Device, befo
 				}
 				previousUptime, haveUptime = uptime, true
 			}
-			_, _ = s.saveFirmwareReading(reading, false)
+			if err := s.saveFirmwareReading(device, reading, false); errors.Is(err, domain.ErrDeviceMoved) {
+				s.finishFirmware(device.ID, u, "unconfirmed", "The device address changed during verification. Check the installed version before retrying.")
+				return
+			}
 			now := time.Now()
 			if firmwareStepPending(reading, u.Stage, u.TargetVersion) {
 				targetSince, oldAfterRestart = time.Time{}, time.Time{}
@@ -244,7 +290,7 @@ func (s *Service) verifyFirmware(ctx context.Context, device domain.Device, befo
 					targetSince = now
 					_ = s.publishFirmware(device.ID, u, "verifying", "Running "+lastVersion+". Waiting for the firmware to settle before confirming success.")
 				}
-				if now.Sub(targetSince) >= s.firmwareSettle {
+				if now.Sub(targetSince) >= firmwareSettle {
 					s.captureAfterFirmware(ctx, device, u)
 					return
 				}
@@ -255,7 +301,7 @@ func (s *Service) verifyFirmware(ctx context.Context, device domain.Device, befo
 						oldAfterRestart = now
 						_ = s.publishFirmware(device.ID, u, "verifying", "Device restarted on "+lastVersion+". Waiting to check for a remaining update step.")
 					}
-					if now.Sub(oldAfterRestart) >= s.firmwareSettle {
+					if now.Sub(oldAfterRestart) >= firmwareSettle {
 						s.finishFirmware(device.ID, u, "failed", "Version unchanged or unexpected after restart: running "+lastVersion+", expected "+u.TargetVersion+". The update did not take effect.")
 						return
 					}
@@ -264,7 +310,7 @@ func (s *Service) verifyFirmware(ctx context.Context, device domain.Device, befo
 		} else {
 			targetSince = time.Time{}
 		}
-		timer := time.NewTimer(s.firmwarePoll)
+		timer := time.NewTimer(5 * time.Second)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -281,13 +327,17 @@ func (s *Service) captureAfterFirmware(ctx context.Context, device domain.Device
 		s.finishFirmware(device.ID, u, "unconfirmed", "The final version check failed. Check the installed firmware before retrying.")
 		return
 	}
+	after.CaptureReason = "After firmware update to " + u.TargetVersion
+	saveErr := s.saveFirmwareReading(device, after, after.Config != nil)
+	if errors.Is(saveErr, domain.ErrDeviceMoved) {
+		s.finishFirmware(device.ID, u, "unconfirmed", "The device address changed during verification. Check the installed version before retrying.")
+		return
+	}
 	if after.Config == nil {
-		_, _ = s.saveFirmwareReading(after, false)
 		s.finishFirmware(device.ID, u, "warning", "Updated to "+u.TargetVersion+", but settings could not be captured afterward. Capture config to retry.")
 		return
 	}
-	after.CaptureReason = "After firmware update to " + u.TargetVersion
-	if _, err := s.saveFirmwareReading(after, true); err != nil {
+	if saveErr != nil {
 		s.finishFirmware(device.ID, u, "warning", "Updated to "+u.TargetVersion+", but the configuration capture could not be saved.")
 		return
 	}

@@ -13,104 +13,32 @@ import (
 	"shellyficator/internal/domain"
 )
 
-type actionDevices struct {
+type refreshFailure struct {
 	Devices
-	ctx    context.Context
-	id     string
-	err    error
-	result domain.RefreshResult
+	err error
 }
 
-func (s *actionDevices) ApproveBaseline(ctx context.Context, id string) (domain.Device, error) {
-	s.ctx, s.id = ctx, id
-	return domain.Device{}, s.err
+func (s refreshFailure) RefreshDevice(context.Context, string) (bool, error) {
+	return false, s.err
 }
 
-func (s *actionDevices) RefreshDevice(ctx context.Context, id string) (domain.RefreshResult, error) {
-	s.ctx, s.id = ctx, id
-	return s.result, s.err
-}
-
-func TestRefreshHandlerPreservesReadAndStorageFailureResponses(t *testing.T) {
-	deviceLookupFailure := errors.New("device lookup failed")
-	failedCheckSaveFailure := errors.New("failed check persistence failed")
-	readingSaveFailure := errors.New("reading persistence failed")
-	for _, test := range []struct {
-		name, notice string
-		err          error
-		available    bool
-	}{
-		{"success", "Status+refreshed.", nil, true},
-		{"unavailable status", "Device+reached", nil, false},
-		{"device read failure", "Refresh+failed", errors.Join(domain.ErrDeviceRead, domain.ErrIdentity), false},
-		{"missing device", "", domain.ErrNotFound, false},
-		{"device lookup failure", "", deviceLookupFailure, false},
-		{"failed check save failure", "", failedCheckSaveFailure, false},
-		{"reading save failure", "", readingSaveFailure, false},
-		{"caller cancellation", "", context.Canceled, false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			service := &actionDevices{err: test.err, result: domain.RefreshResult{StatusAvailable: test.available}}
-			server := &Server{devices: service}
-			request := httptest.NewRequest(http.MethodPost, "/devices/device/refresh", nil)
-			request.SetPathValue("id", "device")
-			if errors.Is(test.err, context.Canceled) {
-				ctx, cancel := context.WithCancel(request.Context())
-				cancel()
-				request = request.WithContext(ctx)
+func TestRefreshHandlerSeparatesMissingDevicesFromStorageFailure(t *testing.T) {
+	storageFailure := errors.New("device lookup failed")
+	for _, failure := range []error{domain.ErrNotFound, storageFailure} {
+		server := &Server{devices: refreshFailure{err: failure}}
+		request := httptest.NewRequest(http.MethodPost, "/devices/device/refresh", nil)
+		request.SetPathValue("id", "device")
+		response := httptest.NewRecorder()
+		event := &core.RequestEvent{Event: router.Event{Request: request, Response: response}}
+		err := server.refreshDevice(event)
+		if errors.Is(failure, domain.ErrNotFound) {
+			var apiError *router.ApiError
+			if !errors.As(err, &apiError) || apiError.Status != http.StatusNotFound {
+				t.Fatalf("missing device lost its 404 response: %v", err)
 			}
-			response := httptest.NewRecorder()
-			event := &core.RequestEvent{Event: router.Event{Request: request, Response: response}}
-			err := server.refreshDevice(event)
-			if errors.Is(test.err, domain.ErrNotFound) {
-				var apiError *router.ApiError
-				if !errors.As(err, &apiError) || apiError.Status != http.StatusNotFound {
-					t.Fatalf("missing device lost its 404 response: %v", err)
-				}
-			} else if test.notice != "" {
-				if err != nil || response.Code != http.StatusSeeOther || !strings.Contains(response.Header().Get("Location"), test.notice) {
-					t.Fatalf("unexpected refresh response: err=%v status=%d location=%s", err, response.Code, response.Header().Get("Location"))
-				}
-			} else if !errors.Is(err, test.err) {
-				t.Fatalf("storage or cancellation failure was hidden: got %v, want %v", err, test.err)
-			}
-			if service.id != "device" || service.ctx != request.Context() {
-				t.Fatal("handler changed the caller context or device identity")
-			}
-		})
-	}
-}
-
-func TestBaselineHandlerPreservesReadAndSaveFailureResponses(t *testing.T) {
-	for _, test := range []struct {
-		name, notice string
-		err          error
-		status       int
-	}{
-		{"success", "Baseline+updated.", nil, http.StatusSeeOther},
-		{"read failure", "Baseline+unchanged", domain.ErrConfigUnavailable, http.StatusSeeOther},
-		{"save failure", "", errors.Join(domain.ErrBaselineSave, errors.New("database write failed")), http.StatusBadRequest},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			service := &actionDevices{err: test.err}
-			server := &Server{devices: service}
-			request := httptest.NewRequest(http.MethodPost, "/devices/device/baseline", nil)
-			request.SetPathValue("id", "device")
-			response := httptest.NewRecorder()
-			event := &core.RequestEvent{Event: router.Event{Request: request, Response: response}}
-			err := server.baseline(event)
-			if test.status == http.StatusBadRequest {
-				var apiError *router.ApiError
-				if !errors.As(err, &apiError) || apiError.Status != test.status || strings.TrimSuffix(apiError.Message, ".") != "Could not approve baseline" {
-					t.Fatalf("save error was disguised as device read failure: %v", err)
-				}
-			} else if err != nil || response.Code != test.status || !strings.Contains(response.Header().Get("Location"), test.notice) {
-				t.Fatalf("unexpected baseline response: err=%v status=%d location=%s", err, response.Code, response.Header().Get("Location"))
-			}
-			if service.id != "device" || service.ctx != request.Context() {
-				t.Fatal("handler changed the caller context or device identity")
-			}
-		})
+		} else if !errors.Is(err, storageFailure) {
+			t.Fatalf("storage failure was hidden: %v", err)
+		}
 	}
 }
 

@@ -12,11 +12,10 @@ import (
 func (s *Service) Refresh(force bool) <-chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.ctx.Err() != nil {
 		return nil
 	}
-	if s.refreshing {
-		// A manual request during status polling gets a configuration pass too.
+	if s.refreshDone != nil {
 		if force && !s.refreshForced {
 			s.forcePending = true
 		}
@@ -25,17 +24,15 @@ func (s *Service) Refresh(force bool) <-chan struct{} {
 	if !force && time.Since(s.lastRefresh) < 30*time.Second {
 		return nil
 	}
-	s.refreshing, s.refreshForced = true, force
+	s.refreshForced = force
 	s.lastRefresh = time.Now()
 	s.refreshDone = make(chan struct{})
 	done := s.refreshDone
-	s.jobs.Add(1)
-	go func() {
-		defer s.jobs.Done()
+	s.jobs.Go(func() {
 		for {
 			s.refreshDevices(force)
 			s.mu.Lock()
-			if !s.closed && s.forcePending {
+			if s.ctx.Err() == nil && s.forcePending {
 				s.forcePending = false
 				s.refreshForced = true
 				force = true
@@ -43,12 +40,12 @@ func (s *Service) Refresh(force bool) <-chan struct{} {
 				s.mu.Unlock()
 				continue
 			}
-			s.refreshing, s.refreshForced, s.forcePending = false, false, false
+			s.refreshDone, s.refreshForced, s.forcePending = nil, false, false
 			close(done)
 			s.mu.Unlock()
 			return
 		}
-	}()
+	})
 	return done
 }
 
@@ -56,6 +53,7 @@ func (s *Service) refreshDevices(force bool) {
 	if s.ctx.Err() != nil {
 		return
 	}
+	s.retryFirmwareResults()
 	s.inventoryMu.RLock()
 	records, err := s.store.Devices()
 	s.inventoryMu.RUnlock()
@@ -81,9 +79,8 @@ func (s *Service) refreshDevices(force bool) {
 			group.Wait()
 			return
 		}
-		group.Add(1)
-		go func() {
-			defer func() { <-limit; group.Done() }()
+		group.Go(func() {
+			defer func() { <-limit }()
 			lastRead := record.LastCaptured
 			readConfig := force || !record.Reachable || record.ConsecutiveFailures > 0 || !record.ConfigAvailable || time.Since(lastRead) >= 5*time.Minute
 			timeout := 12 * time.Second
@@ -93,20 +90,24 @@ func (s *Service) refreshDevices(force bool) {
 			ctx, cancel := context.WithTimeout(s.ctx, timeout)
 			defer cancel()
 			results[i].reading, results[i].err = s.client.Read(ctx, record.Address, record.MAC, readConfig)
-		}()
+		})
 	}
 	group.Wait()
-	// Keep the last completed pass available while network reads are in flight.
-	// Publish the whole result together so inventory never sees a partial pass.
+	// Publish the full pass under one lock so readers never see partial results.
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
 	if s.ctx.Err() != nil {
 		return
 	}
 	for i, result := range results {
+		if result.skipped {
+			continue
+		}
 		record := records[i]
-		latest, lookupErr := s.store.Device(record.ID)
-		if result.skipped || lookupErr == nil && firmwareChanged(record, latest) {
+		if _, err := s.currentRead(record); err != nil {
+			if !errors.Is(err, domain.ErrDeviceMoved) && !errors.Is(err, domain.ErrFirmwareBusy) && !errors.Is(err, domain.ErrNotFound) {
+				s.logger.Error("Could not confirm device for refresh", "device", record.ID, "error", err)
+			}
 			continue
 		}
 		if result.err != nil {

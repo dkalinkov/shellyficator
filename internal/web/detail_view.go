@@ -37,10 +37,10 @@ type DeviceDetail struct {
 	ShowDifferences                       bool
 }
 
-func detailDevice(device domain.Device, baseline map[string]any, differences []domain.Difference, notes map[string]string, policies ...domain.WatchPolicy) DeviceDetail {
+func detailDevice(device domain.Device, baseline map[string]any, comparison domain.ConfigurationComparison, notes map[string]string) DeviceDetail {
 	status, config := device.Status, device.Config
 	view := DeviceDetail{
-		Table:           tableDevice(device, baseline, len(differences), policies...),
+		Table:           tableDevice(device, baseline, comparison, firmwareView(device)),
 		StatusAvailable: device.StatusCurrent(),
 		ConfigAvailable: device.ConfigCurrent(),
 	}
@@ -53,7 +53,7 @@ func detailDevice(device domain.Device, baseline map[string]any, differences []d
 	if baseline != nil && !view.ConfigAvailable {
 		view.ConfigurationLabel = "Comparison unavailable"
 	}
-	view.ShowDifferences = baseline != nil && view.ConfigAvailable && len(differences) > 0
+	view.ShowDifferences = view.ConfigAvailable && len(comparison.Settings) > 0
 	wifi, _ := status["wifi"].(map[string]any)
 	sys, _ := status["sys"].(map[string]any)
 	signal := DetailSummary{Label: "Wi-Fi signal", Value: "Not reported", Tone: "muted", Icon: "wifi"}

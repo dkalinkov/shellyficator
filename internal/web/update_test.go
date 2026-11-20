@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,7 +27,11 @@ func (a *updateActions) StartFirmwareUpdates(_ context.Context, selections []dom
 }
 
 func TestFirmwareInstallRequiresConfirmationAndCarriesExactVersions(t *testing.T) {
-	for _, test := range []struct{ confirmed, ajax bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
+	want := []domain.FirmwareSelection{
+		{DeviceID: "one", Stage: "stable", FromVersion: "2.1.0", TargetVersion: "2.2.0"},
+		{DeviceID: "two", Stage: "beta", FromVersion: "2.1.1", TargetVersion: "2.3.0-beta1"},
+	}
+	for _, test := range []struct{ confirmed, ajax bool }{{false, false}, {true, false}, {true, true}} {
 		actions := &updateActions{}
 		s := &Server{devices: actions}
 		form := url.Values{"device": {"one", "two"}, "stage_one": {"stable"}, "from_one": {"2.1.0"}, "target_stable_one": {"2.2.0"}, "stage_two": {"beta"}, "from_two": {"2.1.1"}, "target_beta_two": {"2.3.0-beta1"}}
@@ -38,7 +43,6 @@ func TestFirmwareInstallRequiresConfirmationAndCarriesExactVersions(t *testing.T
 		if test.ajax {
 			req.Header.Set("HX-Request", "true")
 		}
-		_ = req.ParseForm()
 		response := httptest.NewRecorder()
 		event := &core.RequestEvent{Event: router.Event{Request: req, Response: response}}
 		err := s.updateFirmware(event)
@@ -48,7 +52,7 @@ func TestFirmwareInstallRequiresConfirmationAndCarriesExactVersions(t *testing.T
 			}
 			continue
 		}
-		if err != nil || actions.calls != 1 || len(actions.selections) != 2 {
+		if err != nil || actions.calls != 1 || !slices.Equal(actions.selections, want) {
 			t.Fatalf("confirmed batch failed: %v %d %+v", err, response.Code, actions)
 		}
 		if test.ajax {
@@ -58,20 +62,25 @@ func TestFirmwareInstallRequiresConfirmationAndCarriesExactVersions(t *testing.T
 		} else if response.Code != http.StatusSeeOther || !strings.HasPrefix(response.Header().Get("Location"), "/?notice=") {
 			t.Fatal("native confirmation lost its redirect")
 		}
-		if actions.selections[0].TargetVersion != "2.2.0" || actions.selections[1].Stage != "beta" || actions.selections[1].TargetVersion != "2.3.0-beta1" {
-			t.Fatalf("confirmation versions or beta selection lost: %+v", actions.selections)
-		}
 	}
 }
 
 func TestFirmwareResultPresentation(t *testing.T) {
 	for _, test := range []struct {
-		phase, tone string
-		active      bool
-	}{{"queued", "blue", true}, {"capturing", "blue", true}, {"verifying", "blue", true}, {"succeeded", "ok", false}, {"failed", "error", false}, {"unconfirmed", "warning", false}, {"warning", "warning", false}} {
+		phase, label, tone string
+		active             bool
+	}{
+		{"queued", "Update queued", "blue", true},
+		{"capturing", "Capturing settings", "blue", true},
+		{"verifying", "Updating · verifying", "blue", true},
+		{"succeeded", "Updated", "ok", false},
+		{"failed", "Update failed", "error", false},
+		{"unconfirmed", "Update not verified", "warning", false},
+		{"warning", "Updated · capture unavailable", "warning", false},
+	} {
 		device := domain.Device{Firmware: "2.2.0", FirmwareUpdate: &domain.FirmwareUpdate{ID: "attempt", Phase: test.phase, FromVersion: "2.1.0", TargetVersion: "2.2.0", Message: "Result detail"}}
 		view := firmwareView(device)
-		if view.Active != test.active || view.Tone != test.tone || !view.Visible || !strings.Contains(view.Info, "Result detail") {
+		if view.Active != test.active || view.Label != test.label || view.Tone != test.tone || !view.Visible || !strings.Contains(view.Info, "Result detail") {
 			t.Fatalf("incorrect progress/result for %s: %+v", test.phase, view)
 		}
 	}

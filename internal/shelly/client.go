@@ -138,7 +138,7 @@ func (c *Client) identify(ctx context.Context, address, expectedMAC string) (dom
 	return reading, nil
 }
 
-func Reachable(ctx context.Context, address string) bool {
+func (NetworkDiscovery) Reachable(ctx context.Context, address string) bool {
 	u, err := url.Parse(address)
 	if err != nil || u.Hostname() == "" {
 		return false
@@ -158,12 +158,11 @@ func Reachable(ctx context.Context, address string) bool {
 	return true
 }
 
-// Discovery and refresh use the same bounded retries and identity validation.
 func (c *Client) Discover(ctx context.Context, address string) (domain.Reading, error) {
 	return c.Read(ctx, address, "", true)
 }
 
-func DiscoveryError(err error) string {
+func (NetworkDiscovery) Explain(err error) string {
 	var networkError net.Error
 	if errors.As(err, &networkError) {
 		if networkError.Timeout() {
@@ -266,8 +265,7 @@ func describe(err error) string {
 	return "Could not read device status or configuration. Check connectivity and device access."
 }
 
-// Targets bounds subnet discovery to a single private IPv4 subnet of at most /24.
-func Targets(value string) ([]string, error) {
+func (NetworkDiscovery) Targets(value string) ([]string, error) {
 	if !strings.Contains(value, "/") || strings.Contains(value, "://") {
 		address, err := NormalizeAddress(value)
 		return []string{address}, err

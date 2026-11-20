@@ -24,30 +24,34 @@ type FirmwarePlanPage struct {
 
 func (s *Server) firmwarePlan(e *core.RequestEvent) error {
 	page := FirmwarePlanPage{PageMeta: s.pageMeta(e, "Update firmware"), Running: s.devices.FirmwareRunning(), URL: e.Request.URL.RequestURI()}
-	var devices []Device
+	var devices []domain.Device
 	if id := e.Request.PathValue("id"); id != "" {
 		page.Single = true
-		details, err := s.devices.Detail(id)
+		device, err := s.devices.Device(id)
 		if errors.Is(err, domain.ErrNotFound) {
 			return e.NotFoundError("Device not found", nil)
 		}
 		if err != nil {
 			return err
 		}
-		devices = []Device{{Info: deviceView(details.Device), Name: deviceName(details.Device), Table: tableDevice(details.Device, details.Baseline, 0)}}
+		devices = []domain.Device{device}
 	} else {
-		inventory, err := s.list(e)
+		var err error
+		devices, err = s.devices.ListDevices()
 		if err != nil {
 			return err
 		}
-		devices = inventory.Devices
 	}
+	filter := inventoryFilterFromQuery(e.Request.URL.Query())
 	for _, device := range devices {
-		view := device.Table.Firmware
+		if !page.Single && !filter.matches(device) {
+			continue
+		}
+		view := firmwareView(device)
 		if !page.Single && !view.Visible {
 			continue
 		}
-		row := FirmwarePlanRow{ID: device.Info.ID, Name: device.Name, Installed: device.Info.Firmware, Stable: view.Stable, Beta: view.Beta, State: view}
+		row := FirmwarePlanRow{ID: device.ID, Name: deviceName(device), Installed: device.Firmware, Stable: view.Stable, Beta: view.Beta, State: view}
 		if row.Stable == row.Installed {
 			row.Stable = ""
 		}

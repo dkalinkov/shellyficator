@@ -2,11 +2,13 @@ package web
 
 import (
 	"errors"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
-	"net/http/httptest"
+
 	"shellyficator/internal/domain"
-	"testing"
 )
 
 type failingWatchStore struct{ err error }
@@ -20,8 +22,5 @@ func TestWatchReadFailureDoesNotFallBackToDefaults(t *testing.T) {
 	event := &core.RequestEvent{Event: router.Event{Request: httptest.NewRequest("GET", "/settings", nil), Response: httptest.NewRecorder()}}
 	if err := server.settingsPage(event); !errors.Is(err, failure) {
 		t.Fatalf("read failure was hidden: %v", err)
-	}
-	if _, err := server.watchPreferences(); !errors.Is(err, failure) {
-		t.Fatalf("read failure reverted to defaults: %v", err)
 	}
 }

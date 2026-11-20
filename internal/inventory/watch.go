@@ -68,7 +68,6 @@ func (s *Store) SaveWatchPolicy(deviceID string, policy domain.WatchPolicy) erro
 			record = core.NewRecord(collection)
 			record.Set("scope", scope)
 		}
-		// Save all groups explicitly, including an all-record-only selection.
 		normalized := domain.WatchPolicy{}
 		for _, group := range domain.WatchGroups {
 			normalized[group] = policy.Warn(group)

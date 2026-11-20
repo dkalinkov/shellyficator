@@ -3,9 +3,9 @@ package devices
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"shellyficator/internal/domain"
@@ -55,7 +55,7 @@ func updateFixture(t *testing.T, mode string) (*Service, *memoryRepository, []do
 		}
 		updated.Store(true)
 		if mode == "staged" {
-			time.AfterFunc(40*time.Millisecond, func() { finalStep.Store(true) })
+			time.AfterFunc(3*time.Minute, func() { finalStep.Store(true) })
 		}
 		if mode == "lost response" {
 			return errors.New("connection closed after dispatch")
@@ -63,26 +63,19 @@ func updateFixture(t *testing.T, mode string) (*Service, *memoryRepository, []do
 		return nil
 	}}
 	s := New(repository, client, Options{})
-	s.firmwarePoll, s.firmwareSettle, s.firmwareDeadline = time.Millisecond, 8*time.Millisecond, time.Second
 	t.Cleanup(s.Close)
 	return s, repository, []domain.FirmwareSelection{{DeviceID: "one", Stage: "stable", FromVersion: "2.1.0", TargetVersion: "2.2.0"}}, &writes
 }
 
-func waitUpdate(t *testing.T, s *Service, id string) domain.Device {
+func waitForFirmwareBatch(t *testing.T, s *Service) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		device, err := s.savedDevice(id)
-		if err != nil {
-			t.Fatal(err)
+	deadline := time.Now().Add(15 * time.Minute)
+	for s.FirmwareRunning() {
+		if time.Now().After(deadline) {
+			t.Fatal("firmware batch did not finish")
 		}
-		if device.FirmwareUpdate != nil && !device.FirmwareUpdate.Active() {
-			return device
-		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(5 * time.Second)
 	}
-	t.Fatal("firmware job did not finish")
-	return domain.Device{}
 }
 
 func TestFirmwareWorkflowVerifiesActualVersionAndPreservesBaseline(t *testing.T) {
@@ -97,27 +90,29 @@ func TestFirmwareWorkflowVerifiesActualVersionAndPreservesBaseline(t *testing.T)
 		{"after capture failed", "warning", 1, 1},
 	} {
 		t.Run(test.mode, func(t *testing.T) {
-			s, repo, selections, writes := updateFixture(t, test.mode)
-			caller, cancel := context.WithCancel(context.Background())
-			if err := s.StartFirmwareUpdates(caller, selections); err != nil {
-				t.Fatal(err)
-			}
-			cancel() // A disconnected browser cannot cancel an accepted installation.
-			device := waitUpdate(t, s, "one")
-			if device.FirmwareUpdate.Phase != test.phase || writes.Load() != test.writes {
-				t.Fatalf("incorrect result: %+v writes=%d", device.FirmwareUpdate, writes.Load())
-			}
-			repo.mu.Lock()
-			defer repo.mu.Unlock()
-			if int32(repo.captures) != test.captures || repo.approves != 0 || device.BaselineID != "approved" {
-				t.Fatalf("history changed incorrectly: captures=%d approves=%d baseline=%s", repo.captures, repo.approves, device.BaselineID)
-			}
-			if test.phase == "succeeded" && device.Firmware != "2.2.0" {
-				t.Fatal("reported success without the installed target version")
-			}
-			if test.mode == "unchanged" && device.Firmware != "2.1.0" {
-				t.Fatal("failed installation rewrote the installed firmware")
-			}
+			synctest.Test(t, func(t *testing.T) {
+				s, repo, selections, writes := updateFixture(t, test.mode)
+				caller, cancel := context.WithCancel(context.Background())
+				if err := s.StartFirmwareUpdates(caller, selections); err != nil {
+					t.Fatal(err)
+				}
+				cancel() // A disconnected browser cannot cancel an accepted installation.
+				waitForFirmwareBatch(t, s)
+				device, err := s.Device("one")
+				if err != nil || device.FirmwareUpdate == nil || device.FirmwareUpdate.Phase != test.phase || writes.Load() != test.writes {
+					t.Fatalf("incorrect result: %+v writes=%d", device.FirmwareUpdate, writes.Load())
+				}
+				snapshots, _ := repo.Snapshots(device.ID)
+				if len(snapshots) != int(test.captures) || device.BaselineID != "approved" {
+					t.Fatalf("incorrect history: captures=%d baseline=%s", len(snapshots), device.BaselineID)
+				}
+				if test.phase == "succeeded" && device.Firmware != "2.2.0" {
+					t.Fatal("reported success without the installed target version")
+				}
+				if test.mode == "unchanged" && device.Firmware != "2.1.0" {
+					t.Fatal("failed installation rewrote the installed firmware")
+				}
+			})
 		})
 	}
 }
@@ -153,60 +148,63 @@ func TestFirmwareAdmissionRejectsInvalidAndDuplicateSelections(t *testing.T) {
 }
 
 func TestFirmwareQueueRunsSeriallyAndBlocksDuplicateAdmission(t *testing.T) {
-	s, repo, selections, writes := updateFixture(t, "success")
-	firstStarted, release := make(chan struct{}), make(chan struct{})
-	client := s.client.(workflowClient)
-	original := client.update
-	originalRead := client.read
-	var secondUpdated atomic.Bool
-	client.read = func(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
-		reading, err := originalRead(ctx, address, mac, config)
-		if mac == "AABBCCDDEE01" && !secondUpdated.Load() {
-			reading.Identity.Version = "2.1.0"
-			reading.FirmwareCheck.Firmware = "2.1.0"
-			reading.Status["sys"].(map[string]any)["uptime"] = float64(1000)
-		}
-		return reading, err
-	}
-	client.update = func(ctx context.Context, address, mac, stage string) error {
-		if mac == "AABBCCDDEEFF" {
-			close(firstStarted)
-			select {
-			case <-release:
-			case <-ctx.Done():
-				return ctx.Err()
+	synctest.Test(t, func(t *testing.T) {
+		s, repo, selections, writes := updateFixture(t, "success")
+		firstStarted, release := make(chan struct{}), make(chan struct{})
+		client := s.client.(workflowClient)
+		original := client.update
+		originalRead := client.read
+		var secondUpdated atomic.Bool
+		client.read = func(ctx context.Context, address, mac string, config bool) (domain.Reading, error) {
+			reading, err := originalRead(ctx, address, mac, config)
+			if mac == "AABBCCDDEE01" && !secondUpdated.Load() {
+				reading.Identity.Version = "2.1.0"
+				reading.FirmwareCheck.Firmware = "2.1.0"
+				reading.Status["sys"].(map[string]any)["uptime"] = float64(1000)
 			}
+			return reading, err
 		}
-		err := original(ctx, address, mac, stage)
-		if mac == "AABBCCDDEE01" {
-			secondUpdated.Store(true)
+		client.update = func(ctx context.Context, address, mac, stage string) error {
+			if mac == "AABBCCDDEEFF" {
+				close(firstStarted)
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			err := original(ctx, address, mac, stage)
+			if mac == "AABBCCDDEE01" {
+				secondUpdated.Store(true)
+			}
+			return err
 		}
-		return err
-	}
-	s.client = client
-	repo.mu.Lock()
-	two := repo.devices["one"]
-	two.ID, two.DeviceID, two.MAC = "two", "reported-two", "AABBCCDDEE01"
-	repo.devices["two"] = two
-	repo.mu.Unlock()
-	second := selections[0]
-	second.DeviceID = "two"
-	selections = append(selections, second)
-	if err := s.StartFirmwareUpdates(context.Background(), selections); err != nil {
-		t.Fatal(err)
-	}
-	<-firstStarted
-	if err := s.StartFirmwareUpdates(context.Background(), selections); !errors.Is(err, domain.ErrFirmwareBusy) {
-		t.Fatalf("concurrent batch accepted: %v", err)
-	}
-	if writes.Load() != 0 {
-		t.Fatal("second update ran while the first was blocked")
-	}
-	close(release)
-	waitUpdate(t, s, "two")
-	if writes.Load() != 2 {
-		t.Fatalf("serial batch did not update both devices: writes=%d", writes.Load())
-	}
+		s.client = client
+		repo.mu.Lock()
+		two := repo.devices["one"]
+		two.ID, two.DeviceID, two.MAC = "two", "reported-two", "AABBCCDDEE01"
+		repo.devices["two"] = two
+		repo.mu.Unlock()
+		second := selections[0]
+		second.DeviceID = "two"
+		selections = append(selections, second)
+		if err := s.StartFirmwareUpdates(context.Background(), selections); err != nil {
+			t.Fatal(err)
+		}
+		<-firstStarted
+		synctest.Wait()
+		if err := s.StartFirmwareUpdates(context.Background(), selections); !errors.Is(err, domain.ErrFirmwareBusy) {
+			t.Fatalf("concurrent batch accepted: %v", err)
+		}
+		if writes.Load() != 0 {
+			t.Fatal("second update ran while the first was blocked")
+		}
+		close(release)
+		waitForFirmwareBatch(t, s)
+		if writes.Load() != 2 {
+			t.Fatalf("serial batch did not update both devices: writes=%d", writes.Load())
+		}
+	})
 }
 
 func TestFirmwareAdmissionDoesNotDispatchAfterStorageFailure(t *testing.T) {
@@ -217,6 +215,53 @@ func TestFirmwareAdmissionDoesNotDispatchAfterStorageFailure(t *testing.T) {
 	}
 	if writes.Load() != 0 {
 		t.Fatal("unpersisted batch sent an update")
+	}
+}
+
+type interruptedFirmwareStore struct {
+	*memoryRepository
+	phase   string
+	blocked bool
+}
+
+func (r *interruptedFirmwareStore) SaveFirmwareUpdates(updates map[string]domain.FirmwareUpdate) error {
+	for _, update := range updates {
+		if r.blocked && (update.Phase == r.phase || !update.Active()) {
+			return errors.New("firmware progress storage unavailable")
+		}
+	}
+	return r.memoryRepository.SaveFirmwareUpdates(updates)
+}
+
+func TestFirmwareResultRecoversAfterProgressStorageReturns(t *testing.T) {
+	for _, test := range []struct {
+		phase, result string
+		writes        int32
+	}{
+		{"capturing", "failed", 0},
+		{"starting", "failed", 0},
+		{"succeeded", "succeeded", 1},
+	} {
+		t.Run(test.phase, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s, repo, selections, writes := updateFixture(t, "success")
+				store := &interruptedFirmwareStore{memoryRepository: repo, phase: test.phase, blocked: true}
+				s.store = store
+				if err := s.StartFirmwareUpdates(context.Background(), selections); err != nil {
+					t.Fatal(err)
+				}
+				waitForFirmwareBatch(t, s)
+				store.blocked = false
+				details, err := s.Detail(selections[0].DeviceID)
+				if err != nil || details.Device.FirmwareUpdate == nil || details.Device.FirmwareUpdate.Phase != test.result {
+					t.Fatalf("terminal result did not recover: update=%+v err=%v", details.Device.FirmwareUpdate, err)
+				}
+				saved, err := repo.Device(selections[0].DeviceID)
+				if err != nil || saved.FirmwareUpdate == nil || saved.FirmwareUpdate.Phase != test.result || writes.Load() != test.writes {
+					t.Fatalf("recovery lost the result or repeated the device command: update=%+v writes=%d err=%v", saved.FirmwareUpdate, writes.Load(), err)
+				}
+			})
+		})
 	}
 }
 
@@ -236,22 +281,22 @@ func TestFirmwareShutdownAndRecoveryNeverRepeatTheCommand(t *testing.T) {
 	}
 	<-started
 	s.Close()
-	device := waitUpdate(t, s, "one")
-	if device.FirmwareUpdate.Phase != "unconfirmed" || writes.Load() != 1 {
+	device, err := repo.Device("one")
+	if err != nil || device.FirmwareUpdate == nil || device.FirmwareUpdate.Phase != "unconfirmed" || writes.Load() != 1 {
 		t.Fatalf("shutdown lost uncertainty: %+v writes=%d", device.FirmwareUpdate, writes.Load())
 	}
-	for i, phase := range []string{"queued", "verifying"} {
+	for phase, want := range map[string]string{"queued": "failed", "verifying": "unconfirmed"} {
 		repo.mu.Lock()
 		u := *device.FirmwareUpdate
-		u.ID = fmt.Sprint(i)
+		u.ID = phase
 		u.Phase = phase
 		device.FirmwareUpdate = &u
 		repo.devices[device.ID] = device
 		repo.mu.Unlock()
 		restarted := New(repo, client, Options{})
-		recovered, _ := restarted.savedDevice(device.ID)
-		if recovered.FirmwareUpdate.Active() {
-			t.Fatal("restart retained a running spinner")
+		recovered, err := restarted.Device(device.ID)
+		if err != nil || recovered.FirmwareUpdate == nil || recovered.FirmwareUpdate.Phase != want {
+			t.Fatalf("restart did not recover %s as %s: %+v %v", phase, want, recovered.FirmwareUpdate, err)
 		}
 		restarted.Close()
 	}

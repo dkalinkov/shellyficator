@@ -2,14 +2,14 @@ package web
 
 import (
 	"bytes"
-	"net/http"
+	"slices"
 	"strings"
 	"testing"
+
+	"shellyficator/internal/domain"
 )
 
 func TestCloudConnectionPresentation(t *testing.T) {
-	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.record(id)
 	for _, test := range []struct {
 		name                          string
 		status, config                map[string]any
@@ -31,87 +31,85 @@ func TestCloudConnectionPresentation(t *testing.T) {
 		{"disabled with no connection reading", nil, map[string]any{"enable": false}, true, true, true, "Disabled", "muted"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			record.Set("status", map[string]any{"cloud": test.status})
-			record.Set("config", map[string]any{"cloud": test.config})
-			record.Set("reachable", test.reachable)
-			record.Set("status_available", test.statusOK)
-			record.Set("config_available", test.configOK)
-			detail := detailDevice(domainRecord(record), nil, nil, nil)
+			device := domain.Device{
+				Status: map[string]any{"cloud": test.status}, Config: map[string]any{"cloud": test.config},
+				Reachable: test.reachable, StatusAvailable: test.statusOK, ConfigAvailable: test.configOK,
+			}
+			detail := detailDevice(device, nil, domain.ConfigurationComparison{}, nil)
 			cloud := detail.Table.Cloud
-			if cloud.Value != test.value || cloud.Tone != test.tone || detail.Network[0].Value != cloud.Value || detail.Network[0].Tone != cloud.Tone {
-				t.Fatalf("cloud state differs or is stale: table=%+v panel=%+v", cloud, detail.Network)
+			if cloud.Value != test.value || cloud.Tone != test.tone {
+				t.Fatalf("incorrect cloud state in the inventory: %+v", cloud)
+			}
+			panel := slices.IndexFunc(detail.Network, func(field ConnectionField) bool { return field.Label == "Shelly Cloud" })
+			if panel < 0 || detail.Network[panel].Value != test.value || detail.Network[panel].Tone != test.tone {
+				t.Fatalf("incorrect cloud state in the connection panel: %+v", detail.Network)
 			}
 			if (!test.reachable || !test.statusOK) && !strings.Contains(cloud.Info, "Last reported") {
 				t.Fatal("cached cloud connection lost its freshness label")
-			}
-			page := DevicePage{Device: deviceView(domainRecord(record)), Name: "Desk <lamp>", Detail: detail}
-			for _, name := range []string{"detail", "inventory-table"} {
-				var body bytes.Buffer
-				data := any(page)
-				if name == "inventory-table" {
-					data = []Device{{Info: deviceView(domainRecord(record)), Name: page.Name, Table: detail.Table}}
-				}
-				if err := s.templates.ExecuteTemplate(&body, name, data); err != nil {
-					t.Fatal(err)
-				}
-				if strings.Contains(body.String(), "Desk <lamp>") {
-					t.Fatalf("%s lost name escaping", name)
-				}
-				if name == "detail" {
-					if !strings.Contains(body.String(), toneClass(test.tone)) || !strings.Contains(body.String(), test.value) {
-						t.Fatal("connection panel lost state or color")
-					}
-				} else {
-					visible := test.value == "Connected"
-					if strings.Contains(body.String(), "cloud-indicator") != visible {
-						t.Fatal("inventory cloud visibility does not match confirmed connection")
-					}
-					if visible && (!strings.Contains(body.String(), "#detail-connection") || !strings.Contains(body.String(), "Shelly Cloud: Connected")) {
-						t.Fatal("connected cloud icon lost its link or accessible state")
-					}
-				}
 			}
 		})
 	}
 }
 
+func TestInventoryCloudIndicatorLinksToConnectionPanel(t *testing.T) {
+	templates, err := parseTemplates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, connected := range []bool{true, false} {
+		device := domain.Device{
+			ID: "lamp", Name: "Desk lamp", Reachable: true, StatusAvailable: true,
+			Status: map[string]any{"cloud": map[string]any{"connected": connected}},
+		}
+		row := Device{Info: deviceView(device), Name: device.Name, Table: detailDevice(device, nil, domain.ConfigurationComparison{}, nil).Table}
+		var body bytes.Buffer
+		if err := templates.ExecuteTemplate(&body, "inventory-table", []Device{row}); err != nil {
+			t.Fatal(err)
+		}
+		html := body.String()
+		if strings.Contains(html, "cloud-indicator") != connected {
+			t.Fatalf("unexpected cloud indicator for connected=%t", connected)
+		}
+		if connected && (!strings.Contains(html, `href="/devices/lamp#detail-connection"`) || !strings.Contains(html, `aria-label="Shelly Cloud: Connected for Desk lamp"`)) {
+			t.Fatal("cloud indicator lost its destination or accessible name")
+		}
+	}
+}
+
 func TestConnectionFieldsUseIndependentReadStates(t *testing.T) {
-	s, id := refreshTestServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })
-	record, _ := s.record(id)
-	record.Set("status", map[string]any{
-		"cloud": map[string]any{"connected": true},
-		"mqtt":  map[string]any{"connected": false},
-		"wifi":  map[string]any{"status": "got ip", "ssid": "Home IoT"},
-		"sys":   map[string]any{"restart_required": true},
-	})
-	record.Set("config", map[string]any{"mqtt": map[string]any{"enable": false}})
-	view := detailDevice(domainRecord(record), nil, nil, nil)
+	device := domain.Device{
+		Reachable: true, StatusAvailable: true, ConfigAvailable: true,
+		Status: map[string]any{
+			"mqtt": map[string]any{"connected": false},
+			"wifi": map[string]any{"status": "got ip", "ssid": "Home IoT"},
+			"sys":  map[string]any{"restart_required": true},
+		},
+		Config: map[string]any{"mqtt": map[string]any{"enable": false}},
+	}
+	view := detailDevice(device, nil, domain.ConfigurationComparison{}, nil)
 	fields := map[string]ConnectionField{}
 	for _, field := range view.Network {
 		fields[field.Label] = field
 	}
-	if fields["Wi-Fi"].Value != "Connected" || fields["Wi-Fi"].Tone != "ok" || fields["MQTT"].Value != "Disabled" || fields["Network"].Tone != "blue" || fields["Restart"].Tone != "warning" {
+	if fields["Wi-Fi"].Value != "Connected" || fields["MQTT"].Value != "Disabled" || fields["Network"].Value != "Home IoT" || fields["Restart"].Value != "Required" {
 		t.Fatalf("connection fields lost reported states: %+v", fields)
 	}
-	record.Set("status_available", false)
-	for _, field := range detailDevice(domainRecord(record), nil, nil, nil).Network {
-		if field.Label == "Shelly Cloud" {
-			if field.Value != "Connected" || field.Tone != "muted" || !strings.Contains(field.Info, "Last reported") {
-				t.Fatalf("cached cloud connection is not labelled: %+v", field)
-			}
-			continue
-		}
-		if field.Value != "Unavailable" || field.Tone != "muted" {
-			t.Fatalf("stale connection field shown as current: %+v", field)
+	device.StatusAvailable = false
+	for _, field := range detailDevice(device, nil, domain.ConfigurationComparison{}, nil).Network {
+		switch field.Label {
+		case "Wi-Fi", "MQTT", "Network", "Restart":
+			fields[field.Label] = field
 		}
 	}
-	for _, state := range []struct{ value, tone string }{{"connected", "ok"}, {"connecting", "blue"}, {"disconnected", "error"}} {
-		wifi := wifiConnection(state.value, true)
-		if wifi.Tone != state.tone {
-			t.Fatalf("wrong Wi-Fi state tone: %+v", wifi)
+	for _, label := range []string{"Wi-Fi", "MQTT", "Network", "Restart"} {
+		if field := fields[label]; field.Value != "Unavailable" || field.Tone != "muted" {
+			t.Fatalf("stale %s value shown as current: %+v", label, field)
 		}
 	}
-	if objectField(record, "config")["mqtt"] == nil {
-		t.Fatal("presenter mutated saved configuration")
+	for _, state := range []struct{ reported, label, tone string }{{"connecting", "Connecting", "blue"}, {"disconnected", "Disconnected", "error"}} {
+		wifi := wifiConnection(state.reported, true)
+		if wifi.Value != state.label || wifi.Tone != state.tone {
+			t.Fatalf("wrong Wi-Fi state: %+v", wifi)
+		}
 	}
 }

@@ -62,7 +62,6 @@ function showToast(message, level = 'info') {
   element.addEventListener('focusin', toast.pause);
   element.addEventListener('focusout', () => requestAnimationFrame(toast.resume));
 
-  // Repeated polling failures share one toast; keep the corner stack compact.
   if (toasts.size >= 3) {
     [...toasts].find(item => !item.element.matches(':hover, :focus-within'))?.dismiss(true);
   }
@@ -118,7 +117,6 @@ document.addEventListener('htmx:beforeRequest', event => {
   if (document.hidden || event.detail.elt.dataset.paused === 'true' || (tooltip && !tooltip.hidden) || (editor && editor.open) || (firmware && firmware.open) || document.querySelector('[data-tag-filter] [aria-expanded="true"]')) event.preventDefault();
 });
 
-// Keep ordinary links and buttons native; the remaining row area opens details.
 function openRow(event) {
   if (event.defaultPrevented || (event.type === 'click' ? event.button !== 0 : event.button !== 1)) return;
   const row = event.target.closest('[data-row-href]');
@@ -222,7 +220,6 @@ document.addEventListener('htmx:beforeSwap', event => {
 const inventory = document.getElementById('inventory');
 if (inventory) restoreInventoryDisclosures(inventory);
 
-// One shared tooltip also works for rows replaced by HTMX.
 const tooltip = document.getElementById('app-tooltip');
 let trigger = null;
 let suppressed = null;

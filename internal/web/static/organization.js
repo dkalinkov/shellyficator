@@ -1,4 +1,3 @@
-// One room, multiple tags; both reuse the inventory's existing labels.
 const labelPickers = new WeakMap();
 const tagFilters = new WeakMap();
 const cleanLabel = value => value.trim().replace(/\s+/g, ' ');
@@ -269,16 +268,11 @@ function initializeLabelPickers(container) {
         close();
         return true;
       },
-      refreshOptions() {
-        known = [...root.querySelectorAll('[data-picker-source] option')].map(option => option.textContent);
-        if (!menu.hidden) open();
-      },
       close
     });
   }
 }
 
-// Filtering uses a stable summary and checkboxes; editing uses removable chips.
 function initializeTagFilter() {
   const root = document.querySelector('[data-tag-filter]');
   if (!root || tagFilters.has(root)) return;
@@ -382,7 +376,6 @@ function initializeTagFilter() {
     toggle.setAttribute('aria-expanded', 'true');
     positionMenu();
     options.scrollTop = 0;
-    // Pointer opening keeps focus on the trigger; keyboard navigation enters search.
     if (focusSearch) search.focus({preventScroll: true});
   }
 

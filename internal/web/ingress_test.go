@@ -1,7 +1,6 @@
 package web
 
 import (
-	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/router"
 )
 
 const testIngress = "/api/hassio_ingress/Token_123-abc"
@@ -96,6 +94,9 @@ func TestHomeAssistantServesDashboardWithoutLogin(t *testing.T) {
 func TestHomeAssistantURLsCarryTheIngressPath(t *testing.T) {
 	mux, id := homeAssistantRouter(t)
 	page := serve(mux, fromSupervisor(http.MethodGet, "/", nil))
+	if page.Code != http.StatusOK {
+		t.Fatalf("dashboard returned %d", page.Code)
+	}
 	for _, match := range regexp.MustCompile(`="(/[^"]*)"`).FindAllStringSubmatch(page.Body.String(), -1) {
 		if match[1] != testIngress && !strings.HasPrefix(match[1], testIngress+"/") {
 			t.Fatalf("dashboard URL without the ingress path: %s", match[1])
@@ -123,42 +124,22 @@ func TestHomeAssistantURLsCarryTheIngressPath(t *testing.T) {
 	}
 }
 
-func TestBaseIgnoresUntrustedIngressPaths(t *testing.T) {
-	for _, test := range []struct {
-		homeAssistant bool
-		header        string
-	}{
-		{true, testIngress + "/extra"},
-		{true, "/api/hassio_ingress/"},
-		{true, "//evil.example" + testIngress},
-		{true, testIngress + `"><script>`},
-		{false, testIngress},
+func TestIngressPathIsResolvedForEachRequest(t *testing.T) {
+	mux, _ := homeAssistantRouter(t)
+	for _, test := range []struct{ header, prefix string }{
+		{testIngress, testIngress},
+		{"/api/hassio_ingress/other", "/api/hassio_ingress/other"},
+		{testIngress + "/extra", ""},
+		{"/api/hassio_ingress/", ""},
+		{"//example.test" + testIngress, ""},
+		{testIngress + `"><invalid>`, ""},
+		{testIngress, testIngress},
 	} {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := fromSupervisor(http.MethodGet, "/", nil)
 		req.Header.Set("X-Ingress-Path", test.header)
-		s := &Server{homeAssistant: test.homeAssistant}
-		if base := s.base(&core.RequestEvent{Event: router.Event{Request: req}}); base != "" {
-			t.Fatalf("home assistant %v, header %q: got base %q", test.homeAssistant, test.header, base)
-		}
-	}
-}
-
-func TestTemplatesRenderTheRequestBase(t *testing.T) {
-	templates, err := parseTemplates()
-	if err != nil {
-		t.Fatal(err)
-	}
-	template.Must(templates.New("base-probe").Parse(`<a href="{{base}}/devices">`))
-	s := &Server{templates: templates, homeAssistant: true}
-	for _, base := range []string{testIngress, "/api/hassio_ingress/other", "", testIngress} {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		req.Header.Set("X-Ingress-Path", base)
-		response := httptest.NewRecorder()
-		if err := s.render(&core.RequestEvent{Event: router.Event{Request: req, Response: response}}, "base-probe", nil); err != nil {
-			t.Fatal(err)
-		}
-		if want := `<a href="` + base + `/devices">`; response.Body.String() != want {
-			t.Fatalf("got %s, want %s", response.Body.String(), want)
+		response := serve(mux, req)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `src="`+test.prefix+`/assets/app.js"`) {
+			t.Errorf("dashboard did not use prefix %q for header %q", test.prefix, test.header)
 		}
 	}
 }

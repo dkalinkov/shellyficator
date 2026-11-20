@@ -52,13 +52,3 @@ func TestAnnouncementsRequireShellyServiceOrGeneration(t *testing.T) {
 		}
 	}
 }
-
-func TestAutomaticDiscoveryOnlyUsesAnnouncedAddresses(t *testing.T) {
-	addresses := DiscoveryAddresses([]string{"http://192.168.1.2", "http://192.168.1.2:8080", "http://192.168.1.2"})
-	if len(addresses) != 2 || addresses[0] != "http://192.168.1.2" || addresses[1] != "http://192.168.1.2:8080" {
-		t.Fatalf("unexpected automatic discovery addresses: %v", addresses)
-	}
-	if addresses := DiscoveryAddresses(nil); len(addresses) != 0 {
-		t.Fatalf("empty announcements expanded into addresses: %v", addresses)
-	}
-}

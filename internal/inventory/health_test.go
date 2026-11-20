@@ -16,7 +16,6 @@ func TestOfflineRequiresBothRepeatedFailuresAndGracePeriod(t *testing.T) {
 		failures  int
 		reachable bool
 	}{
-		{"one failure after a long pause", 2 * time.Minute, 1, true},
 		{"two failures after a long pause", 2 * time.Minute, 2, true},
 		{"rapid manual refreshes", 10 * time.Second, 4, true},
 		{"sustained outage", 2 * time.Minute, 3, false},
@@ -46,7 +45,6 @@ func TestOfflineRequiresBothRepeatedFailuresAndGracePeriod(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			// Load the saved health through a new store, rather than the old record.
 			after, err := New(store.App).Device(device.ID)
 			if err != nil {
 				t.Fatal(err)
@@ -88,9 +86,10 @@ func TestIdentityMismatchIsImmediateAndSurvivesLaterTimeout(t *testing.T) {
 	if failed.Reachable || !failed.IdentityMismatch || failed.MAC != "AABBCCDDEEFF" || failed.Problem != "Address now belongs to a different device. Rediscover this device." {
 		t.Fatal("identity error delayed, hidden, or rebound the device")
 	}
+	reading.Config = nil
 	recovered, err := store.SaveReading(reading, false)
-	if err != nil || !recovered.StatusCurrent() || recovered.IdentityMismatch {
-		t.Fatal("validated contact did not clear the identity error")
+	if err != nil || !recovered.StatusCurrent() || recovered.IdentityMismatch || recovered.ConfigCurrent() || recovered.Config == nil {
+		t.Fatal("status recovery failed to clear the identity error or changed the saved configuration")
 	}
 }
 

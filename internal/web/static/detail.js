@@ -1,4 +1,3 @@
-// Native anchors and forms still work without this page's enhancements.
 function revealChannelNote() {
   let id;
   try { id = decodeURIComponent(window.location.hash.slice(1)); } catch { return; }
@@ -42,7 +41,6 @@ document.addEventListener('htmx:afterSettle', () => {
   if (heading) initializeLabelColors(heading);
 });
 
-// Disable only after native validation, preserving hidden CSRF fields.
 document.addEventListener('submit', event => {
   if (event.defaultPrevented) return;
   if (!event.target.matches('[data-device-action]')) return;

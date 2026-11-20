@@ -37,12 +37,8 @@ type TableInput struct {
 	StatusInfo                                             string
 }
 
-func tableDevice(device domain.Device, baseline map[string]any, differences int, policies ...domain.WatchPolicy) DeviceTable {
-	var policy domain.WatchPolicy
-	if len(policies) > 0 {
-		policy = policies[0]
-	}
-	watched := domain.CompareConfiguration(baseline, device.Config, policy).Settings
+func tableDevice(device domain.Device, baseline map[string]any, comparison domain.ConfigurationComparison, firmware FirmwareView) DeviceTable {
+	differences := len(comparison.Settings)
 	status, config := device.Status, device.Config
 	currentStatus, currentConfig := device.StatusCurrent(), device.ConfigCurrent()
 	statusRead := formatTime(device.LastStatusRead)
@@ -58,7 +54,7 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int,
 		model = name
 	}
 	view := DeviceTable{
-		Firmware: firmwareView(device),
+		Firmware: firmware,
 		Model:    model, Connectivity: "Reachable", ConnectivityTone: "ok", ConnectivityIcon: "check-circle",
 		SignalValue: "—", SignalTone: "muted",
 		Configuration: "No baseline", ConfigurationTone: "muted",
@@ -138,7 +134,7 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int,
 		view.Configuration, view.ConfigurationTone = "Unavailable", "warning"
 		if config != nil {
 			view.Configuration, view.ConfigurationTone = "Matches", "ok"
-			if differences == 0 && len(domain.Differences(baseline, config)) > 0 {
+			if differences == 0 && len(comparison.Informational) > 0 {
 				view.Configuration, view.ConfigurationTone = "Recorded changes", "muted"
 			}
 			if differences > 0 {
@@ -240,11 +236,10 @@ func tableDevice(device domain.Device, baseline map[string]any, differences int,
 				}
 			}
 		}
-		if baseline != nil && config != nil {
-			for _, difference := range watched {
-				if strings.HasPrefix(difference.Path, key+" / ") || (line.RelayKey != "" && strings.HasPrefix(difference.Path, line.RelayKey+" / ")) {
-					line.Changed = true
-				}
+		for _, difference := range comparison.Settings {
+			if strings.HasPrefix(difference.Path, key+" / ") || (line.RelayKey != "" && strings.HasPrefix(difference.Path, line.RelayKey+" / ")) {
+				line.Changed = true
+				break
 			}
 		}
 		view.InputsChanged = view.InputsChanged || line.Changed

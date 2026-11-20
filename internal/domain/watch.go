@@ -26,8 +26,6 @@ func (p WatchPolicy) Warn(group WatchGroup) bool {
 	return p[group]
 }
 
-// WatchPreferences contains an app-wide default and optional device overrides.
-// Changing it never changes device configuration or approved baselines.
 type WatchPreferences map[string]WatchPolicy
 
 func (p WatchPreferences) ForDevice(id string) WatchPolicy {

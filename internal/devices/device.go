@@ -8,8 +8,6 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// operationContext joins caller cancellation with service shutdown. Its cleanup
-// stops the shutdown callback and releases the timeout's resources.
 func (s *Service) operationContext(caller context.Context, timeout time.Duration) (context.Context, func()) {
 	ctx, cancel := context.WithTimeout(caller, timeout)
 	stop := context.AfterFunc(s.ctx, cancel)
@@ -17,72 +15,71 @@ func (s *Service) operationContext(caller context.Context, timeout time.Duration
 }
 
 func (s *Service) savedDevice(id string) (domain.Device, error) {
+	s.retryFirmwareResults()
 	s.inventoryMu.RLock()
 	defer s.inventoryMu.RUnlock()
 	return s.store.Device(id)
 }
 
-// RefreshDevice reads status without creating snapshots or selecting a baseline.
-func (s *Service) RefreshDevice(caller context.Context, id string) (domain.RefreshResult, error) {
-	if err := s.startJob(); err != nil {
-		return domain.RefreshResult{}, err
-	}
-	defer s.jobs.Done()
-	ctx, cancel := s.operationContext(caller, 12*time.Second)
-	defer cancel()
-	device, err := s.savedDevice(id)
+// currentRead checks that a read still applies while the caller holds inventoryMu.
+func (s *Service) currentRead(before domain.Device) (domain.Device, error) {
+	latest, err := s.store.Device(before.ID)
 	if err != nil {
-		return domain.RefreshResult{}, err
+		return domain.Device{}, err
 	}
-	if device.FirmwareUpdate.Active() {
-		return domain.RefreshResult{}, domain.ErrFirmwareBusy
+	if firmwareChanged(before, latest) {
+		return domain.Device{}, domain.ErrFirmwareBusy
 	}
-	reading, err := s.client.Read(ctx, device.Address, device.MAC, false)
-	s.inventoryMu.Lock()
-	defer s.inventoryMu.Unlock()
-	if err := cancellation(ctx, caller, s.ctx); err != nil {
-		return domain.RefreshResult{}, err
+	if deviceMoved(before, latest) {
+		return domain.Device{}, domain.ErrDeviceMoved
 	}
-	latest, lookupErr := s.store.Device(id)
-	if lookupErr == nil && firmwareChanged(device, latest) {
-		return domain.RefreshResult{}, domain.ErrFirmwareBusy
-	}
-	if err != nil {
-		if saveErr := s.store.Failed(id, "Status could not be read. Check device identity and connectivity.", errors.Is(err, domain.ErrIdentity)); saveErr != nil {
-			return domain.RefreshResult{}, saveErr
-		}
-		return domain.RefreshResult{}, errors.Join(domain.ErrDeviceRead, err)
-	}
-	// Recheck the saved configuration under the publication lock: a concurrent
-	// capture may have recovered it while this status request was in flight.
-	device, err = s.store.Device(id)
-	if err != nil {
-		return domain.RefreshResult{}, err
-	}
-	// A status-only refresh retains an unavailable-configuration warning.
-	if !device.ConfigAvailable && reading.Problem == "" {
-		reading.Problem = "Configuration is unavailable. Capture config to retry."
-	}
-	if _, err := s.store.SaveReading(reading, false); err != nil {
-		return domain.RefreshResult{}, err
-	}
-	return domain.RefreshResult{StatusAvailable: reading.Status != nil}, nil
+	return latest, nil
+}
+
+func deviceMoved(before, after domain.Device) bool {
+	return before.Address != after.Address || before.MAC != after.MAC
+}
+
+type deviceRead uint8
+
+const (
+	readStatus deviceRead = iota
+	captureConfig
+	approveConfig
+	checkFirmware
+)
+
+func (s *Service) RefreshDevice(caller context.Context, id string) (bool, error) {
+	device, err := s.readAndSave(caller, id, readStatus)
+	return err == nil && device.StatusAvailable, err
 }
 
 func (s *Service) Capture(caller context.Context, id string) (domain.Device, error) {
-	return s.configuration(caller, id, false)
+	return s.readAndSave(caller, id, captureConfig)
 }
 
 func (s *Service) ApproveBaseline(caller context.Context, id string) (domain.Device, error) {
-	return s.configuration(caller, id, true)
+	return s.readAndSave(caller, id, approveConfig)
 }
 
-func (s *Service) configuration(caller context.Context, id string, approve bool) (domain.Device, error) {
+func (s *Service) CheckFirmware(caller context.Context, id string) (domain.Device, error) {
+	return s.readAndSave(caller, id, checkFirmware)
+}
+
+func (s *Service) readAndSave(caller context.Context, id string, mode deviceRead) (domain.Device, error) {
 	if err := s.startJob(); err != nil {
 		return domain.Device{}, err
 	}
 	defer s.jobs.Done()
-	ctx, cancel := s.operationContext(caller, 20*time.Second)
+
+	timeout, problem := 20*time.Second, "Configuration could not be captured. Check device identity and connectivity."
+	switch mode {
+	case readStatus:
+		timeout, problem = 12*time.Second, "Status could not be read. Check device identity and connectivity."
+	case checkFirmware:
+		timeout, problem = 40*time.Second, "Firmware check could not reach the saved device. Check device identity and connectivity."
+	}
+	ctx, cancel := s.operationContext(caller, timeout)
 	defer cancel()
 	device, err := s.savedDevice(id)
 	if err != nil {
@@ -91,38 +88,47 @@ func (s *Service) configuration(caller context.Context, id string, approve bool)
 	if device.FirmwareUpdate.Active() {
 		return domain.Device{}, domain.ErrFirmwareBusy
 	}
-	reading, err := s.client.Read(ctx, device.Address, device.MAC, true)
+
+	var reading domain.Reading
+	if mode == checkFirmware {
+		reading, err = s.client.CheckForUpdate(ctx, device.Address, device.MAC)
+	} else {
+		reading, err = s.client.Read(ctx, device.Address, device.MAC, mode != readStatus)
+	}
+
 	s.inventoryMu.Lock()
 	defer s.inventoryMu.Unlock()
 	if err := cancellation(ctx, caller, s.ctx); err != nil {
 		return domain.Device{}, err
 	}
-	latest, lookupErr := s.store.Device(id)
-	if lookupErr == nil && firmwareChanged(device, latest) {
-		return domain.Device{}, domain.ErrFirmwareBusy
+	latest, lookupErr := s.currentRead(device)
+	if lookupErr != nil {
+		return domain.Device{}, lookupErr
 	}
 	if err != nil {
-		if saveErr := s.store.Failed(id, "Configuration could not be captured. Check device identity and connectivity.", errors.Is(err, domain.ErrIdentity)); saveErr != nil {
+		if saveErr := s.store.Failed(id, problem, errors.Is(err, domain.ErrIdentity)); saveErr != nil {
 			return domain.Device{}, saveErr
 		}
 		return domain.Device{}, errors.Join(domain.ErrDeviceRead, err)
 	}
-	if reading.Config == nil {
-		// Identity/status can still be valid when the configuration request fails.
-		// Save those observations without adding a snapshot or changing baseline.
+
+	if mode == readStatus && !latest.ConfigAvailable && reading.Problem == "" {
+		reading.Problem = "Configuration is unavailable. Capture config to retry."
+	}
+	if (mode == captureConfig || mode == approveConfig) && reading.Config == nil {
 		if _, err := s.store.SaveReading(reading, false); err != nil {
 			return domain.Device{}, err
 		}
 		return domain.Device{}, domain.ErrConfigUnavailable
 	}
-	if approve {
+	if mode == approveConfig {
 		device, err := s.store.ApproveReading(reading)
 		if err != nil {
 			return domain.Device{}, errors.Join(domain.ErrBaselineSave, err)
 		}
 		return device, nil
 	}
-	return s.store.SaveReading(reading, true)
+	return s.store.SaveReading(reading, mode == captureConfig)
 }
 
 // Cancellation by the caller or shutdown does not report a device outage. A

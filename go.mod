@@ -8,7 +8,6 @@ require (
 	github.com/hashicorp/mdns v1.0.7
 	github.com/icholy/digest v1.2.0
 	github.com/joho/godotenv v1.5.1
-	github.com/miekg/dns v1.1.73
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/pocketbase v0.40.6
 	github.com/spf13/cobra v1.10.2
@@ -40,6 +39,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/miekg/dns v1.1.73 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect

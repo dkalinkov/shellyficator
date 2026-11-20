@@ -12,8 +12,7 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// Repository supplies persistence operations in application types. Capture and
-// approval are atomic repository operations, including their snapshot writes.
+// Capture and approval each persist the reading and its snapshot atomically.
 type Repository interface {
 	Devices() ([]domain.Device, error)
 	Device(string) (domain.Device, error)
@@ -44,7 +43,6 @@ type DiscoverySource interface {
 	Announcements(context.Context) ([]string, error)
 	Neighbors(context.Context) ([]string, error)
 	Targets(string) ([]string, error)
-	Addresses([]string) []string
 	LocalNetworks() ([]domain.Network, error)
 	Explain(error) string
 	Reachable(context.Context, string) bool
@@ -58,27 +56,23 @@ type Options struct {
 }
 
 type Service struct {
-	store         Repository
-	client        Client
-	source        DiscoverySource
-	logger        *slog.Logger
-	announcements func(context.Context) ([]string, error)
-	neighbors     func(context.Context) ([]string, error)
-	ctx           context.Context
-	cancel        context.CancelFunc
-	jobs          sync.WaitGroup
-	mu            sync.Mutex
-	inventoryMu   sync.RWMutex
-	closed        bool
+	store       Repository
+	client      Client
+	source      DiscoverySource
+	logger      *slog.Logger
+	ctx         context.Context
+	cancel      context.CancelFunc
+	jobs        sync.WaitGroup
+	mu          sync.Mutex
+	inventoryMu sync.RWMutex
 
-	discovery                                      domain.Discovery
-	refreshing                                     bool
-	lastRefresh                                    time.Time
-	refreshDone                                    chan struct{}
-	refreshForced                                  bool
-	forcePending                                   bool
-	firmwareRunning                                bool
-	firmwarePoll, firmwareSettle, firmwareDeadline time.Duration
+	discovery              domain.Discovery
+	lastRefresh            time.Time
+	refreshDone            chan struct{}
+	refreshForced          bool
+	forcePending           bool
+	firmwareRunning        bool
+	pendingFirmwareResults map[string]domain.FirmwareUpdate // guarded by inventoryMu
 }
 
 func New(store Repository, client Client, options Options) *Service {
@@ -88,32 +82,46 @@ func New(store Repository, client Client, options Options) *Service {
 		logger = slog.Default()
 	}
 	s := &Service{store: store, client: client, source: options.Discovery, logger: logger, ctx: ctx, cancel: cancel}
-	s.firmwarePoll, s.firmwareSettle, s.firmwareDeadline = 5*time.Second, 120*time.Second, 12*time.Minute
 	s.recoverFirmwareUpdates()
-	if s.source != nil {
-		s.announcements, s.neighbors = s.source.Announcements, s.source.Neighbors
-	}
 	return s
 }
 
-// startJob registers work under the same mutex that closes admission during
-// shutdown, so Wait can never race a new Add after closure.
+// Share the shutdown lock so jobs.Add cannot race Close's Wait.
 func (s *Service) startJob() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.ctx.Err() != nil {
 		return domain.ErrClosed
 	}
 	s.jobs.Add(1)
 	return nil
 }
 
-// Inventory reads devices and related data from one completed polling pass.
+func (s *Service) ListDevices() ([]domain.Device, error) {
+	if err := s.startJob(); err != nil {
+		return nil, err
+	}
+	defer s.jobs.Done()
+	s.retryFirmwareResults()
+	s.inventoryMu.RLock()
+	defer s.inventoryMu.RUnlock()
+	return s.store.Devices()
+}
+
+func (s *Service) Device(id string) (domain.Device, error) {
+	if err := s.startJob(); err != nil {
+		return domain.Device{}, err
+	}
+	defer s.jobs.Done()
+	return s.savedDevice(id)
+}
+
 func (s *Service) Inventory() ([]domain.InventoryEntry, error) {
 	if err := s.startJob(); err != nil {
 		return nil, err
 	}
 	defer s.jobs.Done()
+	s.retryFirmwareResults()
 	s.inventoryMu.RLock()
 	defer s.inventoryMu.RUnlock()
 	devices, err := s.store.Devices()
@@ -148,6 +156,7 @@ func (s *Service) Detail(id string) (domain.DeviceDetails, error) {
 		return domain.DeviceDetails{}, err
 	}
 	defer s.jobs.Done()
+	s.retryFirmwareResults()
 	s.inventoryMu.RLock()
 	defer s.inventoryMu.RUnlock()
 	device, err := s.store.Device(id)
@@ -200,14 +209,19 @@ func (s *Service) ForgetNetwork(prefix string) error {
 	return s.change(func() error { return s.store.ForgetNetwork(prefix) })
 }
 
-func (s *Service) OrganizationOptions() (domain.OrganizationOptions, error) {
+func (s *Service) DeviceOrganization(id string) (domain.Device, domain.OrganizationOptions, error) {
 	if err := s.startJob(); err != nil {
-		return domain.OrganizationOptions{}, err
+		return domain.Device{}, domain.OrganizationOptions{}, err
 	}
 	defer s.jobs.Done()
 	s.inventoryMu.RLock()
 	defer s.inventoryMu.RUnlock()
-	return s.store.OrganizationOptions()
+	device, err := s.store.Device(id)
+	if err != nil {
+		return domain.Device{}, domain.OrganizationOptions{}, err
+	}
+	options, err := s.store.OrganizationOptions()
+	return device, options, err
 }
 
 func (s *Service) Metadata(id, room, tags, notes string) error {
@@ -238,7 +252,6 @@ func (s *Service) change(apply func() error) error {
 // Close cancels device work and drains it before the caller tears down storage.
 func (s *Service) Close() {
 	s.mu.Lock()
-	s.closed = true
 	s.cancel()
 	s.mu.Unlock()
 	s.jobs.Wait()

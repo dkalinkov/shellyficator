@@ -36,14 +36,14 @@ func (s *Server) settingsPage(e *core.RequestEvent) error {
 	id := e.Request.URL.Query().Get("device")
 	page := settingsPage{PageMeta: s.pageMeta(e, "Settings"), DeviceID: id}
 	if id != "" {
-		details, err := s.devices.Detail(id)
+		device, err := s.devices.Device(id)
 		if errors.Is(err, domain.ErrNotFound) {
 			return e.NotFoundError("Device not found", nil)
 		}
 		if err != nil {
 			return err
 		}
-		page.DeviceName = deviceName(details.Device)
+		page.DeviceName = deviceName(device)
 		_, overridden := preferences[id]
 		page.Inherit = !overridden
 	}

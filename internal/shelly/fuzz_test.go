@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Run one target with: go test ./internal/shelly -run=^$ -fuzz=^FuzzTargets$
-
 func FuzzTargets(f *testing.F) {
 	for _, seed := range []string{
 		"192.168.1.0/24", "192.168.1.20/30", "10.0.0.7/32", "172.16.4.0/23",
@@ -19,25 +17,22 @@ func FuzzTargets(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, value string) {
-		addresses, err := Targets(value)
+		addresses, err := (NetworkDiscovery{}).Targets(value)
 		if err != nil {
 			return
 		}
 		if len(addresses) == 0 || len(addresses) > 256 {
 			t.Fatalf("Targets(%q) returned %d addresses", value, len(addresses))
 		}
-		if !strings.Contains(value, "/") || strings.Contains(value, "://") {
-			// A single address must stay a normalized credential-free origin.
-			again, err := NormalizeAddress(addresses[0])
-			if err != nil || again != addresses[0] {
-				t.Fatalf("NormalizeAddress(%q) = %q, %v; want it unchanged", addresses[0], again, err)
-			}
-			if u, _ := url.Parse(addresses[0]); u.User != nil {
-				t.Fatalf("Targets(%q) kept credentials: %q", value, addresses[0])
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
+		if err != nil {
+			u, err := url.Parse(addresses[0])
+			if len(addresses) != 1 || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+				t.Fatalf("Targets(%q) returned invalid device origins: %q", value, addresses)
 			}
 			return
 		}
-		prefix := netip.MustParsePrefix(strings.TrimSpace(value)).Masked()
+		prefix = prefix.Masked()
 		for _, address := range addresses {
 			ip, err := netip.ParseAddr(strings.TrimPrefix(address, "http://"))
 			if err != nil || !strings.HasPrefix(address, "http://") || !ip.Is4() || !ip.IsPrivate() || !prefix.Contains(ip) {

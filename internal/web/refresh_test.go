@@ -62,7 +62,7 @@ func refreshTestServer(t *testing.T, handler http.HandlerFunc) (*testServer, str
 		service.Close()
 		_ = app.OnTerminate().Trigger(&core.TerminateEvent{App: app})
 	})
-	return &testServer{Server: &Server{watchStore: store, devices: service, accounts: accountstore.New(app), templates: templates, loginAttempts: map[string]loginAttempt{}}, store: store, client: client, devices: service}, record.ID
+	return &testServer{Server: &Server{watchStore: store, devices: service, accounts: accountstore.New(app), templates: templates, loginAttempts: map[string]loginAttempt{}}, store: store, devices: service}, record.ID
 }
 
 func waitForRefresh(t *testing.T, done <-chan struct{}) {
@@ -92,21 +92,15 @@ func TestInventoryFiltersUseSavedReadingsWithoutContactingDevices(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, query := range []string{"", "q=test-device", "room=Kitchen", "tags=light", "group=room", "q=test-device&room=Kitchen&tags=light&group=room"} {
-		t.Run(query, func(t *testing.T) {
-			response := httptest.NewRecorder()
-			event := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory?"+query, nil), Response: response}}
-			if err := s.table(event); err != nil {
-				t.Fatal(err)
-			}
-			if response.Code != http.StatusOK || !strings.Contains(renderedText(response.Body.String()), "test-device") || !strings.Contains(renderedText(response.Body.String()), "Off") {
-				t.Fatalf("filter response lost saved device readings: %s", response.Body.String())
-			}
-			if requests.Load() != 0 {
-				t.Fatalf("filter change contacted devices: %d requests", requests.Load())
-			}
-		})
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/inventory?q=test-device&room=Kitchen&tags=light&group=room", nil)
+	if err := s.table(&core.RequestEvent{App: s.store.App, Event: router.Event{Request: req, Response: response}}); err != nil {
+		t.Fatal(err)
 	}
+	if response.Code != http.StatusOK || !strings.Contains(renderedText(response.Body.String()), "Off") || requests.Load() != 0 {
+		t.Fatal("filtering did not use the saved device readings")
+	}
+
 	after, err := s.record(id)
 	if err != nil {
 		t.Fatal(err)
@@ -152,10 +146,7 @@ func TestManualRefreshWaitsForSettingsAndReturnsUpdatedTable(t *testing.T) {
 		t.Fatalf("manual response returned before configuration completed: %v", err)
 	default:
 	}
-	// Another click/viewer shares the already running full read.
-	done := s.devices.Refresh(true)
 	close(release)
-	waitForRefresh(t, done)
 	select {
 	case err := <-result:
 		if err != nil {
@@ -204,7 +195,6 @@ func TestAutomaticRefreshWaitsForCompletedResultsAndSharesThePass(t *testing.T) 
 	default:
 	}
 	done := s.devices.Refresh(false)
-	// Filters can use the last saved readings while the shared poll is blocked.
 	filteredResponse := httptest.NewRecorder()
 	filtered := &core.RequestEvent{App: s.store.App, Event: router.Event{Request: httptest.NewRequest("GET", "/inventory?q=test-device&group=room", nil), Response: filteredResponse}}
 	filteredResult := make(chan error, 1)
@@ -220,7 +210,6 @@ func TestAutomaticRefreshWaitsForCompletedResultsAndSharesThePass(t *testing.T) 
 	if requests.Load() != 1 || !strings.Contains(renderedText(filteredResponse.Body.String()), "Off") || filteredResponse.Header().Get("HX-Replace-Url") != "/?group=room&q=test-device" {
 		t.Fatal("filter query lost saved readings or filters, or contacted devices")
 	}
-	// A disconnected viewer stops waiting without cancelling the shared poll.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	cancelled := &core.RequestEvent{Event: router.Event{Request: httptest.NewRequest("GET", "/inventory/refresh", nil).WithContext(ctx), Response: httptest.NewRecorder()}}

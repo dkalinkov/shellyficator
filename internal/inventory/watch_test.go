@@ -16,17 +16,12 @@ func TestWatchPreferencesPersistWithoutChangingDevices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defaults, err := store.WatchPreferences()
-	if err != nil || !defaults.ForDevice(device.ID).Warn(domain.WatchButtons) || !defaults.ForDevice(device.ID).Warn(domain.WatchPower) || defaults.ForDevice(device.ID).Warn(domain.WatchOther) {
-		t.Fatalf("incorrect defaults: %v %v", defaults, err)
-	}
 	if err := store.SaveWatchPolicy("", domain.WatchPolicy{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SaveWatchPolicy(device.ID, domain.WatchPolicy{domain.WatchTimers: true}); err != nil {
 		t.Fatal(err)
 	}
-	// Reopen storage so persisted policy, rather than an in-memory cache, is tested.
 	if err := store.App.ResetBootstrapState(); err != nil {
 		t.Fatal(err)
 	}

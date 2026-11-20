@@ -5,8 +5,6 @@ import (
 	"shellyficator/internal/domain"
 )
 
-// SaveFirmwareUpdates admits a whole batch atomically. Later progress writes use
-// the same operation with one device, preserving settings and baseline selection.
 func (s *Store) SaveFirmwareUpdates(updates map[string]domain.FirmwareUpdate) error {
 	return s.App.RunInTransaction(func(app core.App) error {
 		for id, update := range updates {
