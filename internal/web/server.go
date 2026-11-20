@@ -39,9 +39,9 @@ type Devices interface {
 type Accounts interface {
 	NeedsSetup() (bool, error)
 	Setup(string, string) error
-	Authenticate(string, string) (domain.Session, error)
-	AuthenticateIdentity(domain.ExternalIdentity) (domain.Session, error)
-	ValidateSession(string) (domain.Operator, error)
+	Authenticate(string, string) (string, error)
+	AuthenticateIdentity(domain.ExternalIdentity) (string, error)
+	ValidateSession(string) (operatorID string, err error)
 }
 
 type OIDC interface {

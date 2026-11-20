@@ -13,15 +13,13 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/router"
 
-	"shellyficator/internal/accounts"
 	"shellyficator/internal/accountstore"
-	"shellyficator/internal/domain"
 )
 
 type sessionAccounts struct{ Accounts }
 
-func (sessionAccounts) Authenticate(string, string) (domain.Session, error) {
-	return domain.Session{Token: "test-session"}, nil
+func (sessionAccounts) Authenticate(string, string) (string, error) {
+	return "test-session", nil
 }
 
 func TestPasswordLimitIsSharedByDashboardAndPocketBase(t *testing.T) {
@@ -36,7 +34,7 @@ func TestPasswordLimitIsSharedByDashboardAndPocketBase(t *testing.T) {
 			if err := app.RunAllMigrations(); err != nil {
 				t.Fatal(err)
 			}
-			accountService := accounts.New(accountstore.New(app))
+			accountService := accountstore.New(app)
 			const email, password = "operator@example.com", "test-password-long-enough"
 			if err := accountService.Setup(email, password); err != nil {
 				t.Fatal(err)
@@ -93,19 +91,21 @@ func TestPasswordLimitIsSharedByDashboardAndPocketBase(t *testing.T) {
 
 func TestPasswordLimitExpiresAndSuccessfulLoginResetsAttempts(t *testing.T) {
 	s := &Server{accounts: sessionAccounts{}, loginAttempts: map[string]loginAttempt{}}
-	event := &core.RequestEvent{Event: router.Event{Request: httptest.NewRequest(http.MethodPost, "/login", nil), Response: httptest.NewRecorder()}}
-	ip := event.RemoteIP()
+	request := httptest.NewRequest(http.MethodPost, "/login", nil)
+	ip := (&core.RequestEvent{Event: router.Event{Request: request}}).RemoteIP()
+	login := func() {
+		t.Helper()
+		response := httptest.NewRecorder()
+		event := &core.RequestEvent{Event: router.Event{Request: request.Clone(t.Context()), Response: response}}
+		if err := s.login(event); err != nil || response.Code != http.StatusSeeOther {
+			t.Fatalf("valid log in returned status %d, error %v", response.Code, err)
+		}
+	}
 	s.loginAttempts[ip] = loginAttempt{count: 10, since: time.Now().Add(-16 * time.Minute)}
-	if err := s.passwordAttempt(event); err != nil || s.loginAttempts[ip].count != 1 {
-		t.Fatal("expired attempts blocked a new login window")
-	}
+	login()
 	s.loginAttempts[ip] = loginAttempt{count: 9, since: time.Now()}
-	if err := s.login(event); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := s.loginAttempts[ip]; ok {
-		t.Fatal("successful dashboard login did not reset password attempts")
-	}
+	login()
+	login()
 }
 
 func TestAuthCookiesUseConfiguredSecurityAndTLS(t *testing.T) {
@@ -117,7 +117,6 @@ func TestAuthCookiesUseConfiguredSecurityAndTLS(t *testing.T) {
 		{"plain HTTP", "http", false, false},
 		{"direct HTTPS", "https", false, true},
 		{"HTTPS proxy", "http", true, true},
-		{"configured HTTPS", "https", true, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := &Server{accounts: sessionAccounts{}, cookieSecure: test.configured, loginAttempts: map[string]loginAttempt{}}

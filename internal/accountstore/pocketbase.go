@@ -3,6 +3,7 @@ package accountstore
 import (
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -18,6 +19,14 @@ func (s *Store) NeedsSetup() (bool, error) {
 	return count == 0, err
 }
 
+func setupEmail(email, password string) (string, error) {
+	email = strings.TrimSpace(email)
+	if email == "" || len(password) < 12 {
+		return "", errors.New("provide an email and a password with at least 12 characters")
+	}
+	return email, nil
+}
+
 func createVerified(app core.App, collectionName, email, password string) error {
 	collection, err := app.FindCollectionByNameOrId(collectionName)
 	if err != nil {
@@ -31,6 +40,10 @@ func createVerified(app core.App, collectionName, email, password string) error 
 }
 
 func (s *Store) Setup(email, password string) error {
+	email, err := setupEmail(email, password)
+	if err != nil {
+		return err
+	}
 	return s.app.RunInTransaction(func(app core.App) error {
 		count, err := app.CountRecords("operators")
 		if err != nil {
@@ -63,6 +76,10 @@ func (s *Store) Setup(email, password string) error {
 }
 
 func (s *Store) Bootstrap(email, password string) error {
+	email, err := setupEmail(email, password)
+	if err != nil {
+		return err
+	}
 	return s.app.RunInTransaction(func(app core.App) error {
 		for _, name := range []string{"operators", core.CollectionNameSuperusers} {
 			if _, err := app.FindAuthRecordByEmail(name, email); err == nil {
@@ -78,42 +95,38 @@ func (s *Store) Bootstrap(email, password string) error {
 	})
 }
 
-func (s *Store) Authenticate(email, password string) (domain.Session, error) {
-	record, err := s.app.FindAuthRecordByEmail("operators", email)
+func (s *Store) Authenticate(email, password string) (string, error) {
+	record, err := s.app.FindAuthRecordByEmail("operators", strings.TrimSpace(email))
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Session{}, domain.ErrInvalidCredentials
+		return "", domain.ErrInvalidCredentials
 	}
 	if err != nil {
-		return domain.Session{}, err
+		return "", err
 	}
 	if !record.Collection().PasswordAuth.Enabled || !record.ValidatePassword(password) {
-		return domain.Session{}, domain.ErrInvalidCredentials
+		return "", domain.ErrInvalidCredentials
 	}
-	return newSession(record)
+	return newSessionToken(record)
 }
 
-func newSession(record *core.Record) (domain.Session, error) {
+func newSessionToken(record *core.Record) (string, error) {
 	collection := record.Collection()
-	// The dashboard has no PocketBase MFA flow or HTTP request-rule context.
-	// Refuse unsupported policies instead of minting a token that bypasses them.
+	// Custom auth rules and MFA require PocketBase's native sign-in flow.
 	if collection.MFA.Enabled || collection.AuthRule == nil || *collection.AuthRule != "" {
-		return domain.Session{}, domain.ErrInvalidCredentials
+		return "", domain.ErrInvalidCredentials
 	}
-	token, err := record.NewAuthToken()
-	if err != nil {
-		return domain.Session{}, err
-	}
-	return domain.Session{Operator: domain.Operator{ID: record.Id, Email: record.Email()}, Token: token}, nil
+	return record.NewAuthToken()
 }
 
 // AuthenticateIdentity links only an existing verified operator. Once linked,
 // issuer and subject are authoritative, including after an email address change.
 // It never provisions an operator or grants access to the superuser collection.
-func (s *Store) AuthenticateIdentity(identity domain.ExternalIdentity) (domain.Session, error) {
+func (s *Store) AuthenticateIdentity(identity domain.ExternalIdentity) (string, error) {
+	identity.Email = strings.TrimSpace(identity.Email)
 	if identity.Issuer == "" || identity.Subject == "" || identity.Email == "" || !identity.EmailVerified {
-		return domain.Session{}, domain.ErrInvalidCredentials
+		return "", domain.ErrInvalidCredentials
 	}
-	var session domain.Session
+	var token string
 	err := s.app.RunInTransaction(func(app core.App) error {
 		record, err := app.FindFirstRecordByFilter("operators", "oidc_issuer = {:issuer} && oidc_subject = {:subject}", dbx.Params{"issuer": identity.Issuer, "subject": identity.Subject})
 		if errors.Is(err, sql.ErrNoRows) {
@@ -135,16 +148,16 @@ func (s *Store) AuthenticateIdentity(identity domain.ExternalIdentity) (domain.S
 		} else if err != nil {
 			return err
 		}
-		session, err = newSession(record)
+		token, err = newSessionToken(record)
 		return err
 	})
-	return session, err
+	return token, err
 }
 
-func (s *Store) ValidateSession(token string) (domain.Operator, error) {
+func (s *Store) ValidateSession(token string) (operatorID string, err error) {
 	record, err := s.app.FindAuthRecordByToken(token, core.TokenTypeAuth)
 	if err != nil || record.Collection().Name != "operators" {
-		return domain.Operator{}, domain.ErrInvalidCredentials
+		return "", domain.ErrInvalidCredentials
 	}
-	return domain.Operator{ID: record.Id, Email: record.Email()}, nil
+	return record.Id, nil
 }

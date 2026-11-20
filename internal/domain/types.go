@@ -122,15 +122,8 @@ type Difference struct {
 	Before, After SettingValue
 }
 
-type Operator struct{ ID, Email string }
-
 // ExternalIdentity is supplied only after validating the provider's OIDC response.
 type ExternalIdentity struct {
 	Issuer, Subject, Email string
 	EmailVerified          bool
-}
-
-type Session struct {
-	Operator Operator
-	Token    string
 }

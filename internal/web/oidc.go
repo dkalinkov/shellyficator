@@ -78,10 +78,10 @@ func (s *Server) oidcCallback(e *core.RequestEvent) error {
 	if err != nil {
 		return fail()
 	}
-	session, err := s.accounts.AuthenticateIdentity(identity)
+	token, err := s.accounts.AuthenticateIdentity(identity)
 	if err != nil {
 		return fail()
 	}
-	s.setSession(e, session.Token)
+	s.setSession(e, token)
 	return s.redirect(e, "/", "")
 }

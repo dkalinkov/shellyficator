@@ -7,11 +7,9 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/spf13/cobra"
 
-	"shellyficator/internal/accounts"
 	"shellyficator/internal/accountstore"
 )
 
-// BuildInfo is supplied by the executable, which owns embedded and linker values.
 type BuildInfo struct {
 	Version   string
 	Commit    string
@@ -48,7 +46,7 @@ func registerCommands(app *pocketbase.PocketBase, config Config, build BuildInfo
 			if err := app.RunAllMigrations(); err != nil {
 				return err
 			}
-			return accounts.New(accountstore.New(app)).Bootstrap(config.AdminEmail, config.AdminPassword)
+			return accountstore.New(app).Bootstrap(config.AdminEmail, config.AdminPassword)
 		},
 	})
 }
